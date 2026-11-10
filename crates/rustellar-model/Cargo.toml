@@ -1,0 +1,11 @@
+[package]
+name = "rustellar-model"
+description = "Analytic transit light-curve model (Mandel & Agol, quadratic limb darkening) in pure Rust"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "exoplanet", "transit", "light-curve"]
+categories = ["science", "algorithms"]
+
+[dependencies]

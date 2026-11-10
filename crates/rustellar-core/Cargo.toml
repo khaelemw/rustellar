@@ -1,0 +1,11 @@
+[package]
+name = "rustellar-core"
+description = "Light-curve container and shared types for the rustellar astronomy time-series toolkit"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "light-curve", "time-series"]
+categories = ["science", "algorithms"]
+
+[dependencies]
