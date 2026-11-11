@@ -9,3 +9,7 @@ keywords = ["astronomy", "exoplanet", "transit", "light-curve"]
 categories = ["science", "algorithms"]
 
 [dependencies]
+rustellar-core = { path = "../rustellar-core" }
+
+[dev-dependencies]
+rstest = "0.28.0"

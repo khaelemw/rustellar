@@ -196,6 +196,10 @@ dependencies = [
 [[package]]
 name = "rustellar-model"
 version = "0.0.0"
+dependencies = [
+ "rstest",
+ "rustellar-core",
+]
 
 [[package]]
 name = "semver"
