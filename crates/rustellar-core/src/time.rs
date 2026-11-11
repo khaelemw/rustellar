@@ -1,3 +1,5 @@
+use std::ops::{Add, Div, Neg, Sub};
+
 use crate::TimeError;
 
 const BTJD_OFFSET: f64 = 2_457_000.0;
@@ -56,6 +58,42 @@ impl Duration {
     /// The duration in hours.
     pub fn as_hours(self) -> f64 {
         self.days * HOURS_PER_DAY
+    }
+}
+
+impl Add for Duration {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            days: self.days + rhs.days,
+        }
+    }
+}
+
+impl Sub for Duration {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self {
+            days: self.days - rhs.days,
+        }
+    }
+}
+
+impl Div for Duration {
+    type Output = f64;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        self.days / rhs.days
+    }
+}
+
+impl Neg for Duration {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self { days: -self.days }
     }
 }
 
@@ -118,5 +156,35 @@ impl Epoch {
     /// The epoch as BJD_TDB.
     pub fn as_bjd(self) -> f64 {
         self.btjd + BTJD_OFFSET
+    }
+}
+
+impl Sub for Epoch {
+    type Output = Duration;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Duration {
+            days: self.btjd - rhs.btjd,
+        }
+    }
+}
+
+impl Add<Duration> for Epoch {
+    type Output = Self;
+
+    fn add(self, rhs: Duration) -> Self::Output {
+        Self {
+            btjd: self.btjd + rhs.days,
+        }
+    }
+}
+
+impl Sub<Duration> for Epoch {
+    type Output = Self;
+
+    fn sub(self, rhs: Duration) -> Self::Output {
+        Self {
+            btjd: self.btjd - rhs.days,
+        }
     }
 }
