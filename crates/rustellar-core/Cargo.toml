@@ -9,3 +9,6 @@ keywords = ["astronomy", "light-curve", "time-series"]
 categories = ["science", "algorithms"]
 
 [dependencies]
+
+[dev-dependencies]
+rstest = "0.28.0"
