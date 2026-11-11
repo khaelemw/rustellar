@@ -18,15 +18,14 @@ use rustellar_core::{LightCurveError, TimeError};
 )]
 #[case::invalid_period(
     LightCurveError::InvalidPeriod,
-    "fold period must be finite and greater than zero"
+    "fold period must be greater than zero"
 )]
-#[case::invalid_t0(LightCurveError::InvalidT0, "fold reference time t0 must be finite")]
 fn lightcurve_error_display_message(#[case] error: LightCurveError, #[case] expected: &str) {
     assert_eq!(error.to_string(), expected);
 }
 
 #[rstest]
-#[case::empty(TimeError::NonFinite, "time value must be finite")]
+#[case::non_finite(TimeError::NonFinite, "time value must be finite")]
 fn time_error_display_message(#[case] error: TimeError, #[case] expected: &str) {
     assert_eq!(error.to_string(), expected);
 }

@@ -1,5 +1,5 @@
 use rstest::rstest;
-use rustellar_core::{LightCurve, LightCurveError};
+use rustellar_core::{Duration, Epoch, LightCurve, LightCurveError};
 
 // ==========================
 // Helper Functions
@@ -17,9 +17,17 @@ fn empty() -> Vec<f64> {
     vec![]
 }
 
+fn days(x: f64) -> Duration {
+    Duration::from_days(x).unwrap()
+}
+
+fn btjd(x: f64) -> Epoch {
+    Epoch::from_btjd(x).unwrap()
+}
+
 fn lc_from_times(time: Vec<f64>) -> LightCurve {
     let len = time.len();
-    LightCurve::new(time, vec![1.0; len], vec![0.1; len]).unwrap()
+    LightCurve::from_btjd(time, vec![1.0; len], vec![0.1; len]).unwrap()
 }
 
 fn assert_close(actual: &[f64], expected: &[f64], tol: f64) {
@@ -47,15 +55,32 @@ fn assert_close(actual: &[f64], expected: &[f64], tol: f64) {
 #[case::negative_flux(ok(), with(-0.5), ok())]
 #[case::tiny_error(ok(), ok(), with(f64::MIN_POSITIVE))]
 #[case::huge_values(ok(), with(1e300), with(1e300))]
-fn new_accepts_valid_input(
+fn from_btjd_accepts_valid_input(
     #[case] time: Vec<f64>,
     #[case] flux: Vec<f64>,
     #[case] flux_err: Vec<f64>,
 ) {
-    let lc = LightCurve::new(time.clone(), flux.clone(), flux_err.clone()).unwrap();
-    assert_eq!(lc.time(), time);
+    let lc = LightCurve::from_btjd(time.clone(), flux.clone(), flux_err.clone()).unwrap();
+    let time_back: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+    assert_eq!(time_back, time);
     assert_eq!(lc.flux(), flux);
     assert_eq!(lc.flux_err(), flux_err)
+}
+
+#[test]
+fn new_accepts_epochs() {
+    let time = vec![btjd(1.0), btjd(2.0), btjd(3.0)];
+    let lc = LightCurve::new(time.clone(), ok(), ok()).unwrap();
+    assert_eq!(lc.time(), time);
+}
+
+#[test]
+fn from_btjd_matches_new() {
+    let time = vec![btjd(1.0), btjd(2.0), btjd(3.0)];
+    assert_eq!(
+        LightCurve::from_btjd(ok(), ok(), ok()),
+        LightCurve::new(time, ok(), ok())
+    );
 }
 
 #[test]
@@ -79,7 +104,7 @@ fn new_returns_length_mismatch_error(
     #[case] flux_err: Vec<f64>,
 ) {
     assert_eq!(
-        LightCurve::new(time, flux, flux_err),
+        LightCurve::from_btjd(time, flux, flux_err),
         Err(LightCurveError::LengthMismatch)
     );
 }
@@ -100,7 +125,17 @@ fn new_returns_non_finite_error(
     #[case] flux_err: Vec<f64>,
 ) {
     assert_eq!(
-        LightCurve::new(time, flux, flux_err),
+        LightCurve::from_btjd(time, flux, flux_err),
+        Err(LightCurveError::NonFinite)
+    );
+}
+
+#[test]
+fn from_btjd_checks_time_before_lengths() {
+    // A NaN time is reported even though the lengths also differ, as the docs
+    // on `from_btjd` say.
+    assert_eq!(
+        LightCurve::from_btjd(vec![f64::NAN], ok(), ok()),
         Err(LightCurveError::NonFinite)
     );
 }
@@ -114,7 +149,7 @@ fn new_returns_non_positive_error(
     #[case] flux_err: Vec<f64>,
 ) {
     assert_eq!(
-        LightCurve::new(time, flux, flux_err),
+        LightCurve::from_btjd(time, flux, flux_err),
         Err(LightCurveError::NonPositiveError)
     );
 }
@@ -128,7 +163,7 @@ fn new_returns_not_sorted_error(
     #[case] flux_err: Vec<f64>,
 ) {
     assert_eq!(
-        LightCurve::new(time, flux, flux_err),
+        LightCurve::from_btjd(time, flux, flux_err),
         Err(LightCurveError::NotSorted)
     );
 }
@@ -143,27 +178,20 @@ fn len_returns_number_of_points(
     #[case] flux_err: Vec<f64>,
     #[case] expected: usize,
 ) {
-    let lc = LightCurve::new(time, flux, flux_err).unwrap();
+    let lc = LightCurve::from_btjd(time, flux, flux_err).unwrap();
     assert_eq!(lc.len(), expected);
 }
 
 #[rstest]
 #[case::zero(0.0)]
+#[case::negative_zero(-0.0)]
 #[case::negative(-1.0)]
-#[case::nan(f64::NAN)]
-#[case::infinite(f64::INFINITY)]
-#[case::negative_infinite(f64::NEG_INFINITY)]
 fn fold_rejects_invalid_period(#[case] period: f64) {
     let lc = lc_from_times(ok());
-    assert_eq!(lc.fold(period, 0.0), Err(LightCurveError::InvalidPeriod))
-}
-
-#[rstest]
-#[case::nan(f64::NAN)]
-#[case::infinite(f64::INFINITY)]
-fn fold_rejects_invalid_t0(#[case] t0: f64) {
-    let lc = lc_from_times(ok());
-    assert_eq!(lc.fold(1.0, t0), Err(LightCurveError::InvalidT0))
+    assert_eq!(
+        lc.fold(days(period), btjd(0.0)),
+        Err(LightCurveError::InvalidPeriod)
+    )
 }
 
 #[rstest]
@@ -179,8 +207,28 @@ fn fold_gives_expected_phases(
     #[case] expected: Vec<f64>,
 ) {
     let lc = lc_from_times(time);
-    let folded = lc.fold(period, t0).unwrap();
+    let folded = lc.fold(days(period), btjd(t0)).unwrap();
     assert_close(folded.phase(), &expected, 1e-9)
+}
+
+#[test]
+fn fold_period_in_hours_matches_days() {
+    let lc = lc_from_times(ok());
+    let in_days = lc.fold(days(0.75), btjd(0.0)).unwrap();
+    let in_hours = lc
+        .fold(Duration::from_hours(18.0).unwrap(), btjd(0.0))
+        .unwrap();
+    assert_eq!(in_days, in_hours);
+}
+
+#[test]
+fn fold_t0_in_bjd_matches_btjd() {
+    let lc = lc_from_times(vec![3000.5, 3001.0, 3001.5]);
+    let from_bjd = lc
+        .fold(days(2.0), Epoch::from_bjd(2_460_000.0).unwrap())
+        .unwrap();
+    let from_btjd = lc.fold(days(2.0), btjd(3000.0)).unwrap();
+    assert_eq!(from_bjd, from_btjd);
 }
 
 #[test]
@@ -196,7 +244,7 @@ fn fold_phases_stay_in_range() {
         3.0,
         3.0000000000000004,
     ];
-    let folded = lc_from_times(time).fold(2.0, 0.0).unwrap();
+    let folded = lc_from_times(time).fold(days(2.0), btjd(0.0)).unwrap();
 
     for (i, &p) in folded.phase().iter().enumerate() {
         assert!(
@@ -210,14 +258,14 @@ fn fold_phases_stay_in_range() {
 fn fold_keeps_rows_together() {
     // Phases before sorting are [0.0, 0.25, -0.5, -0.25], so the sorted row
     // order is the original rows 2, 3, 0, 1.
-    let lc = LightCurve::new(
+    let lc = LightCurve::from_btjd(
         vec![0.0, 0.5, 1.0, 1.5],
         vec![1.0, 0.98, 0.99, 1.01],
         vec![0.1, 0.2, 0.3, 0.4],
     )
     .unwrap();
 
-    let folded = lc.fold(2.0, 0.0).unwrap();
+    let folded = lc.fold(days(2.0), btjd(0.0)).unwrap();
 
     assert_eq!(folded.phase(), &[-0.5, -0.25, 0.0, 0.25]);
     assert_eq!(folded.flux(), &[0.99, 1.01, 1.0, 0.98]);
@@ -227,7 +275,7 @@ fn fold_keeps_rows_together() {
 #[test]
 fn fold_sorts_by_phase() {
     let time: Vec<f64> = (0..60).map(|i| f64::from(i) * 0.37).collect();
-    let folded = lc_from_times(time).fold(2.0, 0.0).unwrap();
+    let folded = lc_from_times(time).fold(days(2.0), btjd(0.0)).unwrap();
 
     assert_eq!(folded.phase().len(), 60);
     for (i, w) in folded.phase().windows(2).enumerate() {
@@ -243,9 +291,9 @@ fn fold_sorts_by_phase() {
 #[test]
 fn fold_equal_phases_keep_time_order() {
     // t = 0.5 and t = 2.5 are one period apart, so both fold to phase 0.25.
-    let lc = LightCurve::new(vec![0.5, 2.5], vec![1.0, 2.0], vec![0.1, 0.1]).unwrap();
+    let lc = LightCurve::from_btjd(vec![0.5, 2.5], vec![1.0, 2.0], vec![0.1, 0.1]).unwrap();
 
-    let folded = lc.fold(2.0, 0.0).unwrap();
+    let folded = lc.fold(days(2.0), btjd(0.0)).unwrap();
 
     assert_eq!(folded.phase(), &[0.25, 0.25]);
     assert_eq!(folded.flux(), &[1.0, 2.0]);

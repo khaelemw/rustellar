@@ -1,4 +1,4 @@
-use crate::error::LightCurveError;
+use crate::{Duration, Epoch, LightCurveError};
 
 /// A validated light curve: matching arrays of time, flux, and flux error.
 ///
@@ -6,11 +6,11 @@ use crate::error::LightCurveError;
 /// error greater than zero, and time strictly increasing. These are checked once
 /// in [`new`](Self::new); the fields are private, so they stay true afterwards.
 ///
-/// Units are the caller's choice. Time is usually days (for example BTJD), and
-/// [`fold`](Self::fold) expects its period and `t0` in the same unit.
+/// Times are [`Epoch`]s, so their time system is fixed. Flux and flux error can
+/// be in any unit, as long as both use the same one.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightCurve {
-    time: Vec<f64>,
+    time: Vec<Epoch>,
     flux: Vec<f64>,
     flux_err: Vec<f64>,
 }
@@ -30,8 +30,8 @@ impl LightCurve {
     /// 1. [`LengthMismatch`](LightCurveError::LengthMismatch) if the three
     ///    arrays differ in length.
     /// 2. [`Empty`](LightCurveError::Empty) if they have no points.
-    /// 3. [`NonFinite`](LightCurveError::NonFinite) if any value is NaN or
-    ///    infinite.
+    /// 3. [`NonFinite`](LightCurveError::NonFinite) if any flux or flux error
+    ///    is NaN or infinite.
     /// 4. [`NonPositiveError`](LightCurveError::NonPositiveError) if any flux
     ///    error is zero or negative.
     /// 5. [`NotSorted`](LightCurveError::NotSorted) if a time is not greater
@@ -40,21 +40,19 @@ impl LightCurve {
     /// # Examples
     ///
     /// ```
-    /// use rustellar_core::{LightCurve, LightCurveError};
+    /// use rustellar_core::{Epoch, LightCurve, LightCurveError};
     ///
-    /// let lc = LightCurve::new(
-    ///     vec![1.0, 2.0, 3.0],
-    ///     vec![1.0, 0.99, 1.0],
-    ///     vec![0.01, 0.01, 0.01],
-    /// )?;
-    /// assert_eq!(lc.len(), 3);
+    /// let time = vec![Epoch::from_btjd(1.0)?, Epoch::from_btjd(2.0)?];
+    /// let lc = LightCurve::new(time, vec![1.0, 0.99], vec![0.01, 0.01])?;
+    /// assert_eq!(lc.len(), 2);
     ///
-    /// let unsorted = LightCurve::new(vec![2.0, 1.0], vec![1.0, 1.0], vec![0.1, 0.1]);
-    /// assert_eq!(unsorted, Err(LightCurveError::NotSorted));
-    /// # Ok::<(), LightCurveError>(())
+    /// let unsorted = vec![Epoch::from_btjd(2.0)?, Epoch::from_btjd(1.0)?];
+    /// let result = LightCurve::new(unsorted, vec![1.0, 1.0], vec![0.1, 0.1]);
+    /// assert_eq!(result, Err(LightCurveError::NotSorted));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn new(
-        time: Vec<f64>,
+        time: Vec<Epoch>,
         flux: Vec<f64>,
         flux_err: Vec<f64>,
     ) -> Result<Self, LightCurveError> {
@@ -66,11 +64,10 @@ impl LightCurve {
             return Err(LightCurveError::Empty);
         }
 
-        let time_finite = time.iter().all(|t| t.is_finite());
         let flux_finite = flux.iter().all(|f| f.is_finite());
         let flux_err_finite = flux_err.iter().all(|fe| fe.is_finite());
 
-        if !time_finite || !flux_finite || !flux_err_finite {
+        if !flux_finite || !flux_err_finite {
             return Err(LightCurveError::NonFinite);
         }
 
@@ -93,6 +90,40 @@ impl LightCurve {
         })
     }
 
+    /// Builds a light curve from times given as BTJD values.
+    ///
+    /// The same as [`new`](Self::new), but takes plain numbers for time, as
+    /// read from a TESS light curve file.
+    ///
+    /// # Errors
+    ///
+    /// [`NonFinite`](LightCurveError::NonFinite) if any time is NaN or
+    /// infinite. This is checked first, before the checks listed on
+    /// [`new`](Self::new).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::LightCurve;
+    ///
+    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0], vec![1.0, 0.99], vec![0.01, 0.01])?;
+    /// assert_eq!(lc.time()[1].as_btjd(), 2.0);
+    /// # Ok::<(), rustellar_core::LightCurveError>(())
+    /// ```
+    pub fn from_btjd(
+        time: Vec<f64>,
+        flux: Vec<f64>,
+        flux_err: Vec<f64>,
+    ) -> Result<Self, LightCurveError> {
+        let time = time
+            .into_iter()
+            .map(Epoch::from_btjd)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| LightCurveError::NonFinite)?;
+
+        Self::new(time, flux, flux_err)
+    }
+
     /// Number of points. Never zero, because [`new`](Self::new) rejects empty
     /// input.
     #[expect(
@@ -104,7 +135,7 @@ impl LightCurve {
     }
 
     /// Observation times, strictly increasing.
-    pub fn time(&self) -> &[f64] {
+    pub fn time(&self) -> &[Epoch] {
         &self.time
     }
 
@@ -128,33 +159,27 @@ impl LightCurve {
     ///
     /// # Errors
     ///
-    /// - [`InvalidPeriod`](LightCurveError::InvalidPeriod) if `period` is
-    ///   zero, negative, NaN, or infinite.
-    /// - [`InvalidT0`](LightCurveError::InvalidT0) if `t0` is NaN or
-    ///   infinite.
+    /// [`InvalidPeriod`](LightCurveError::InvalidPeriod) if `period` is zero or
+    /// negative.
     ///
     /// # Examples
     ///
     /// ```
-    /// use rustellar_core::LightCurve;
+    /// use rustellar_core::{Duration, Epoch, LightCurve};
     ///
-    /// let lc = LightCurve::new(
+    /// let lc = LightCurve::from_btjd(
     ///     vec![0.0, 0.5, 1.0, 1.5],
     ///     vec![10.0, 11.0, 12.0, 13.0],
     ///     vec![0.1, 0.1, 0.1, 0.1],
     /// )?;
-    /// let folded = lc.fold(2.0, 0.0)?;
+    /// let folded = lc.fold(Duration::from_days(2.0)?, Epoch::from_btjd(0.0)?)?;
     /// assert_eq!(folded.phase(), &[-0.5, -0.25, 0.0, 0.25]);
     /// assert_eq!(folded.flux(), &[12.0, 13.0, 10.0, 11.0]);
-    /// # Ok::<(), rustellar_core::LightCurveError>(())
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn fold(&self, period: f64, t0: f64) -> Result<FoldedLightCurve, LightCurveError> {
-        if !(period.is_finite() && period > 0.0) {
+    pub fn fold(&self, period: Duration, t0: Epoch) -> Result<FoldedLightCurve, LightCurveError> {
+        if period.as_days() <= 0.0 {
             return Err(LightCurveError::InvalidPeriod);
-        }
-
-        if !t0.is_finite() {
-            return Err(LightCurveError::InvalidT0);
         }
 
         let phase: Vec<f64> = self

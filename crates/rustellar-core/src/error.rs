@@ -2,7 +2,8 @@ use std::fmt;
 
 /// Why a light curve could not be built or folded.
 ///
-/// Returned by [`LightCurve::new`](crate::LightCurve::new) and
+/// Returned by [`LightCurve::new`](crate::LightCurve::new),
+/// [`LightCurve::from_btjd`](crate::LightCurve::from_btjd), and
 /// [`LightCurve::fold`](crate::LightCurve::fold). New variants may be added in
 /// minor releases, so a `match` on this type needs a wildcard arm.
 ///
@@ -17,7 +18,7 @@ use std::fmt;
 /// use rustellar_core::LightCurve;
 ///
 /// fn load() -> Result<LightCurve, Box<dyn Error>> {
-///     let lc = LightCurve::new(vec![2.0, 1.0], vec![1.0, 1.0], vec![0.1, 0.1])?;
+///     let lc = LightCurve::from_btjd(vec![2.0, 1.0], vec![1.0, 1.0], vec![0.1, 0.1])?;
 ///     Ok(lc)
 /// }
 ///
@@ -37,10 +38,8 @@ pub enum LightCurveError {
     NonFinite,
     /// A flux error is zero or negative.
     NonPositiveError,
-    /// The fold period is zero, negative, NaN, or infinite.
+    /// The fold period is zero or negative.
     InvalidPeriod,
-    /// The fold reference time `t0` is NaN or infinite.
-    InvalidT0,
 }
 
 impl fmt::Display for LightCurveError {
@@ -53,8 +52,7 @@ impl fmt::Display for LightCurveError {
             Self::NotSorted => write!(f, "time values must be strictly increasing"),
             Self::NonFinite => write!(f, "time, flux, and flux_err must all be finite"),
             Self::NonPositiveError => write!(f, "every flux_err value must be greater than zero"),
-            Self::InvalidPeriod => write!(f, "fold period must be finite and greater than zero"),
-            Self::InvalidT0 => write!(f, "fold reference time t0 must be finite"),
+            Self::InvalidPeriod => write!(f, "fold period must be greater than zero"),
         }
     }
 }
