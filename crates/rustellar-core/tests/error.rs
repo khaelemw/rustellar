@@ -1,5 +1,5 @@
 use rstest::rstest;
-use rustellar_core::LightCurveError;
+use rustellar_core::{LightCurveError, TimeError};
 
 #[rstest]
 #[case::empty(LightCurveError::Empty, "light curve has no points")]
@@ -22,5 +22,11 @@ use rustellar_core::LightCurveError;
 )]
 #[case::invalid_t0(LightCurveError::InvalidT0, "fold reference time t0 must be finite")]
 fn lightcurve_error_display_message(#[case] error: LightCurveError, #[case] expected: &str) {
+    assert_eq!(error.to_string(), expected);
+}
+
+#[rstest]
+#[case::empty(TimeError::NonFinite, "time value must be finite")]
+fn time_error_display_message(#[case] error: TimeError, #[case] expected: &str) {
     assert_eq!(error.to_string(), expected);
 }

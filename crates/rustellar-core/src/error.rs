@@ -60,3 +60,25 @@ impl fmt::Display for LightCurveError {
 }
 
 impl std::error::Error for LightCurveError {}
+
+/// Why a [`Duration`](crate::Duration) or [`Epoch`](crate::Epoch) could not be
+/// made.
+///
+/// New variants may be added in minor releases, so a `match` on this type needs
+/// a wildcard arm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TimeError {
+    /// The value is NaN or infinite.
+    NonFinite,
+}
+
+impl fmt::Display for TimeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NonFinite => write!(f, "time value must be finite"),
+        }
+    }
+}
+
+impl std::error::Error for TimeError {}
