@@ -12,18 +12,18 @@ const HOURS_PER_DAY: f64 = 24.0;
 /// # Examples
 ///
 /// ```
-/// use rustellar_core::Duration;
+/// use rustellar_core::TimeDelta;
 ///
-/// let period = Duration::from_hours(36.0)?;
+/// let period = TimeDelta::from_hours(36.0)?;
 /// assert_eq!(period.as_days(), 1.5);
 /// # Ok::<(), rustellar_core::TimeError>(())
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct Duration {
+pub struct TimeDelta {
     days: f64,
 }
 
-impl Duration {
+impl TimeDelta {
     fn new(days: f64) -> Result<Self, TimeError> {
         if !days.is_finite() {
             return Err(TimeError::NonFinite);
@@ -32,7 +32,7 @@ impl Duration {
         Ok(Self { days })
     }
 
-    /// Makes a duration from a number of days.
+    /// Makes a time delta from a number of days.
     ///
     /// # Errors
     ///
@@ -41,7 +41,7 @@ impl Duration {
         Self::new(days)
     }
 
-    /// Makes a duration from a number of hours.
+    /// Makes a time delta from a number of hours.
     ///
     /// # Errors
     ///
@@ -50,18 +50,18 @@ impl Duration {
         Self::new(hours / HOURS_PER_DAY)
     }
 
-    /// The duration in days.
+    /// The time delta in days.
     pub fn as_days(self) -> f64 {
         self.days
     }
 
-    /// The duration in hours.
+    /// The time delta in hours.
     pub fn as_hours(self) -> f64 {
         self.days * HOURS_PER_DAY
     }
 }
 
-impl Add for Duration {
+impl Add for TimeDelta {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -71,7 +71,7 @@ impl Add for Duration {
     }
 }
 
-impl Sub for Duration {
+impl Sub for TimeDelta {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -81,7 +81,7 @@ impl Sub for Duration {
     }
 }
 
-impl Div for Duration {
+impl Div for TimeDelta {
     type Output = f64;
 
     fn div(self, rhs: Self) -> Self::Output {
@@ -89,7 +89,7 @@ impl Div for Duration {
     }
 }
 
-impl Neg for Duration {
+impl Neg for TimeDelta {
     type Output = Self;
 
     fn neg(self) -> Self::Output {
@@ -160,29 +160,29 @@ impl Epoch {
 }
 
 impl Sub for Epoch {
-    type Output = Duration;
+    type Output = TimeDelta;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Duration {
+        TimeDelta {
             days: self.btjd - rhs.btjd,
         }
     }
 }
 
-impl Add<Duration> for Epoch {
+impl Add<TimeDelta> for Epoch {
     type Output = Self;
 
-    fn add(self, rhs: Duration) -> Self::Output {
+    fn add(self, rhs: TimeDelta) -> Self::Output {
         Self {
             btjd: self.btjd + rhs.days,
         }
     }
 }
 
-impl Sub<Duration> for Epoch {
+impl Sub<TimeDelta> for Epoch {
     type Output = Self;
 
-    fn sub(self, rhs: Duration) -> Self::Output {
+    fn sub(self, rhs: TimeDelta) -> Self::Output {
         Self {
             btjd: self.btjd - rhs.days,
         }

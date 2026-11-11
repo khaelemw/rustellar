@@ -1,4 +1,4 @@
-use crate::{Duration, Epoch, LightCurveError};
+use crate::{Epoch, LightCurveError, TimeDelta};
 
 /// A validated light curve: matching arrays of time, flux, and flux error.
 ///
@@ -165,19 +165,19 @@ impl LightCurve {
     /// # Examples
     ///
     /// ```
-    /// use rustellar_core::{Duration, Epoch, LightCurve};
+    /// use rustellar_core::{TimeDelta, Epoch, LightCurve};
     ///
     /// let lc = LightCurve::from_btjd(
     ///     vec![0.0, 0.5, 1.0, 1.5],
     ///     vec![10.0, 11.0, 12.0, 13.0],
     ///     vec![0.1, 0.1, 0.1, 0.1],
     /// )?;
-    /// let folded = lc.fold(Duration::from_days(2.0)?, Epoch::from_btjd(0.0)?)?;
+    /// let folded = lc.fold(TimeDelta::from_days(2.0)?, Epoch::from_btjd(0.0)?)?;
     /// assert_eq!(folded.phase(), &[-0.5, -0.25, 0.0, 0.25]);
     /// assert_eq!(folded.flux(), &[12.0, 13.0, 10.0, 11.0]);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn fold(&self, period: Duration, t0: Epoch) -> Result<FoldedLightCurve, LightCurveError> {
+    pub fn fold(&self, period: TimeDelta, t0: Epoch) -> Result<FoldedLightCurve, LightCurveError> {
         if period.as_days() <= 0.0 {
             return Err(LightCurveError::InvalidPeriod);
         }

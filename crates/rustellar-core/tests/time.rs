@@ -1,12 +1,12 @@
 use rstest::rstest;
-use rustellar_core::{Duration, Epoch, TimeError};
+use rustellar_core::{Epoch, TimeDelta, TimeError};
 
 // ==========================
 // Helper Functions
 // ==========================
 
-fn days(x: f64) -> Duration {
-    Duration::from_days(x).unwrap()
+fn days(x: f64) -> TimeDelta {
+    TimeDelta::from_days(x).unwrap()
 }
 
 fn btjd(x: f64) -> Epoch {
@@ -21,18 +21,18 @@ fn btjd(x: f64) -> Epoch {
 #[case::positive_days(10.0, 240.0)]
 #[case::fractional_days(5.7, 136.8)]
 #[case::negative_days(-5.0, -120.0)]
-fn duration_accessors_return_correct_value(#[case] days: f64, #[case] expected_hours: f64) {
-    let duration = Duration::from_days(days).unwrap();
+fn time_delta_accessors_return_correct_value(#[case] days: f64, #[case] expected_hours: f64) {
+    let duration = TimeDelta::from_days(days).unwrap();
     assert_eq!(duration.as_days(), days);
     assert_eq!(duration.as_hours(), expected_hours);
 }
 
 #[rstest]
-fn duration_constructors_reject_non_finite(
-    #[values(Duration::from_days, Duration::from_hours)] constructor_function: fn(
+fn time_delta_constructors_reject_non_finite(
+    #[values(TimeDelta::from_days, TimeDelta::from_hours)] constructor_function: fn(
         f64,
     ) -> Result<
-        Duration,
+        TimeDelta,
         TimeError,
     >,
     #[values(f64::NAN, f64::INFINITY, f64::NEG_INFINITY)] value: f64,
@@ -41,10 +41,10 @@ fn duration_constructors_reject_non_finite(
 }
 
 #[test]
-fn duration_hours_round_trip() {
+fn time_delta_hours_round_trip() {
     for i in -1000..=1000 {
         let hours = f64::from(i) * 0.37;
-        let back = Duration::from_hours(hours).unwrap().as_hours();
+        let back = TimeDelta::from_hours(hours).unwrap().as_hours();
 
         assert!(
             (back - hours).abs() <= 1e-12 * hours.abs(),
@@ -94,13 +94,13 @@ fn epoch_from_bjd_round_trips(#[case] bjd: f64, #[case] expected_btjd: f64) {
 }
 
 #[rstest]
-#[case::duration_add(|a, b| (days(a) + days(b)).as_days(), 1.0, 0.5, 1.5)]
-#[case::duration_sub(|a, b| (days(a) - days(b)).as_days(), 0.5, 1.0, -0.5)]
-#[case::duration_div(|a, b| days(a) / days(b), 3.0, 1.5, 2.0)]
-#[case::duration_neg(|a, _| (-days(a)).as_days(), 2.0, 0.0, -2.0)]
+#[case::time_delta_add(|a, b| (days(a) + days(b)).as_days(), 1.0, 0.5, 1.5)]
+#[case::time_delta_sub(|a, b| (days(a) - days(b)).as_days(), 0.5, 1.0, -0.5)]
+#[case::time_delta_div(|a, b| days(a) / days(b), 3.0, 1.5, 2.0)]
+#[case::time_delta_neg(|a, _| (-days(a)).as_days(), 2.0, 0.0, -2.0)]
 #[case::epoch_minus_epoch(|a, b| (btjd(a) - btjd(b)).as_days(), 10.0, 4.0, 6.0)]
-#[case::epoch_plus_duration(|a, b| (btjd(a) + days(b)).as_btjd(), 3000.0, 0.25, 3000.25)]
-#[case::epoch_minus_duration(|a, b| (btjd(a) - days(b)).as_btjd(), 3000.0, 0.25, 2999.75)]
+#[case::epoch_plus_time_delta(|a, b| (btjd(a) + days(b)).as_btjd(), 3000.0, 0.25, 3000.25)]
+#[case::epoch_minus_time_delta(|a, b| (btjd(a) - days(b)).as_btjd(), 3000.0, 0.25, 2999.75)]
 fn time_ops_give_expected_value(
     #[case] op: fn(f64, f64) -> f64,
     #[case] a: f64,
@@ -111,7 +111,7 @@ fn time_ops_give_expected_value(
 }
 
 #[test]
-fn epoch_and_duration_ops_undo_each_other() {
+fn epoch_and_time_delta_ops_undo_each_other() {
     let e = btjd(3000.5);
     let d = days(0.25);
 
@@ -122,7 +122,7 @@ fn epoch_and_duration_ops_undo_each_other() {
 
 #[test]
 fn days_and_hours_combine() {
-    let total = days(1.0) + Duration::from_hours(12.0).unwrap();
+    let total = days(1.0) + TimeDelta::from_hours(12.0).unwrap();
 
     assert_eq!(total.as_days(), 1.5);
     assert_eq!(total.as_hours(), 36.0);

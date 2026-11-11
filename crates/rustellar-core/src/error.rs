@@ -59,7 +59,7 @@ impl fmt::Display for LightCurveError {
 
 impl std::error::Error for LightCurveError {}
 
-/// Why a [`Duration`](crate::Duration) or [`Epoch`](crate::Epoch) could not be
+/// Why a [`TimeDelta`](crate::TimeDelta) or [`Epoch`](crate::Epoch) could not be
 /// made.
 ///
 /// New variants may be added in minor releases, so a `match` on this type needs

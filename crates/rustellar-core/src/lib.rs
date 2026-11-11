@@ -6,4 +6,4 @@ mod time;
 
 pub use error::{LightCurveError, TimeError};
 pub use lightcurve::{FoldedLightCurve, LightCurve};
-pub use time::{Duration, Epoch};
+pub use time::{Epoch, TimeDelta};

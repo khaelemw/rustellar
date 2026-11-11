@@ -1,5 +1,5 @@
 use rstest::rstest;
-use rustellar_core::{Duration, Epoch, LightCurve, LightCurveError};
+use rustellar_core::{Epoch, LightCurve, LightCurveError, TimeDelta};
 
 // ==========================
 // Helper Functions
@@ -17,8 +17,8 @@ fn empty() -> Vec<f64> {
     vec![]
 }
 
-fn days(x: f64) -> Duration {
-    Duration::from_days(x).unwrap()
+fn days(x: f64) -> TimeDelta {
+    TimeDelta::from_days(x).unwrap()
 }
 
 fn btjd(x: f64) -> Epoch {
@@ -216,7 +216,7 @@ fn fold_period_in_hours_matches_days() {
     let lc = lc_from_times(ok());
     let in_days = lc.fold(days(0.75), btjd(0.0)).unwrap();
     let in_hours = lc
-        .fold(Duration::from_hours(18.0).unwrap(), btjd(0.0))
+        .fold(TimeDelta::from_hours(18.0).unwrap(), btjd(0.0))
         .unwrap();
     assert_eq!(in_days, in_hours);
 }
