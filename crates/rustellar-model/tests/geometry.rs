@@ -16,8 +16,9 @@ const PERIOD_DAYS: f64 = 3.0;
 // `phase_angle` works on real-sized numbers.
 const T0: f64 = 3_000.123_456;
 
-// Example A from the guide (3.4): a_rs = 10, b = 0.3, P = 3 d.
-fn example_a(t0: f64) -> TransitParams {
+// Reference orbit: k = 0.1, a_rs = 10, b = 0.3, P = 3 d. Expected values in
+// these tests were computed independently.
+fn reference_orbit(t0: f64) -> TransitParams {
     with_b(t0, 0.3)
 }
 
@@ -51,8 +52,8 @@ fn at(t: f64) -> Epoch {
 #[case::later(0.10, 0.209_440, 2.099_723)]
 #[case::quarter_orbit(0.75, FRAC_PI_2, 10.0)]
 #[case::half_orbit(1.50, -PI, 0.3)]
-fn geometry_matches_example_a(#[case] t: f64, #[case] phase: f64, #[case] separation: f64) {
-    let params = example_a(0.0);
+fn geometry_matches_reference_values(#[case] t: f64, #[case] phase: f64, #[case] separation: f64) {
+    let params = reference_orbit(0.0);
 
     assert!((params.phase_angle(at(t)) - phase).abs() < 1e-6);
     assert!((params.separation(at(t)) - separation).abs() < 1e-6);
@@ -67,7 +68,7 @@ fn geometry_matches_example_a(#[case] t: f64, #[case] phase: f64, #[case] separa
 #[case::just_before_three_quarters(2.24, false)]
 #[case::just_after_three_quarters(2.26, true)]
 fn in_front_matches_side_of_orbit(#[case] t: f64, #[case] expected: bool) {
-    assert_eq!(example_a(0.0).in_front(at(t)), expected);
+    assert_eq!(reference_orbit(0.0).in_front(at(t)), expected);
 }
 
 #[rstest]
@@ -85,7 +86,7 @@ fn separation_at_t0_is_b(#[case] b: f64) {
 #[test]
 fn behind_star_half_an_orbit_later() {
     // Same separation as mid-transit, but on the far side of the star.
-    let params = example_a(T0);
+    let params = reference_orbit(T0);
     let t = at(T0 + PERIOD_DAYS / 2.0);
 
     assert!((params.separation(t) - 0.3).abs() < 1e-9);
@@ -96,7 +97,7 @@ fn behind_star_half_an_orbit_later() {
 #[case::forward(1000.0)]
 #[case::backward(-1000.0)]
 fn separation_repeats_every_period(#[case] orbits: f64) {
-    let params = example_a(T0);
+    let params = reference_orbit(T0);
     let near = params.separation(at(T0 + 0.05));
     let far = params.separation(at(T0 + orbits * PERIOD_DAYS + 0.05));
 
@@ -105,7 +106,7 @@ fn separation_repeats_every_period(#[case] orbits: f64) {
 
 #[test]
 fn separation_is_symmetric_about_t0() {
-    let params = example_a(T0);
+    let params = reference_orbit(T0);
 
     for i in 1..100 {
         let dt = f64::from(i) * 0.013;
@@ -120,7 +121,7 @@ fn separation_is_symmetric_about_t0() {
 
 #[test]
 fn phase_angle_stays_in_range() {
-    let params = example_a(0.0);
+    let params = reference_orbit(0.0);
 
     for i in -2000..=2000 {
         let t = f64::from(i) * 0.37;
@@ -133,9 +134,8 @@ fn phase_angle_stays_in_range() {
 }
 
 #[test]
-fn durations_match_example_b() {
-    // Example B from the guide (3.4): k = 0.1, b = 0.3, a_rs = 10, P = 3 d.
-    let params = example_a(T0);
+fn durations_match_reference_values() {
+    let params = reference_orbit(T0);
     let t14 = params.t14().unwrap();
     let t23 = params.t23().unwrap();
 
@@ -194,8 +194,8 @@ fn durations_exist_only_when_contacts_do(
 }
 
 #[test]
-fn grazing_duration_matches_guide() {
-    // b = 1.0, k = 0.1 from the guide's example B edge cases.
+fn grazing_duration_matches_reference() {
+    // The reference orbit with b = 1.0: the planet's centre crosses the limb.
     let t14 = orbit(T0, 0.1, 10.0, 1.0).t14().unwrap();
     assert!((t14.as_hours() - 1.055_913).abs() < 1e-6);
 }
@@ -223,8 +223,8 @@ fn flat_bottom_is_shorter_than_transit() {
 }
 
 #[test]
-fn contacts_match_example_b() {
-    let contacts = example_a(T0).contacts().unwrap();
+fn contacts_match_reference_values() {
+    let contacts = reference_orbit(T0).contacts().unwrap();
     let half_t14 = 0.101_295_62 / 2.0;
     let half_t23 = 0.081_162_64 / 2.0;
 
@@ -273,7 +273,7 @@ fn contacts_are_symmetric_and_ordered(#[case] b: f64) {
 
 #[test]
 fn contacts_agree_with_durations() {
-    let params = example_a(T0);
+    let params = reference_orbit(T0);
     let contacts = params.contacts().unwrap();
 
     assert_eq!(contacts.t4 - contacts.t1, params.t14().unwrap());
@@ -313,7 +313,7 @@ fn transit_times_cover_the_window(
 ) {
     // Window ends are in days from t0. The expected times are built the same
     // way as in the model, so they can be compared exactly.
-    let params = example_a(T0);
+    let params = reference_orbit(T0);
     let times: Vec<Epoch> = params
         .transit_times(at(T0 + start_days), at(T0 + end_days))
         .collect();
@@ -327,7 +327,7 @@ fn transit_times_cover_the_window(
 
 #[test]
 fn transit_times_are_mid_transits() {
-    let params = example_a(T0);
+    let params = reference_orbit(T0);
 
     for t in params.transit_times(at(T0 - 30.0), at(T0 + 30.0)) {
         assert!(params.phase_angle(t).abs() < 1e-9);

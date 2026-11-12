@@ -1,9 +1,14 @@
-use std::f64::consts::PI;
+use std::{f64::consts::PI, num::NonZeroUsize};
 
 use rustellar_core::{Epoch, TimeDelta};
 
 use super::{Contacts, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis};
-use crate::error::ParamError;
+use crate::{error::ParamError, flux_ring_sum};
+
+// Rings per point for the light curve, until the analytic formula replaces the
+// ring sum. 1000 keeps typical planets within about 1e-9 of the exact flux.
+// A `const` unwrap runs at compile time, so 0 here would fail to build.
+const LIGHT_CURVE_RINGS: NonZeroUsize = NonZeroUsize::new(1000).unwrap();
 
 /// Everything needed to model one planet's transit on a circular orbit.
 ///
@@ -255,5 +260,82 @@ impl TransitParams {
         (first..=last)
             .map(move |n| t0 + period * n as f64)
             .filter(move |&t| start <= t && t <= end)
+    }
+
+    /// Flux of the star at time `t`, relative to its flux out of transit.
+    ///
+    /// 1 when the planet is clear of the star or behind it. For now the flux
+    /// comes from [`flux_ring_sum`](crate::flux_ring_sum) with 1000 rings,
+    /// which is within about `1e-9` of the exact value for typical planets;
+    /// a faster analytic formula will replace it with the same results.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{Epoch, TimeDelta};
+    /// use rustellar_model::{
+    ///     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// };
+    ///
+    /// let params = TransitParams::new(
+    ///     Epoch::from_btjd(0.0)?,
+    ///     TimeDelta::from_days(3.0)?,
+    ///     RadiusRatio::new(0.1)?,
+    ///     ScaledSemiMajorAxis::new(10.0)?,
+    ///     ImpactParameter::new(0.3)?,
+    ///     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// )?;
+    ///
+    /// let mid_transit = params.flux_at(Epoch::from_btjd(0.0)?);
+    /// assert!((mid_transit - 0.988_527_81).abs() < 1e-8);
+    ///
+    /// // Half an orbit later the planet is behind the star.
+    /// assert_eq!(params.flux_at(Epoch::from_btjd(1.5)?), 1.0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn flux_at(self, t: Epoch) -> f64 {
+        // The separation is the same half an orbit later, when the planet is
+        // behind the star, so this check must come first.
+        if !self.in_front(t) {
+            return 1.0;
+        }
+
+        flux_ring_sum(self.separation(t), self.k, self.ld, LIGHT_CURVE_RINGS)
+    }
+
+    /// Flux at each of `times`, as for [`flux_at`](Self::flux_at).
+    ///
+    /// The result has one value per time, in the same order. The times do not
+    /// need to be sorted, so the times of a
+    /// [`LightCurve`](rustellar_core::LightCurve) can be passed straight in.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{Epoch, TimeDelta};
+    /// use rustellar_model::{
+    ///     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// };
+    ///
+    /// let params = TransitParams::new(
+    ///     Epoch::from_btjd(0.0)?,
+    ///     TimeDelta::from_days(3.0)?,
+    ///     RadiusRatio::new(0.1)?,
+    ///     ScaledSemiMajorAxis::new(10.0)?,
+    ///     ImpactParameter::new(0.3)?,
+    ///     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// )?;
+    ///
+    /// let times = [0.0, 0.02, 0.04, 0.06].map(|t| Epoch::from_btjd(t).unwrap());
+    /// let flux = params.light_curve(&times);
+    ///
+    /// let expected = [0.988_527_81, 0.988_925_66, 0.991_248_45, 1.0];
+    /// for (f, e) in flux.iter().zip(expected) {
+    ///     assert!((f - e).abs() < 1e-8);
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn light_curve(self, times: &[Epoch]) -> Vec<f64> {
+        times.iter().map(|&t| self.flux_at(t)).collect()
     }
 }

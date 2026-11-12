@@ -25,7 +25,7 @@ fn a_rs(x: f64) -> Result<f64, ParamError> {
     ScaledSemiMajorAxis::new(x).map(ScaledSemiMajorAxis::get)
 }
 
-// Transit parameters with example B values (guide 3.4) apart from the three
+// Transit parameters with fixed t0, k and limb darkening, apart from the three
 // that `TransitParams::new` checks against each other.
 fn transit(period_days: f64, a_rs: f64, b: f64) -> Result<TransitParams, ParamError> {
     TransitParams::new(
@@ -158,6 +158,45 @@ fn limb_darkening_rejects_non_finite(
     assert_eq!(LimbDarkening::linear(bad), expected);
     assert_eq!(LimbDarkening::quadratic(bad, 0.0), expected);
     assert_eq!(LimbDarkening::quadratic(0.0, bad), expected);
+}
+
+// Every law `quadratic` accepts on a grid of coefficients, wide enough to
+// include limb brightening and laws that are rejected.
+fn accepted_laws() -> Vec<LimbDarkening> {
+    let mut laws = Vec::new();
+
+    for i in -10..=20 {
+        for j in -10..=10 {
+            let u1 = f64::from(i) / 10.0;
+            let u2 = f64::from(j) / 10.0;
+
+            if let Ok(ld) = LimbDarkening::quadratic(u1, u2) {
+                laws.push(ld);
+            }
+        }
+    }
+
+    laws
+}
+
+#[rstest]
+#[case::uniform(LimbDarkening::uniform(), 1.0)]
+#[case::linear(LimbDarkening::linear(0.6).unwrap(), 0.8)]
+#[case::linear_darkest(LimbDarkening::linear(1.0).unwrap(), 2.0 / 3.0)]
+#[case::quadratic(LimbDarkening::quadratic(0.3, 0.25).unwrap(), 0.858_333_333_333)]
+#[case::limb_brightening(LimbDarkening::linear(-0.3).unwrap(), 1.1)]
+fn disk_integral_matches_reference_values(#[case] ld: LimbDarkening, #[case] expected: f64) {
+    assert!((ld.disk_integral() - expected).abs() < 1e-12);
+}
+
+#[test]
+fn disk_integral_is_positive_for_every_accepted_law() {
+    let laws = accepted_laws();
+    assert!(laws.len() > 100, "grid too sparse: {}", laws.len());
+
+    for ld in laws {
+        assert!(ld.disk_integral() > 0.0, "{ld:?}");
+    }
 }
 
 #[test]

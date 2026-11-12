@@ -57,6 +57,42 @@ impl LimbDarkening {
             Law::Quadratic { u1, u2 } => (u1, u2),
         }
     }
+
+    // Brightness at a point on the disk, relative to the centre.
+    //
+    // `mu = sqrt(1 - r^2)`, where `r` is the distance from the disk centre in
+    // stellar radii, so `mu` is 1 at the centre and 0 at the edge. Crate-only,
+    // so every caller passes a `mu` in `[0, 1]`; there the result is 1 at the
+    // centre and never negative.
+    pub(crate) fn intensity(self, mu: f64) -> f64 {
+        let (u1, u2) = self.quadratic_coefficients();
+
+        1.0 - u1 * (1.0 - mu) - u2 * (1.0 - mu) * (1.0 - mu)
+    }
+
+    /// Total brightness of the disk, relative to a uniform disk with the same
+    /// central brightness.
+    ///
+    /// This is the integral of the intensity over the disk, divided by `pi`:
+    /// `1 - u1/3 - u2/6`. It is 1 for a uniform star and always greater than
+    /// 0, because the intensity is never negative and is 1 at the centre.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::LimbDarkening;
+    ///
+    /// assert_eq!(LimbDarkening::uniform().disk_integral(), 1.0);
+    ///
+    /// let ld = LimbDarkening::linear(0.6)?;
+    /// assert!((ld.disk_integral() - 0.8).abs() < 1e-12);
+    /// # Ok::<(), rustellar_model::LimbDarkeningError>(())
+    /// ```
+    pub fn disk_integral(self) -> f64 {
+        let (u1, u2) = self.quadratic_coefficients();
+
+        1.0 - (u1 / 3.0) - (u2 / 6.0)
+    }
 }
 
 // Checks that `I(x) = 1 - u1 x - u2 x^2` is not negative for `x = 1 - mu` in
