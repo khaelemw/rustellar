@@ -7,8 +7,11 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParamError {
-    /// A parameter is NaN or infinite. `name` says which one, for example `"k"`.
-    NonFinite { name: &'static str },
+    /// A parameter is NaN or infinite.
+    NonFinite {
+        /// Which parameter, for example `"k"`.
+        name: &'static str,
+    },
     /// The radius ratio `k` is zero or negative.
     RadiusRatioNotPositive,
     /// The impact parameter `b` is negative.

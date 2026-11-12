@@ -97,6 +97,7 @@ fn epoch_from_bjd_round_trips(#[case] bjd: f64, #[case] expected_btjd: f64) {
 #[case::time_delta_add(|a, b| (days(a) + days(b)).as_days(), 1.0, 0.5, 1.5)]
 #[case::time_delta_sub(|a, b| (days(a) - days(b)).as_days(), 0.5, 1.0, -0.5)]
 #[case::time_delta_div(|a, b| days(a) / days(b), 3.0, 1.5, 2.0)]
+#[case::time_delta_mul(|a, b| (days(a) * b).as_days(), 2.0, 4.0, 8.0)]
 #[case::time_delta_neg(|a, _| (-days(a)).as_days(), 2.0, 0.0, -2.0)]
 #[case::epoch_minus_epoch(|a, b| (btjd(a) - btjd(b)).as_days(), 10.0, 4.0, 6.0)]
 #[case::epoch_plus_time_delta(|a, b| (btjd(a) + days(b)).as_btjd(), 3000.0, 0.25, 3000.25)]

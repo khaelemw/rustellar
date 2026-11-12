@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::TimeError;
 
@@ -7,7 +7,13 @@ const HOURS_PER_DAY: f64 = 24.0;
 
 /// A length of time, such as an orbital period or a transit duration.
 ///
-/// Stored in days. It may be zero or negative, but never NaN or infinite.
+/// Stored in days. It may be zero or negative.
+///
+/// The constructors reject NaN and infinity, but the operators do not check
+/// their results, the same as for `f64`. Multiplying by NaN or infinity, or
+/// adding values near `f64::MAX`, gives a non-finite delta, and dividing by a
+/// zero delta gives NaN or infinity. Realistic times never come close to
+/// overflowing.
 ///
 /// # Examples
 ///
@@ -89,6 +95,16 @@ impl Div for TimeDelta {
     }
 }
 
+impl Mul<f64> for TimeDelta {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Self {
+            days: self.days * rhs,
+        }
+    }
+}
+
 impl Neg for TimeDelta {
     type Output = Self;
 
@@ -106,6 +122,11 @@ impl Neg for TimeDelta {
 ///
 /// There is no conversion from JD or UTC, as that needs the target's position
 /// on the sky.
+///
+/// As with [`TimeDelta`], the constructors reject NaN and infinity but the
+/// operators do not check their results, so adding or subtracting a
+/// non-finite delta, or one near `f64::MAX`, gives a non-finite epoch, and
+/// subtracting two epochs near `f64::MAX` gives a non-finite delta.
 ///
 /// # Examples
 ///

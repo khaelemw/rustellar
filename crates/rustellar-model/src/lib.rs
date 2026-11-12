@@ -3,4 +3,6 @@ mod error;
 mod params;
 
 pub use error::{LimbDarkeningError, ParamError};
-pub use params::{ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams};
+pub use params::{
+    Contacts, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+};
