@@ -7,6 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 keywords = ["astronomy", "exoplanet", "transit", "light-curve"]
 categories = ["science", "algorithms"]
+# Reference data for the tests only, and the test that reads it; users of the
+# crate do not need them.
+exclude = ["tests/reference", "tests/reference.rs"]
 
 [dependencies]
 rustellar-core = { path = "../rustellar-core" }

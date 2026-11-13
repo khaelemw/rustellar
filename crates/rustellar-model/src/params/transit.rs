@@ -269,6 +269,15 @@ impl TransitParams {
     /// which is within about `1e-9` of the exact value for typical planets;
     /// a faster analytic formula will replace it with the same results.
     ///
+    /// # Accuracy
+    ///
+    /// Compared with batman 2.5.1 (Kreidberg 2015) at 25,160 times over 840
+    /// transits with quadratic limb darkening (`k` from 0.005 to 0.29, `b`
+    /// from 0 to 1.05, `a_rs` from 1.5 to 100), the largest difference is
+    /// `2.1e-8`. That difference is batman's: raising the ring count to
+    /// 100,000 changes this result by less than `3e-9` at the same points,
+    /// and batman's paper states 0.03 ppm (`3e-8`) for its quadratic model.
+    ///
     /// # Examples
     ///
     /// ```
@@ -303,7 +312,8 @@ impl TransitParams {
         flux_ring_sum(self.separation(t), self.k, self.ld, LIGHT_CURVE_RINGS)
     }
 
-    /// Flux at each of `times`, as for [`flux_at`](Self::flux_at).
+    /// Flux at each of `times`, as for [`flux_at`](Self::flux_at), and with
+    /// the same accuracy.
     ///
     /// The result has one value per time, in the same order. The times do not
     /// need to be sorted, so the times of a

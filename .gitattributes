@@ -1,0 +1,2 @@
+# Reference data must not be rewritten to CRLF on Windows.
+*.csv text eol=lf
