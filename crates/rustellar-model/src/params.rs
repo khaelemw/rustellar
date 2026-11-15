@@ -10,3 +10,4 @@ pub use contacts::Contacts;
 pub use limb_darkening::LimbDarkening;
 pub use scalars::{ImpactParameter, RadiusRatio, ScaledSemiMajorAxis};
 pub use transit::TransitParams;
+pub(crate) use transit::check_lengths;

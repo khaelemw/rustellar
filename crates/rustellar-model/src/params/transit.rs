@@ -3,7 +3,11 @@ use std::f64::consts::PI;
 use rustellar_core::{Epoch, TimeDelta};
 
 use super::{Contacts, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis};
-use crate::{error::ParamError, flux};
+use crate::{
+    Exposure,
+    error::{LengthMismatch, ParamError},
+    flux,
+};
 
 /// Everything needed to model one planet's transit on a circular orbit.
 ///
@@ -356,5 +360,101 @@ impl TransitParams {
     #[must_use]
     pub fn light_curve(self, times: &[Epoch]) -> Vec<f64> {
         times.iter().map(|&t| self.flux_at(t)).collect()
+    }
+
+    /// Writes the flux at each of `times` into `out`, as for
+    /// [`light_curve`](Self::light_curve), without allocating.
+    ///
+    /// For repeated evaluation, as in a fit or a sampler, reuse one buffer
+    /// across calls, or see [`TransitModel`](crate::TransitModel).
+    ///
+    /// # Errors
+    ///
+    /// [`LengthMismatch`] if `out` is not the same length as `times`; `out`
+    /// is then left unchanged.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{Epoch, TimeDelta};
+    /// use rustellar_model::{
+    ///     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// };
+    ///
+    /// let params = TransitParams::new(
+    ///     Epoch::from_btjd(0.0)?,
+    ///     TimeDelta::from_days(3.0)?,
+    ///     RadiusRatio::new(0.1)?,
+    ///     ScaledSemiMajorAxis::new(10.0)?,
+    ///     ImpactParameter::new(0.3)?,
+    ///     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// )?;
+    ///
+    /// let times = [0.0, 0.06].map(|t| Epoch::from_btjd(t).unwrap());
+    /// let mut flux = [0.0; 2];
+    /// params.light_curve_into(&times, &mut flux)?;
+    ///
+    /// assert!((flux[0] - 0.988_527_81).abs() < 1e-8);
+    /// assert_eq!(flux[1], 1.0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn light_curve_into(self, times: &[Epoch], out: &mut [f64]) -> Result<(), LengthMismatch> {
+        check_lengths(times, out)?;
+        for (f, &t) in out.iter_mut().zip(times) {
+            *f = self.flux_at(t);
+        }
+        Ok(())
+    }
+
+    /// Mean flux over an exposure whose middle is at `t`.
+    ///
+    /// The average of [`flux_at`](Self::flux_at) over the instants of
+    /// `exposure` (the midpoint rule; see [`Exposure`]). With one sample this
+    /// is exactly `flux_at(t)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroUsize;
+    ///
+    /// use rustellar_core::{Epoch, TimeDelta};
+    /// use rustellar_model::{
+    ///     Exposure, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis,
+    ///     TransitParams,
+    /// };
+    ///
+    /// let params = TransitParams::new(
+    ///     Epoch::from_btjd(0.0)?,
+    ///     TimeDelta::from_days(3.0)?,
+    ///     RadiusRatio::new(0.1)?,
+    ///     ScaledSemiMajorAxis::new(10.0)?,
+    ///     ImpactParameter::new(0.3)?,
+    ///     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// )?;
+    /// let exposure = Exposure::new(TimeDelta::from_hours(0.5)?, NonZeroUsize::new(15).unwrap())?;
+    ///
+    /// // Centred on fourth contact, the planet only touches the star, but half
+    /// // the exposure is spent in egress.
+    /// let t4 = params.t0() + params.contacts().unwrap().t4;
+    /// assert!(params.flux_at(t4) > 1.0 - 1e-6);
+    /// assert!(params.binned_flux_at(t4, exposure) < 1.0 - 1e-4);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn binned_flux_at(self, t: Epoch, exposure: Exposure) -> f64 {
+        let sum: f64 = exposure.offsets().map(|dt| self.flux_at(t + dt)).sum();
+        sum / exposure.samples().get() as f64
+    }
+}
+
+// The error for an output buffer that does not match the times.
+pub(crate) fn check_lengths<T>(times: &[T], out: &[f64]) -> Result<(), LengthMismatch> {
+    if times.len() == out.len() {
+        Ok(())
+    } else {
+        Err(LengthMismatch {
+            times: times.len(),
+            output: out.len(),
+        })
     }
 }

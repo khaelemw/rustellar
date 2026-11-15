@@ -28,6 +28,10 @@ use rustellar_model::{LimbDarkeningError, ParamError};
     ParamError::InclinationOutOfRange,
     "inclination must be greater than 0 and at most 90 degrees"
 )]
+#[case::exposure_not_positive(
+    ParamError::ExposureNotPositive,
+    "exposure duration must be greater than zero"
+)]
 fn param_error_display_message(#[case] error: ParamError, #[case] expected: &str) {
     assert_eq!(error.to_string(), expected);
 }

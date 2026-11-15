@@ -79,6 +79,27 @@ fn flux_repeats_every_orbit(#[case] orbits: f64) {
     assert!((first - later).abs() < 1e-9, "{first} vs {later}");
 }
 
+// The same transit observed far from `t0`, as when a Kepler-era ephemeris
+// (around BTJD -1300) predicts TESS data (BTJD 3000 and later), against the
+// same transit with `t0` moved next to it. The only difference allowed is the
+// rounding of times of that size: about 4e-12 days at BTJD 30,000.
+#[rstest]
+#[case::kepler_to_tess(1433.0)]
+#[case::ten_thousand_orbits_later(10_000.0)]
+#[case::ten_thousand_orbits_earlier(-10_000.0)]
+fn far_from_t0_matches_the_nearby_transit(#[case] orbits: f64) {
+    let far = reference_transit(T0);
+    let shift = TimeDelta::from_days(orbits * PERIOD_DAYS).unwrap();
+    let near = reference_transit((at(T0) + shift).as_btjd());
+
+    let mut worst: f64 = 0.0;
+    for i in -100..=100 {
+        let t = at(T0) + shift + TimeDelta::from_days(f64::from(i) * 6e-4).unwrap();
+        worst = worst.max((far.flux_at(t) - near.flux_at(t)).abs());
+    }
+    assert!(worst < 1e-10, "{worst:e}");
+}
+
 #[test]
 fn transit_is_symmetric_about_mid_transit() {
     let params = reference_transit(T0);

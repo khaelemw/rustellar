@@ -28,6 +28,8 @@ pub enum ParamError {
     ImpactParameterTooLarge,
     /// The inclination is not in `(0, 90]` degrees.
     InclinationOutOfRange,
+    /// An exposure's duration is zero or negative.
+    ExposureNotPositive,
 }
 
 impl fmt::Display for ParamError {
@@ -52,6 +54,7 @@ impl fmt::Display for ParamError {
                     "inclination must be greater than 0 and at most 90 degrees"
                 )
             }
+            Self::ExposureNotPositive => write!(f, "exposure duration must be greater than zero"),
         }
     }
 }
@@ -85,3 +88,28 @@ impl fmt::Display for LimbDarkeningError {
 }
 
 impl std::error::Error for LimbDarkeningError {}
+
+/// An output buffer whose length does not match the number of times.
+///
+/// Returned by the `light_curve_into` methods, which write one flux per time
+/// into a buffer the caller owns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct LengthMismatch {
+    /// The number of times.
+    pub times: usize,
+    /// The length of the output buffer.
+    pub output: usize,
+}
+
+impl fmt::Display for LengthMismatch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "output has length {} but there are {} times",
+            self.output, self.times
+        )
+    }
+}
+
+impl std::error::Error for LengthMismatch {}

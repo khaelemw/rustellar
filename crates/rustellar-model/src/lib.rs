@@ -49,6 +49,11 @@
 //!   ([`t14`](TransitParams::t14), [`t23`](TransitParams::t23),
 //!   [`contacts`](TransitParams::contacts),
 //!   [`transit_times`](TransitParams::transit_times)).
+//! - [`TransitModel`]: a fixed set of times, and optionally an [`Exposure`],
+//!   for evaluating many parameter sets without allocating, as in a fit.
+//! - [`Exposure`]: the mean flux over each measurement's exposure, for long
+//!   cadences such as Kepler's (Kipping 2010); see also
+//!   [`binned_flux_at`](TransitParams::binned_flux_at).
 //! - [`flux`]: the flux for a given planet-star separation, with no orbit.
 //! - [`flux_uniform`]: the same for a star with no limb darkening.
 //! - [`flux_ring_sum`]: a slow numerical integration of the same quantity,
@@ -67,9 +72,9 @@
 //!
 //! # Limits
 //!
-//! Circular orbits only, with no light from the planet itself and no
-//! averaging over long exposures. The radius ratio is at most
-//! [`RadiusRatio::MAX`] (100), above which the analytic flux loses accuracy.
+//! Circular orbits only, with no light from the planet itself. The radius
+//! ratio is at most [`RadiusRatio::MAX`] (100), above which the analytic flux
+//! loses accuracy.
 //!
 //! # Accuracy
 //!
@@ -88,6 +93,8 @@
 mod analytic;
 mod elliptic;
 mod error;
+mod exposure;
+mod model;
 mod numeric;
 mod params;
 mod uniform;
@@ -96,7 +103,9 @@ mod uniform;
 mod tests;
 
 pub use analytic::flux;
-pub use error::{LimbDarkeningError, ParamError};
+pub use error::{LengthMismatch, LimbDarkeningError, ParamError};
+pub use exposure::Exposure;
+pub use model::TransitModel;
 pub use numeric::flux_ring_sum;
 pub use params::{
     Contacts, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
