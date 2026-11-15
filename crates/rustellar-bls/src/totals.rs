@@ -1,0 +1,92 @@
+//! Running totals of the weights and centred fluxes, and the box statistic
+//! from them: the inner loop of both searches.
+
+use crate::{
+    BlsError,
+    sums::{Sum, between},
+};
+
+/// Compensated sums of the weights and of the centred fluxes, over the points
+/// (or bins) up to one, in phase order.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Total {
+    pub(crate) weight: Sum,
+    pub(crate) flux: Sum,
+}
+
+/// The weight and centred flux in a box, between the totals at its start and
+/// end, and out of it, between its end and its start one orbit on: the sums
+/// [`BoxFit::from_sums`](crate::BoxFit) takes, for the best box's fit.
+pub(crate) fn box_sums(first: &Total, end: &Total, wrap: &Total) -> [[f64; 2]; 2] {
+    [
+        [
+            between(first.weight, end.weight),
+            between(first.flux, end.flux),
+        ],
+        [
+            between(end.weight, wrap.weight),
+            between(end.flux, wrap.flux),
+        ],
+    ]
+}
+
+/// The sums over one orbit, for the statistic of every box.
+pub(crate) struct Orbit {
+    weight: f64,
+    flux: f64,
+    inverse_weight: f64,
+}
+
+impl Orbit {
+    /// From the totals at the start and one orbit on.
+    pub(crate) fn new(first: &Total, wrap: &Total) -> Self {
+        let weight = between(first.weight, wrap.weight);
+        Self {
+            weight,
+            flux: between(first.flux, wrap.flux),
+            inverse_weight: 1.0 / weight,
+        }
+    }
+
+    /// The box's `delta_chi2` if it has a dip, else zero, with one division
+    /// (this is the inner loop of the search). It differs from
+    /// [`BoxFit::from_sums`](crate::BoxFit::from_sums) only in rounding, and the best box's fit is
+    /// built with that.
+    ///
+    /// With `W = W_in + W_out` and `S = S_in + S_out` the orbit's sums (`S`
+    /// is near zero, the fluxes being centred on their weighted mean),
+    ///
+    /// ```text
+    /// depth      = S_out / W_out - S_in / W_in = -u W / (W_in W_out),  u = S_in - S W_in / W
+    /// delta_chi2 = W_in W_out / W depth^2      = u^2 / (W_in W_out / W)
+    /// ```
+    ///
+    /// so there is a dip when `u < 0`. `W_out = W - W_in` is as accurate as
+    /// `W_out` itself while the box holds at most half the weight; past that,
+    /// it is taken from the running totals.
+    pub(crate) fn statistic(
+        &self,
+        first: &Total,
+        end: &Total,
+        wrap: &Total,
+    ) -> Result<f64, BlsError> {
+        let weight_in = between(first.weight, end.weight);
+        let weight_out = if weight_in <= 0.5 * self.weight {
+            self.weight - weight_in
+        } else {
+            between(end.weight, wrap.weight)
+        };
+        // A box with no point in it, or none out of it. (The difference of
+        // two equal totals is exactly zero.)
+        if weight_in == 0.0 || weight_out == 0.0 {
+            return Ok(0.0);
+        }
+        let u = between(first.flux, end.flux) - self.flux * (weight_in * self.inverse_weight);
+        // W_in (W_out / W) first: W_in W_out alone can overflow.
+        let delta_chi2 = u * (u / (weight_in * (weight_out * self.inverse_weight)));
+        if !delta_chi2.is_finite() {
+            return Err(BlsError::OutOfRange);
+        }
+        Ok(if u < 0.0 { delta_chi2 } else { 0.0 })
+    }
+}

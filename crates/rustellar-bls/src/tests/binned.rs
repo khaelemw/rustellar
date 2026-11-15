@@ -445,3 +445,64 @@ fn below_the_exact_search_by_at_most_half_a_bin() {
         }
     }
 }
+
+#[test]
+fn flat_flux_has_no_dip() {
+    let time: Vec<f64> = (0..50).map(|i| 0.1 * f64::from(i)).collect();
+    let lc = LightCurve::from_btjd(time, vec![1.0; 50], vec![1e-3; 50]).unwrap();
+    assert_eq!(binned(&lc, 1.3, &[0.2], 4), None);
+}
+
+// Most of the weight in one short stretch of phase, with the dip there: the
+// box holds more than half the weight, so the weight out of it is taken from
+// the running totals rather than from the orbit's weight less the box's. The
+// fit is the one-box fit of the same points, and the exact search finds the
+// same box.
+#[test]
+fn a_box_with_most_of_the_weight() {
+    let mut time = vec![];
+    let mut flux = vec![];
+    let mut err = vec![];
+    for i in 0..40 {
+        // Ten points an orbit at phases 0.40 to 0.49 with small errors, and
+        // two at 0.1 and 0.8 with large ones.
+        let orbit = f64::from(i / 12);
+        let k = i % 12;
+        let (phase, f, e) = match k {
+            0 => (0.1, 1.0, 1e-2),
+            11 => (0.8, 1.0, 1e-2),
+            _ => (0.39 + 0.01 * f64::from(k), 0.99, 1e-3),
+        };
+        time.push(1325.0 + orbit + phase);
+        flux.push(f);
+        err.push(e);
+    }
+    let lc = LightCurve::from_btjd(time, flux, err).unwrap();
+    let ours = binned(&lc, 1.0, &[0.25], 5).unwrap();
+    let total: f64 = lc.flux_err().iter().map(|e| 1.0 / (e * e)).sum();
+    assert!(ours.fit.weight_in > 0.5 * total, "{ours:?}");
+    assert!((ours.fit.depth - 0.01).abs() < 1e-12, "{ours:?}");
+    let exact = exact(&lc, 1.0, 0.25).unwrap();
+    assert!((ours.fit.delta_chi2 / exact - 1.0).abs() < 1e-13);
+}
+
+// One point of weight 1e300 in the box and one of weight 1 out of it, 1e5
+// apart: delta_chi2 is about 1e10, but the likelihood, 0.5 W_in depth^2, is
+// about 5e309. The search picks the box by delta_chi2; its fit overflows.
+#[test]
+fn best_box_whose_fit_overflows() {
+    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![0.0, 1e5], vec![1e-150, 1.0]).unwrap();
+    let times = [0.0, 1.0];
+    assert_eq!(
+        best_binned(&times, &Weighted::new(&lc).unwrap(), 10.0, &[0.5], 1),
+        Err(BlsError::OutOfRange)
+    );
+    assert_eq!(
+        TransitBox::best(
+            &lc,
+            TimeDelta::from_days(10.0).unwrap(),
+            TimeDelta::from_days(0.5).unwrap()
+        ),
+        Err(BlsError::OutOfRange)
+    );
+}

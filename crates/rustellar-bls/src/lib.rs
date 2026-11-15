@@ -27,7 +27,9 @@ mod error;
 mod exact;
 mod grid;
 mod ofir;
+mod refine;
 mod sums;
+mod totals;
 
 #[cfg(test)]
 mod tests;

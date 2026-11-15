@@ -338,16 +338,48 @@ impl BoxFit {
 /// a rounding or two of the result's own size.
 ///
 /// `t - t0` is kept as an exact pair `s + e` (Knuth's two-sum), `n p` as an
-/// exact pair `hi + lo` (a fused multiply-add gives the product's rounding
-/// error), and `s - hi` is exact because the two are within a factor of two
-/// of each other (Sterbenz) or `hi` is zero. Only the last two additions
-/// round, at the size of the result.
+/// exact pair `hi + lo`, and `s - hi` is exact because the two are within a
+/// factor of two of each other (Sterbenz) or `hi` is zero. Only the last two
+/// additions round, at the size of the result.
+///
+/// For `n p`, `p` is split into two halves of 26 bits (Veltkamp), so while
+/// `|n| < 2^26` both `n p_hi` and `n p_lo` are exact products. Only plain
+/// arithmetic is used, which is fast and the same on every platform; a fused
+/// multiply-add, or `round`, is a slow library call on CPUs without them.
+/// Beyond that, or for periods near the ends of the range, the product's
+/// error comes from a fused multiply-add.
 pub(crate) fn offset_from_transit(t: f64, t0: f64, p: f64) -> f64 {
     let s = t - t0;
     let s_back = s - t;
     let e = (t - (s - s_back)) - (t0 + s_back);
-    let n = (s / p).round();
-    let hi = n * p;
-    let lo = n.mul_add(p, -hi);
+    let n = nearest(s / p);
+    let (hi, lo) = if n.abs() < SPLIT_LIMIT && (PERIOD_LOW..PERIOD_HIGH).contains(&p.abs()) {
+        let c = SPLITTER * p;
+        let p_hi = c - (c - p);
+        (n * p_hi, n * (p - p_hi))
+    } else {
+        let hi = n * p;
+        (hi, n.mul_add(p, -hi))
+    };
     ((s - hi) - lo) + e
+}
+
+/// 2^27 + 1: Veltkamp's splitter for doubles.
+const SPLITTER: f64 = 134_217_729.0;
+/// 2^26: below this, `n` has at most 26 bits.
+const SPLIT_LIMIT: f64 = 67_108_864.0;
+/// 2^-900 and 2^900: periods whose split neither underflows nor overflows.
+const PERIOD_LOW: f64 = 1.183_052_186_166_774_7e-271;
+const PERIOD_HIGH: f64 = 8.452_712_498_170_644e270;
+
+/// The whole number nearest `x`, halves to even. Adding and taking away
+/// 2^52 rounds a number below 2^52 to a whole number, with plain arithmetic;
+/// from 2^52 up every double is whole.
+pub(crate) fn nearest(x: f64) -> f64 {
+    const TWO_52: f64 = 4_503_599_627_370_496.0;
+    if x.abs() < TWO_52 {
+        ((x.abs() + TWO_52) - TWO_52).copysign(x)
+    } else {
+        x
+    }
 }

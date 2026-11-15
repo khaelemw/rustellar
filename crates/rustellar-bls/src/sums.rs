@@ -5,7 +5,8 @@
 //! number of terms. Neumaier's method keeps the rounding error of each
 //! addition in a second number and adds it back at the end, so the result is
 //! about as accurate as rounding the exact sum once, unless the terms cancel
-//! almost completely.
+//! almost completely. Each error is found with Knuth's two-sum, which needs
+//! no branch.
 
 /// A running sum and the rounding error lost so far.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -15,16 +16,15 @@ pub(crate) struct Sum {
 }
 
 impl Sum {
-    /// Adds a term. The rounding error of `sum + x` is exactly
-    /// `(sum - t) + x` when `sum` is the larger, and `(x - t) + sum`
-    /// otherwise (Knuth's and Dekker's error-free transformation).
+    /// Adds a term. The rounding error of `t = sum + x` is exactly
+    /// `(sum - (t - v)) + (x - v)` with `v = t - sum` (Knuth's two-sum),
+    /// whichever term is the larger. Six additions and no branch: a branch
+    /// on which is larger, as in Neumaier's form, is mispredicted half the
+    /// time on fluxes of either sign.
     pub(crate) fn add(&mut self, x: f64) {
         let t = self.sum + x;
-        if self.sum.abs() >= x.abs() {
-            self.compensation += (self.sum - t) + x;
-        } else {
-            self.compensation += (x - t) + self.sum;
-        }
+        let v = t - self.sum;
+        self.compensation += (self.sum - (t - v)) + (x - v);
         self.sum = t;
     }
 
@@ -40,14 +40,15 @@ impl Sum {
 }
 
 /// `later - earlier`, for two running totals over the same terms: the sum of
-/// the terms added in between. The difference of the plain sums is split
-/// into its rounded value and exact error (Knuth's two-sum), so the result is
-/// about as accurate as the terms in between allow, however large the totals.
+/// the terms added in between, about as accurate as rounding it once,
+/// however large the totals.
+///
+/// The plain sums' difference is exact when the terms in between are small
+/// beside the totals, as the two are then within a factor of two (Sterbenz);
+/// otherwise it rounds once at about the size of the result. The difference
+/// of the compensations then adds back what the plain sums lost.
 pub(crate) fn between(earlier: Sum, later: Sum) -> f64 {
-    let d = later.sum - earlier.sum;
-    let back = d - later.sum;
-    let error = (later.sum - (d - back)) - (earlier.sum + back);
-    d + (error + (later.compensation - earlier.compensation))
+    (later.sum - earlier.sum) + (later.compensation - earlier.compensation)
 }
 
 impl FromIterator<f64> for Sum {

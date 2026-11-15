@@ -328,3 +328,19 @@ fn statistics_that_overflow() {
         Err(BlsError::OutOfRange)
     );
 }
+
+// Points at 0, 1, 2 and 3 days and a 3-day box: the only box that holds just
+// the dip at 1 and 2 runs from 0 to 3, its edges on the points either side.
+#[test]
+fn only_one_mid_transit_time() {
+    let lc = LightCurve::from_btjd(
+        vec![0.0, 1.0, 2.0, 3.0],
+        vec![1.0, 0.9, 0.9, 1.0],
+        vec![1e-3; 4],
+    )
+    .unwrap();
+    let ours = best(&lc, 10.0, 3.0).unwrap();
+    assert_eq!(ours.fit.n_in, 2);
+    assert_eq!(ours.transit.transit_time().as_btjd(), 1.5);
+    assert_eq!(in_transit(&lc, &ours.transit), [false, true, true, false]);
+}

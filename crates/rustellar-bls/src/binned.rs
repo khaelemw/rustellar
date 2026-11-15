@@ -10,6 +10,12 @@
 //! differences of two totals, so every start bin and every duration costs
 //! one step each.
 //!
+//! Each bin's own sums are plain sums of its few points, rounding at the size
+//! of the bin; the running totals over the bins are compensated, so a box's
+//! sums are about as accurate as adding up its own points, however many
+//! points the light curve has. (astropy's plain running totals round at the
+//! size of the whole light curve's sums.)
+//!
 //! astropy instead uses bins of exactly `min(D) / oversample`, so its last bin
 //! is a part bin, and a box through it is shorter than `k b`. Here every box
 //! is exactly `k b` long, wherever it starts, so it holds a set of points that
@@ -20,7 +26,7 @@
 use crate::{
     BlsError, BoxFit,
     box_fit::{Weighted, offset_from_transit},
-    sums::{Sum, between},
+    totals::{Orbit, Total, box_sums},
 };
 
 /// The best box of a binned search at one period.
@@ -58,77 +64,77 @@ pub(crate) fn best_binned(
     durations: &[f64],
     oversample: usize,
 ) -> Result<Option<BinnedBox>, BlsError> {
-    let n = times.len();
     let shortest = durations.iter().copied().fold(f64::INFINITY, f64::min);
     let m = ((period / (shortest / oversample as f64)).ceil() as usize).max(1);
     let bin = period / m as f64;
 
-    let mut weight = vec![Sum::default(); m];
-    let mut flux = vec![Sum::default(); m];
-    let mut count = vec![0_usize; m];
+    let mut bins = vec![Bin::default(); m];
     for (k, &t) in times.iter().enumerate() {
         let mut phase = offset_from_transit(t, times[0], period);
         if phase < 0.0 {
             phase += period;
         }
         // A phase that rounds up to m bins belongs in the last.
-        let index = ((phase / bin) as usize).min(m - 1);
-        weight[index].add(weighted.weights[k]);
-        flux[index].add(weighted.centred[k]);
-        count[index] += 1;
+        let slot = &mut bins[((phase / bin) as usize).min(m - 1)];
+        slot.weight += weighted.weights[k];
+        slot.flux += weighted.centred[k];
+        slot.count += 1;
     }
 
     // Running totals over the bins twice round.
-    let mut weight_totals = Vec::with_capacity(2 * m + 1);
-    let mut flux_totals = Vec::with_capacity(2 * m + 1);
-    let mut count_totals = Vec::with_capacity(2 * m + 1);
-    let (mut w, mut f, mut c) = (Sum::default(), Sum::default(), 0);
-    weight_totals.push(w);
-    flux_totals.push(f);
-    count_totals.push(c);
-    for k in 0..2 * m {
-        w.add(weight[k % m].value());
-        f.add(flux[k % m].value());
-        c += count[k % m];
-        weight_totals.push(w);
-        flux_totals.push(f);
-        count_totals.push(c);
+    let mut totals = Vec::with_capacity(2 * m + 1);
+    let mut total = Total::default();
+    totals.push(total);
+    for b in bins.iter().chain(&bins) {
+        total.weight.add(b.weight);
+        total.flux.add(b.flux);
+        totals.push(total);
     }
 
-    let mut best: Option<BinnedBox> = None;
+    // The best box's statistic, length, start and duration; its fit is built
+    // once, at the end.
+    let mut best: Option<(f64, usize, usize, usize)> = None;
+    let whole = Orbit::new(&totals[0], &totals[m]);
     for (duration, &d) in durations.iter().enumerate() {
-        let bins = (d / bin).round() as usize;
+        let length = (d / bin).round() as usize;
         // A box of every bin holds every point. (A box of no bins holds none,
         // and is skipped below.)
-        if bins >= m {
+        if length >= m {
             continue;
         }
-        for start in 0..m {
-            let end = start + bins;
-            let n_in = count_totals[end] - count_totals[start];
-            if n_in == 0 || n_in == n {
-                continue;
-            }
-            let inside = [
-                between(weight_totals[start], weight_totals[end]),
-                between(flux_totals[start], flux_totals[end]),
-            ];
-            let outside = [
-                between(weight_totals[end], weight_totals[start + m]),
-                between(flux_totals[end], flux_totals[start + m]),
-            ];
-            let fit = BoxFit::from_sums(weighted.mean, inside, outside, n_in)?;
-            if fit.depth > 0.0 && best.is_none_or(|b| fit.delta_chi2 > b.fit.delta_chi2) {
-                best = Some(BinnedBox {
-                    fit,
-                    bin,
-                    start,
-                    bins,
-                    duration,
-                    transit_time: times[0] + (start as f64 + 0.5 * bins as f64) * bin,
-                });
+        // The totals at each box's start, end, and start one orbit on.
+        let ends = totals[..m]
+            .iter()
+            .zip(&totals[length..length + m])
+            .zip(&totals[m..2 * m]);
+        for (start, ((first, end), wrap)) in ends.enumerate() {
+            let delta_chi2 = whole.statistic(first, end, wrap)?;
+            if delta_chi2 > best.map_or(0.0, |b| b.0) {
+                best = Some((delta_chi2, length, start, duration));
             }
         }
     }
-    Ok(best)
+    let Some((_, length, start, duration)) = best else {
+        return Ok(None);
+    };
+    let (first, end) = (&totals[start], &totals[start + length]);
+    let n_in = (start..start + length).map(|k| bins[k % m].count).sum();
+    let [inside, outside] = box_sums(first, end, &totals[start + m]);
+    Ok(Some(BinnedBox {
+        fit: BoxFit::from_sums(weighted.mean, inside, outside, n_in)?,
+        bin,
+        start,
+        bins: length,
+        duration,
+        transit_time: times[0] + (start as f64 + 0.5 * length as f64) * bin,
+    }))
+}
+
+/// One bin's plain sums of the weights and centred fluxes, and its number of
+/// points.
+#[derive(Debug, Clone, Copy, Default)]
+struct Bin {
+    weight: f64,
+    flux: f64,
+    count: usize,
 }
