@@ -57,11 +57,13 @@ impl TimeDelta {
     }
 
     /// The time delta in days.
+    #[must_use]
     pub fn as_days(self) -> f64 {
         self.days
     }
 
     /// The time delta in hours.
+    #[must_use]
     pub fn as_hours(self) -> f64 {
         self.days * HOURS_PER_DAY
     }
@@ -170,11 +172,13 @@ impl Epoch {
     }
 
     /// The epoch as BTJD.
+    #[must_use]
     pub fn as_btjd(self) -> f64 {
         self.btjd
     }
 
     /// The epoch as BJD_TDB.
+    #[must_use]
     pub fn as_bjd(self) -> f64 {
         self.btjd + BTJD_OFFSET
     }

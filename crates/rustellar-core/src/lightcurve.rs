@@ -130,21 +130,25 @@ impl LightCurve {
         clippy::len_without_is_empty,
         reason = "new() rejects empty input, so a LightCurve is never empty"
     )]
+    #[must_use]
     pub fn len(&self) -> usize {
         self.time.len()
     }
 
     /// Observation times, strictly increasing.
+    #[must_use]
     pub fn time(&self) -> &[Epoch] {
         &self.time
     }
 
     /// Flux values, one per time.
+    #[must_use]
     pub fn flux(&self) -> &[f64] {
         &self.flux
     }
 
     /// Flux errors, one per time, all greater than zero.
+    #[must_use]
     pub fn flux_err(&self) -> &[f64] {
         &self.flux_err
     }
@@ -216,16 +220,19 @@ pub struct FoldedLightCurve {
 
 impl FoldedLightCurve {
     /// Phases in `[-0.5, 0.5)`, in increasing order, with 0 at the fold's `t0`.
+    #[must_use]
     pub fn phase(&self) -> &[f64] {
         &self.phase
     }
 
     /// Flux values from the original light curve, in phase order.
+    #[must_use]
     pub fn flux(&self) -> &[f64] {
         &self.flux
     }
 
     /// Flux errors from the original light curve, in phase order.
+    #[must_use]
     pub fn flux_err(&self) -> &[f64] {
         &self.flux_err
     }

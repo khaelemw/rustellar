@@ -21,6 +21,7 @@ enum Law {
 
 impl LimbDarkening {
     /// A star with the same brightness everywhere on its disk.
+    #[must_use]
     pub fn uniform() -> Self {
         Self(Law::Uniform)
     }
@@ -50,6 +51,7 @@ impl LimbDarkening {
 
     /// The law as quadratic coefficients `(u1, u2)`: `(0, 0)` for uniform and
     /// `(u1, 0)` for linear.
+    #[must_use]
     pub fn quadratic_coefficients(self) -> (f64, f64) {
         match self.0 {
             Law::Uniform => (0.0, 0.0),
@@ -88,6 +90,7 @@ impl LimbDarkening {
     /// assert!((ld.disk_integral() - 0.8).abs() < 1e-12);
     /// # Ok::<(), rustellar_model::LimbDarkeningError>(())
     /// ```
+    #[must_use]
     pub fn disk_integral(self) -> f64 {
         let (u1, u2) = self.quadratic_coefficients();
 

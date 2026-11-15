@@ -1,6 +1,83 @@
-//! Transit light curve model for circular orbits.
+//! Transit light curves: how a star dims as a planet on a circular orbit
+//! passes in front of it.
+//!
+//! The model is the analytic one of Mandel & Agol (2002) for quadratic limb
+//! darkening (the star is darker towards its edge), in pure Rust with no
+//! dependencies beyond `rustellar-core`.
+//!
+//! # Quick start
+//!
+//! Describe the planet with [`TransitParams`], then ask for the flux at any
+//! times:
+//!
+//! ```
+//! use rustellar_core::{Epoch, TimeDelta};
+//! use rustellar_model::{
+//!     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+//! };
+//!
+//! let params = TransitParams::new(
+//!     Epoch::from_btjd(1000.0)?,           // mid-transit time
+//!     TimeDelta::from_days(3.0)?,          // orbital period
+//!     RadiusRatio::new(0.1)?,              // planet radius / star radius
+//!     ScaledSemiMajorAxis::new(10.0)?,     // orbit radius / star radius
+//!     ImpactParameter::new(0.3)?,          // closest approach to the star's centre
+//!     LimbDarkening::quadratic(0.3, 0.25)?,
+//! )?;
+//!
+//! let times: Vec<Epoch> = (-50..=50)
+//!     .map(|i| Epoch::from_btjd(1000.0 + 0.002 * f64::from(i)))
+//!     .collect::<Result<_, _>>()?;
+//! let flux = params.light_curve(&times);
+//!
+//! assert_eq!(flux.len(), times.len());
+//! assert!(flux.iter().all(|&f| (0.98..=1.0).contains(&f)));
+//!
+//! // Durations and contact points come from the same geometry.
+//! let t14 = params.t14().expect("this planet transits");
+//! assert!((t14.as_hours() - 2.431).abs() < 1e-3);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! # What is here
+//!
+//! - [`TransitParams`]: the planet and orbit, checked once when built. Gives
+//!   the flux at a time ([`flux_at`](TransitParams::flux_at),
+//!   [`light_curve`](TransitParams::light_curve)), the orbit geometry
+//!   ([`separation`](TransitParams::separation),
+//!   [`in_front`](TransitParams::in_front)), and the transit's timing
+//!   ([`t14`](TransitParams::t14), [`t23`](TransitParams::t23),
+//!   [`contacts`](TransitParams::contacts),
+//!   [`transit_times`](TransitParams::transit_times)).
+//! - [`flux`]: the flux for a given planet-star separation, with no orbit.
+//! - [`flux_uniform`]: the same for a star with no limb darkening.
+//! - [`flux_ring_sum`]: a slow numerical integration of the same quantity,
+//!   kept as an independent check.
+//!
+//! # Conventions
+//!
+//! - Lengths are in stellar radii: the separation `z`, the radius ratio `k`,
+//!   the impact parameter `b`, and the semi-major axis `a_rs`.
+//! - Times are [`Epoch`](rustellar_core::Epoch)s (BJD_TDB) and
+//!   [`TimeDelta`](rustellar_core::TimeDelta)s, so units cannot be mixed up.
+//! - Flux is relative to the star's flux out of transit: 1 out of transit,
+//!   and never outside `[0, 1]`.
+//! - Every input is checked by its type's constructor, which returns an error
+//!   rather than panicking. After that, nothing in the model can fail.
+//!
+//! # Limits
+//!
+//! Circular orbits only, with no light from the planet itself and no
+//! averaging over long exposures. The radius ratio is at most
+//! [`RadiusRatio::MAX`] (100), above which the analytic flux loses accuracy.
 //!
 //! # Accuracy
+//!
+//! [`flux`] is within about `1e-10` of the exact value for `k` up to 20, and
+//! `1e-9` at 100. It matches Agol, Luger & Foreman-Mackey (2020), the most
+//! precise published method, to `1.4e-11`, and stays accurate on the lines
+//! where the formula changes case, where batman, PyTransit and that method's
+//! reference code each fail somewhere.
 //!
 //! The light curve agrees with batman 2.5.1 (Kreidberg 2015) to `2.1e-8`
 //! (0.02 ppm) at worst, over 840 transits with quadratic limb darkening:

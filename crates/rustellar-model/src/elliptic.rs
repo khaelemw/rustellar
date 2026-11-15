@@ -85,8 +85,7 @@ pub(crate) fn carlson_rd(x: f64, y: f64, z: f64) -> f64 {
 /// Carlson's `R_J(x, y, z, p)`: symmetric in `x`, `y` and `z`.
 ///
 /// Arguments must be non-negative, `p` positive, and at most one of `x`, `y`
-/// and `z` zero. `p` must also be at least as large as `x`, `y` and `z` (true
-/// for every call in this crate), which keeps the `R_C` terms simple.
+/// and `z` zero.
 pub(crate) fn carlson_rj(x: f64, y: f64, z: f64, p: f64) -> f64 {
     let (x0, y0, z0) = (x, y, z);
     let (mut x, mut y, mut z, mut p) = (x, y, z, p);
@@ -108,8 +107,7 @@ pub(crate) fn carlson_rj(x: f64, y: f64, z: f64, p: f64) -> f64 {
         let sqrt_p = p.sqrt();
         let d = (sqrt_p + x.sqrt()) * (sqrt_p + y.sqrt()) * (sqrt_p + z.sqrt());
         let e = scale * scale * scale * delta / (d * d);
-        // R_C(1, 1 + e) is R_F(1, 1 + e, 1 + e).
-        sum += scale / d * carlson_rf(1.0, 1.0 + e, 1.0 + e);
+        sum += scale / d * carlson_rc_one(e);
         x = (x + lambda) / 4.0;
         y = (y + lambda) / 4.0;
         z = (z + lambda) / 4.0;
@@ -140,9 +138,11 @@ pub(crate) fn ellip_k(mc: f64) -> f64 {
 /// Complete elliptic integral of the second kind, `E(m)`.
 ///
 /// Takes `m` and `mc = 1 - m` separately, so callers can pass an `mc` worked
-/// out without the cancellation in `1.0 - m`.
-pub(crate) fn ellip_e(m: f64, mc: f64) -> f64 {
-    ellip_k(mc) - m / 3.0 * carlson_rd(0.0, mc, 1.0)
+/// out without the cancellation in `1.0 - m`. `k_m` is `K(m)` from
+/// [`ellip_k`], passed in so that it is computed once when `E` and `Pi` are
+/// both needed.
+pub(crate) fn ellip_e(k_m: f64, m: f64, mc: f64) -> f64 {
+    k_m - m / 3.0 * carlson_rd(0.0, mc, 1.0)
 }
 
 /// Complete elliptic integral of the third kind, `Pi(n | m)`, for `n < 1`,
@@ -150,9 +150,10 @@ pub(crate) fn ellip_e(m: f64, mc: f64) -> f64 {
 ///
 /// For large negative `n` the result is small and comes from cancelling
 /// `K(m)` against a term of nearly the same size, so its error is about
-/// `1e-16 * K(m)` absolute rather than relative.
-pub(crate) fn ellip_pi(n: f64, mc: f64) -> f64 {
-    ellip_k(mc) + n / 3.0 * carlson_rj(0.0, mc, 1.0, 1.0 - n)
+/// `1e-16 * K(m)` absolute rather than relative. `k_m` is `K(m)`, as for
+/// [`ellip_e`].
+pub(crate) fn ellip_pi(k_m: f64, n: f64, mc: f64) -> f64 {
+    k_m + n / 3.0 * carlson_rj(0.0, mc, 1.0, 1.0 - n)
 }
 
 // The `lambda` of one duplication step.
@@ -165,4 +166,22 @@ fn duplication_lambda(x: f64, y: f64, z: f64) -> f64 {
 fn series_d_j(e2: f64, e3: f64, e4: f64, e5: f64) -> f64 {
     1.0 - 3.0 * e2 / 14.0 + e3 / 6.0 + 9.0 * e2 * e2 / 88.0 - 3.0 * e4 / 22.0 - 9.0 * e2 * e3 / 52.0
         + 3.0 * e5 / 26.0
+}
+
+// Carlson's `R_C(1, 1 + e)` for `e > -1`, in closed form: `atan(sqrt(e)) /
+// sqrt(e)` for `e > 0`, and `atanh(sqrt(-e)) / sqrt(-e)` for `e < 0`. Both
+// tend to 1 as `e` goes to 0 and keep full relative precision for small `e`,
+// so only `e = 0` needs its own case. `e < 0` comes from `Pi(n | m)` with
+// `n > 0`, which the transit formulas never use.
+fn carlson_rc_one(e: f64) -> f64 {
+    if e == 0.0 {
+        return 1.0;
+    }
+
+    let root = e.abs().sqrt();
+    if e > 0.0 {
+        root.atan() / root
+    } else {
+        root.atanh() / root
+    }
 }

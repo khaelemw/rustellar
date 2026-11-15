@@ -92,6 +92,23 @@ fn transit_is_symmetric_about_mid_transit() {
     }
 }
 
+// With limb darkening that dims towards the limb, the star only gets darker
+// as the planet moves in from first contact to mid-transit.
+#[test]
+fn flux_falls_from_first_contact_to_mid_transit() {
+    let params = reference_transit(T0);
+    let t1 = params.contacts().unwrap().t1.as_days();
+    let mut previous = 1.0;
+
+    for i in 0..=500 {
+        let t = T0 + t1 * (1.0 - f64::from(i) / 500.0);
+        let flux = params.flux_at(at(t));
+
+        assert!(flux <= previous + 1e-15, "t - t0 = {}", t - T0);
+        previous = flux;
+    }
+}
+
 #[test]
 fn transit_lasts_from_first_to_fourth_contact() {
     let params = reference_transit(T0);

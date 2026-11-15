@@ -20,6 +20,12 @@
 //! `a = (z - p)^2`, `b = (z + p)^2` and `q = p^2 - z^2`. Elliptic integrals
 //! use the parameter `m`, with `mc = 1 - m`, and characteristic `n`, as in
 //! [`crate::elliptic`].
+//!
+//! TODO: rewrite with the formulation of Agol, Luger & Foreman-Mackey (2020,
+//! AJ 159, 123). Mandel & Agol's formulas cancel terms of size `k^3` at large
+//! `k`, which is why [`RadiusRatio::MAX`] is 100, and need the interpolation
+//! band around `z = p`; the 2020 formulation avoids both and would let the cap
+//! be lifted.
 use std::f64::consts::PI;
 
 use crate::{
@@ -28,11 +34,13 @@ use crate::{
     uniform::overlap_area,
 };
 
-// Half-width of the band around `z = p` where `blocked_mu_centre_line`
-// replaces the general formulas. There the general formulas lose precision like
-// `1e-16 / |z - p|`, while the `z = p` value differs from the true one by about
-// `0.4 |z - p|`; the two are equal near `1e-8`.
-const CENTRE_LINE_BAND: f64 = 1e-8;
+// Half-width of the band around `z = p` where `B1` is interpolated instead of
+// taken from the general formulas, which lose precision there like
+// `1e-16 / |z - p|` (about `3e-8` at `1e-8` from the line). The interpolation
+// runs from the exact value on the line to the general formula at the band's
+// edge, where it is still accurate to about `1e-11`; with this width the
+// interpolation's own error is of the same size.
+const CENTRE_LINE_BAND: f64 = 1e-5;
 
 // Half-width of the band around `z = 1 - p` (second and third contact), and
 // around `p = 1/2` on the line `z = p`. The formulas converge on these lines,
@@ -55,10 +63,11 @@ const INNER_CONTACT_BAND: f64 = 1e-12;
 ///
 /// # Accuracy
 ///
-/// Within about `1e-9` of [`flux_ring_sum`](crate::flux_ring_sum) at 20,000
-/// rings, for `k` from 0.0001 to 1.5. Within `1e-8` of the planet's edge
-/// crossing the star's centre (`|z| = k`), where the general formula loses
-/// precision, a limiting formula is used instead; it is within about `1e-8`.
+/// Within about `1e-10` of the exact flux for `k` up to 20, growing to about
+/// `1e-9` at [`RadiusRatio::MAX`]. Checked against the defining integral by
+/// quadrature, against [`flux_ring_sum`](crate::flux_ring_sum), and against
+/// Agol, Luger & Foreman-Mackey (2020), which it matches to `1.4e-11`.
+/// Rounding is clamped so the result never leaves `[0, 1]`.
 ///
 /// # Examples
 ///
@@ -72,6 +81,7 @@ const INNER_CONTACT_BAND: f64 = 1e-12;
 /// assert_eq!(flux(1.1, k, ld), 1.0); // just touching the limb
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
+#[must_use]
 pub fn flux(z: f64, k: RadiusRatio, ld: LimbDarkening) -> f64 {
     if z.is_nan() {
         return f64::NAN;
@@ -99,7 +109,11 @@ pub fn flux(z: f64, k: RadiusRatio, ld: LimbDarkening) -> f64 {
     let c2 = u1 + 2.0 * u2;
     let c4 = -u2;
 
-    1.0 - ((1.0 - c2) * b0 + c2 * b1 - c4 * b2) / ld.disk_integral()
+    let flux = 1.0 - ((1.0 - c2) * b0 + c2 * b1 - c4 * b2) / ld.disk_integral();
+
+    // The exact flux is in [0, 1]; rounding can take it about 1e-12 outside,
+    // near first contact and near full cover.
+    flux.clamp(0.0, 1.0)
 }
 
 /// `B1`: the covered part of the star integrated against `mu`, divided by
@@ -110,17 +124,36 @@ pub fn flux(z: f64, k: RadiusRatio, ld: LimbDarkening) -> f64 {
 /// `p` fall in. The lines between regions cross, so the most specific comes
 /// first: `z = 0`, then `z = 1 - p` (which includes `z = p = 1/2`), then
 /// `z = p`.
+///
+/// Near `z = p` the general formulas lose precision, so within
+/// `CENTRE_LINE_BAND` of the line `B1` is interpolated linearly between its
+/// exact value on the line and the general formula at the band's edge, on the
+/// same side as `z`. `B1` is smooth across the line, so the error is second
+/// order in the band width.
 pub(crate) fn blocked_mu(z: f64, p: f64) -> f64 {
+    let offset = z - p;
+
+    if z != 0.0 && offset.abs() < CENTRE_LINE_BAND {
+        // The edge of the band; never below z = 0, which matters for p
+        // smaller than the band.
+        let z_edge = (p + CENTRE_LINE_BAND.copysign(offset)).max(0.0);
+        let on_line = blocked_mu_centre_line(p);
+        let at_edge = blocked_mu_off_centre_line(z_edge, p);
+
+        return on_line + (at_edge - on_line) * offset / (z_edge - p);
+    }
+
+    blocked_mu_off_centre_line(z, p)
+}
+
+// `blocked_mu` away from the band around `z = p`.
+fn blocked_mu_off_centre_line(z: f64, p: f64) -> f64 {
     if z == 0.0 {
         return blocked_mu_centred(p);
     }
 
     if p < 1.0 && (z - (1.0 - p)).abs() < INNER_CONTACT_BAND {
         return blocked_mu_inner_contact(p);
-    }
-
-    if (z - p).abs() < CENTRE_LINE_BAND {
-        return blocked_mu_centre_line(p);
     }
 
     if z < 1.0 - p {
@@ -211,8 +244,8 @@ pub(crate) fn blocked_mu_inside(z: f64, p: f64) -> f64 {
     let n = 1.0 - b / a;
 
     let k = ellip_k(mc);
-    let e = ellip_e(m, mc);
-    let pi_n = ellip_pi(n, mc);
+    let e = ellip_e(k, m, mc);
+    let pi_n = ellip_pi(k, n, mc);
 
     let lambda2 = 2.0 / (9.0 * PI * (1.0 - a).sqrt())
         * ((1.0 - 5.0 * z2 + p2 + q * q) * k + (1.0 - a) * (z2 + 7.0 * p2 - 4.0) * e
@@ -251,8 +284,8 @@ pub(crate) fn blocked_mu_partial(z: f64, p: f64) -> f64 {
     let n = 1.0 - 1.0 / a;
 
     let k = ellip_k(mc);
-    let e = ellip_e(m, mc);
-    let pi_n = ellip_pi(n, mc);
+    let e = ellip_e(k, m, mc);
+    let pi_n = ellip_pi(k, n, mc);
 
     let lambda1 = 1.0 / (9.0 * PI * (p * z).sqrt())
         * (((1.0 - b) * (2.0 * b + a - 3.0) - 3.0 * q * (b - 2.0)) * k
@@ -290,9 +323,8 @@ pub(crate) fn blocked_mu_centred(p: f64) -> f64 {
 /// p = 1/2:  1/3 - 4 / (9 pi)
 /// ```
 ///
-/// Also the value to use near the line, where [`blocked_mu_inside`] and
-/// [`blocked_mu_partial`] lose precision. It differs from the true `B1` at
-/// distance `d` from the line by about `0.4 d`.
+/// Near the line, where [`blocked_mu_inside`] and [`blocked_mu_partial`]
+/// lose precision, [`blocked_mu`] interpolates from this value.
 pub(crate) fn blocked_mu_centre_line(p: f64) -> f64 {
     // Both formulas have mc = 0 at p = 1/2, where K is infinite and its
     // coefficient is 0. They converge to this value, so use it close by too.
@@ -305,16 +337,18 @@ pub(crate) fn blocked_mu_centre_line(p: f64) -> f64 {
     if p < 0.5 {
         let m = 4.0 * p2;
         let mc = (1.0 - 2.0 * p) * (1.0 + 2.0 * p);
+        let k = ellip_k(mc);
         let lambda4 = 1.0 / 3.0
             + 2.0 / (9.0 * PI)
-                * (4.0 * (2.0 * p2 - 1.0) * ellip_e(m, mc) + (1.0 - 4.0 * p2) * ellip_k(mc));
+                * (4.0 * (2.0 * p2 - 1.0) * ellip_e(k, m, mc) + (1.0 - 4.0 * p2) * k);
         return lambda4;
     }
 
     let m = 1.0 / (4.0 * p2);
     let mc = (2.0 * p - 1.0) * (2.0 * p + 1.0) / (4.0 * p2);
-    1.0 / 3.0 + 16.0 * p / (9.0 * PI) * (2.0 * p2 - 1.0) * ellip_e(m, mc)
-        - (1.0 - 4.0 * p2) * (3.0 - 8.0 * p2) / (9.0 * PI * p) * ellip_k(mc)
+    let k = ellip_k(mc);
+    1.0 / 3.0 + 16.0 * p / (9.0 * PI) * (2.0 * p2 - 1.0) * ellip_e(k, m, mc)
+        - (1.0 - 4.0 * p2) * (3.0 - 8.0 * p2) / (9.0 * PI * p) * k
 }
 
 /// `B1` at second or third contact, the planet touching the limb from inside:

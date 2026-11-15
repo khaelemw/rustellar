@@ -68,6 +68,7 @@ pub(crate) fn overlap_area(z: f64, k: f64, big_r: f64) -> f64 {
 /// assert_eq!(flux_uniform(1.1, k), 1.0); // just touching the limb
 /// # Ok::<(), rustellar_model::ParamError>(())
 /// ```
+#[must_use]
 pub fn flux_uniform(z: f64, k: RadiusRatio) -> f64 {
     // `overlap_area` expects z >= 0; a negative z is the same distance.
     1.0 - overlap_area(z.abs(), k.get(), 1.0) / PI

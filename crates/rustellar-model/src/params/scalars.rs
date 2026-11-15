@@ -2,18 +2,29 @@ use crate::error::ParamError;
 
 /// Planet radius divided by star radius, `k = Rp / Rs`.
 ///
-/// Always finite and greater than zero. Values above 1 are allowed: the
-/// geometry still works for a body larger than the star.
+/// Always finite, greater than zero and at most [`RadiusRatio::MAX`]. Values
+/// above 1 are allowed: the geometry still works for a body larger than the
+/// star, as in an eclipsing binary.
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct RadiusRatio(f64);
 
 impl RadiusRatio {
+    /// The largest radius ratio accepted, 100.
+    ///
+    /// Above this the analytic flux loses accuracy: its rounding error grows
+    /// roughly as `k^3 * 1e-15`, reaching about `1e-9` at 100 and `1e-6` at
+    /// 1000. Planets have `k` below about 0.3, and eclipsing binaries rarely
+    /// exceed 50.
+    pub const MAX: f64 = 100.0;
+
     /// Makes a radius ratio.
     ///
     /// # Errors
     ///
     /// - [`ParamError::NonFinite`] if `k` is NaN or infinite.
     /// - [`ParamError::RadiusRatioNotPositive`] if `k` is zero or negative.
+    /// - [`ParamError::RadiusRatioTooLarge`] if `k` is above
+    ///   [`RadiusRatio::MAX`].
     pub fn new(k: f64) -> Result<Self, ParamError> {
         if !k.is_finite() {
             return Err(ParamError::NonFinite { name: "k" });
@@ -23,10 +34,15 @@ impl RadiusRatio {
             return Err(ParamError::RadiusRatioNotPositive);
         }
 
+        if k > Self::MAX {
+            return Err(ParamError::RadiusRatioTooLarge);
+        }
+
         Ok(Self(k))
     }
 
     /// The radius ratio as a number.
+    #[must_use]
     pub fn get(self) -> f64 {
         self.0
     }
@@ -62,6 +78,7 @@ impl ImpactParameter {
     }
 
     /// The impact parameter in stellar radii.
+    #[must_use]
     pub fn get(self) -> f64 {
         self.0
     }
@@ -93,6 +110,7 @@ impl ScaledSemiMajorAxis {
     }
 
     /// The scaled semi-major axis in stellar radii.
+    #[must_use]
     pub fn get(self) -> f64 {
         self.0
     }

@@ -116,36 +116,43 @@ impl TransitParams {
     }
 
     /// Time of mid-transit.
+    #[must_use]
     pub fn t0(self) -> Epoch {
         self.t0
     }
 
     /// Orbital period.
+    #[must_use]
     pub fn period(self) -> TimeDelta {
         self.period
     }
 
     /// Planet to star radius ratio.
+    #[must_use]
     pub fn k(self) -> RadiusRatio {
         self.k
     }
 
     /// Semi-major axis in stellar radii.
+    #[must_use]
     pub fn a_rs(self) -> ScaledSemiMajorAxis {
         self.a_rs
     }
 
     /// Impact parameter in stellar radii.
+    #[must_use]
     pub fn b(self) -> ImpactParameter {
         self.b
     }
 
     /// Orbital inclination in degrees, from `b` and `a_rs`. 90 is edge-on.
+    #[must_use]
     pub fn inclination_deg(self) -> f64 {
         (self.b.get() / self.a_rs.get()).acos().to_degrees()
     }
 
     /// Limb-darkening law of the star.
+    #[must_use]
     pub fn limb_darkening(self) -> LimbDarkening {
         self.ld
     }
@@ -155,6 +162,7 @@ impl TransitParams {
     /// In `[-pi, pi)`, with 0 at mid-transit and `-pi` half an orbit away.
     /// Times many orbits from `t0` keep full precision, because whole orbits
     /// are removed before scaling to radians.
+    #[must_use]
     pub fn phase_angle(self, t: Epoch) -> f64 {
         2.0 * PI * (((t - self.t0) / self.period + 0.5).rem_euclid(1.0) - 0.5)
     }
@@ -165,6 +173,7 @@ impl TransitParams {
     /// Equal to `b` at mid-transit. The value is the same half an orbit later,
     /// when the planet is behind the star, so check [`in_front`](Self::in_front)
     /// before treating a small separation as a transit.
+    #[must_use]
     pub fn separation(self, t: Epoch) -> f64 {
         let (sin_phi, cos_phi) = self.phase_angle(t).sin_cos();
         let a = self.a_rs.get();
@@ -175,6 +184,7 @@ impl TransitParams {
     }
 
     /// Whether the planet is between the observer and the star at time `t`.
+    #[must_use]
     pub fn in_front(self, t: Epoch) -> bool {
         self.phase_angle(t).cos() > 0.0
     }
@@ -184,6 +194,7 @@ impl TransitParams {
     /// `None` if the planet misses the star (`b >= 1 + k`). If the orbit is so
     /// close that the planet overlaps the star for its whole near-side half
     /// orbit (`a_rs < 1 + k`), this is half the period.
+    #[must_use]
     pub fn t14(self) -> Option<TimeDelta> {
         let edge = 1.0 + self.k.get();
 
@@ -199,6 +210,7 @@ impl TransitParams {
     ///
     /// `None` for a grazing transit (`b >= 1 - k`), which also covers a planet
     /// at least as large as the star (`k >= 1`).
+    #[must_use]
     pub fn t23(self) -> Option<TimeDelta> {
         let edge = 1.0 - self.k.get();
 
@@ -227,6 +239,7 @@ impl TransitParams {
     ///
     /// `None` if the planet misses the star. Second and third contact are
     /// `None` for a grazing transit, as for [`t23`](Self::t23).
+    #[must_use]
     pub fn contacts(self) -> Option<Contacts> {
         let half_t14 = self.t14()? * 0.5;
         let half_t23 = self.t23().map(|t23| t23 * 0.5);
@@ -296,6 +309,7 @@ impl TransitParams {
     /// assert_eq!(params.flux_at(Epoch::from_btjd(1.5)?), 1.0);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn flux_at(self, t: Epoch) -> f64 {
         // The separation is the same half an orbit later, when the planet is
         // behind the star, so this check must come first.
@@ -339,6 +353,7 @@ impl TransitParams {
     /// }
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
+    #[must_use]
     pub fn light_curve(self, times: &[Epoch]) -> Vec<f64> {
         times.iter().map(|&t| self.flux_at(t)).collect()
     }

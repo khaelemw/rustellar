@@ -43,6 +43,7 @@ use crate::{LimbDarkening, RadiusRatio};
 /// assert!((flux - 0.988_887_01).abs() < 1e-8);
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
+#[must_use]
 pub fn flux_ring_sum(z: f64, k: RadiusRatio, ld: LimbDarkening, n_rings: NonZeroUsize) -> f64 {
     // `max` and `min` below would quietly turn a NaN into a number.
     if z.is_nan() {

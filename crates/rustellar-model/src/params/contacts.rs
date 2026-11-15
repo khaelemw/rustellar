@@ -8,7 +8,11 @@ use rustellar_core::TimeDelta;
 /// `t2 = -t3`.
 ///
 /// Made by [`TransitParams::contacts`](crate::TransitParams::contacts).
+///
+/// More fields may be added in minor releases, so it cannot be built or
+/// matched exhaustively outside this crate.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct Contacts {
     /// First contact: the transit starts. Negative.
     pub t1: TimeDelta,
