@@ -52,7 +52,7 @@ impl TransitBox {
     /// # Errors
     ///
     /// - As [`TransitBox::new`] for a bad period or duration.
-    /// - [`BlsError::Overflow`] as for [`TransitBox::fit`].
+    /// - [`BlsError::OutOfRange`] as for [`TransitBox::fit`].
     ///
     /// # Examples
     ///

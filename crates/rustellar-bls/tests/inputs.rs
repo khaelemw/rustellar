@@ -172,8 +172,8 @@ fn period_not_finite() {
     "the box holds every point, leaving none out of transit"
 )]
 #[case(
-    BlsError::Overflow,
-    "the weights 1 / flux_err^2, or their sums, are too large for an f64"
+    BlsError::OutOfRange,
+    "the weights 1 / flux_err^2, or sums built from them, are out of range for an f64"
 )]
 #[case(
     BlsError::GridTooLarge,

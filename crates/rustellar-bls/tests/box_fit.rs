@@ -355,12 +355,39 @@ fn box_with_every_point() {
     );
 }
 
-// An error of 1e-160 gives a weight of 1e320, beyond an f64.
-#[test]
-fn weights_that_overflow() {
-    let lc =
-        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1.0; 3], vec![1e-160, 1.0, 1.0]).unwrap();
-    assert_eq!(transit(10.0, 0.5, 0.0).fit(&lc), Err(BlsError::Overflow));
+// An error of 1e-160 gives a weight of 1e320, beyond an f64; one of 1e155
+// gives 1e-310, which has lost digits; one of 1e200 gives 0. Each is an
+// error, wherever the box is.
+#[rstest]
+fn weights_out_of_range(
+    #[values(1e-160, 1e-155, 1e155, 1e200)] bad: f64,
+    #[values(0.0, 1.0)] transit_time: f64,
+) {
+    let lc = LightCurve::from_btjd(
+        vec![0.0, 1.0, 2.0],
+        vec![1.0, 0.9, 1.0],
+        vec![bad, 1.0, 1.0],
+    )
+    .unwrap();
+    assert_eq!(
+        transit(10.0, 0.5, transit_time).fit(&lc),
+        Err(BlsError::OutOfRange)
+    );
+}
+
+// The largest and smallest errors whose weights are normal floats still fit.
+#[rstest]
+#[case(1e-153)]
+#[case(1e153)]
+fn weights_at_the_edge_of_range(#[case] err: f64) {
+    let lc = LightCurve::from_btjd(
+        vec![0.0, 1.0, 2.0, 3.0],
+        vec![1.0, 0.9, 1.0, 1.0],
+        vec![err; 4],
+    )
+    .unwrap();
+    let fit = transit(10.0, 0.5, 1.0).fit(&lc).unwrap();
+    assert!((fit.depth - 0.1).abs() < 1e-15, "{fit:?}");
 }
 
 // The fit is plain data, so it can be copied and compared.
@@ -372,10 +399,23 @@ fn fit_is_plain_data() {
     assert_eq!(copy, fit);
 }
 
-// Errors of 1e-100 give weights of 1e200, each fine, but W_in W_out is 1e400.
+// Weights of 1e300 and a dip of 1e5: the likelihood, W_in depth^2 / 2, is
+// about 1e310.
 #[test]
 fn statistics_that_overflow() {
     let lc =
-        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1.0, 0.9, 1.0], vec![1e-100; 3]).unwrap();
-    assert_eq!(transit(10.0, 0.5, 1.0).fit(&lc), Err(BlsError::Overflow));
+        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
+    assert_eq!(transit(10.0, 0.5, 1.0).fit(&lc), Err(BlsError::OutOfRange));
+}
+
+// Four weights of 1e308, each a normal float, sum past the largest f64.
+#[test]
+fn weights_that_sum_out_of_range() {
+    let lc = LightCurve::from_btjd(
+        vec![0.0, 1.0, 2.0, 3.0],
+        vec![1.0, 0.9, 1.0, 1.0],
+        vec![1e-154; 4],
+    )
+    .unwrap();
+    assert_eq!(transit(10.0, 0.5, 1.0).fit(&lc), Err(BlsError::OutOfRange));
 }

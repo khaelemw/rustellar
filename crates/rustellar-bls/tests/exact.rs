@@ -2,6 +2,7 @@
 // rational arithmetic, never worse than astropy's slow search, and the edge
 // cases.
 
+use rstest::rstest;
 use rustellar_bls::{BestBox, BlsError, TransitBox};
 use rustellar_core::{Epoch, LightCurve, TimeDelta};
 
@@ -301,23 +302,29 @@ fn bad_box() {
     );
 }
 
-#[test]
-fn weights_that_overflow() {
-    let lc =
-        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1.0; 3], vec![1e-160, 1.0, 1.0]).unwrap();
+// A weight that has lost its digits stops the search before it starts,
+// rather than part way through at the first box that holds only that point.
+#[rstest]
+fn weights_out_of_range(#[values(1e-160, 1e155, 1e200)] bad: f64) {
+    let lc = LightCurve::from_btjd(
+        vec![0.0, 1.0, 2.0],
+        vec![1.0, 0.9, 1.0],
+        vec![bad, 1.0, 1.0],
+    )
+    .unwrap();
     assert_eq!(
         TransitBox::best(&lc, days(10.0), days(0.5)),
-        Err(BlsError::Overflow)
+        Err(BlsError::OutOfRange)
     );
 }
 
-// Weights of 1e200 each, so W_in W_out is 1e400.
+// Weights of 1e300 and a dip of 1e5: the likelihood is about 1e310.
 #[test]
 fn statistics_that_overflow() {
     let lc =
-        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1.0, 0.9, 1.0], vec![1e-100; 3]).unwrap();
+        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
     assert_eq!(
         TransitBox::best(&lc, days(10.0), days(0.5)),
-        Err(BlsError::Overflow)
+        Err(BlsError::OutOfRange)
     );
 }

@@ -59,9 +59,10 @@ pub enum BlsError {
     /// A box holds every one of the light curve's points, leaving no
     /// out-of-transit level.
     NoPointsOutOfTransit,
-    /// A weight `1 / flux_err^2`, or a sum of weights or of their products
-    /// with the flux, is too large for an `f64`.
-    Overflow,
+    /// A weight `1 / flux_err^2` is too large or too small for an `f64` to
+    /// hold to full precision, or a sum or statistic built from the weights
+    /// overflows.
+    OutOfRange,
 }
 
 impl fmt::Display for BlsError {
@@ -93,9 +94,9 @@ impl fmt::Display for BlsError {
             Self::NoPointsOutOfTransit => {
                 write!(f, "the box holds every point, leaving none out of transit")
             }
-            Self::Overflow => write!(
+            Self::OutOfRange => write!(
                 f,
-                "the weights 1 / flux_err^2, or their sums, are too large for an f64"
+                "the weights 1 / flux_err^2, or sums built from them, are out of range for an f64"
             ),
             Self::GridTooLarge => write!(
                 f,

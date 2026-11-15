@@ -137,9 +137,10 @@ impl TransitBox {
     ///
     /// - [`BlsError::NoPointsInTransit`] or [`BlsError::NoPointsOutOfTransit`]
     ///   if the box holds none, or all, of the points.
-    /// - [`BlsError::Overflow`] if a weight `1 / flux_err^2`, or a sum of the
-    ///   weights or of their products with the flux, is too large for an
-    ///   `f64`.
+    /// - [`BlsError::OutOfRange`] if a weight `1 / flux_err^2` is too large
+    ///   or too small for an `f64` to hold to full precision (a flux error
+    ///   below about 1e-154 or above about 1e154), or a sum or statistic built
+    ///   from the weights overflows.
     ///
     /// # Examples
     ///
@@ -211,6 +212,11 @@ pub(crate) struct Weighted {
 impl Weighted {
     pub(crate) fn new(lc: &LightCurve) -> Result<Self, BlsError> {
         let weights: Vec<f64> = lc.flux_err().iter().map(|e| 1.0 / (e * e)).collect();
+        // Zero or subnormal weights have lost their digits, or all of them,
+        // and an infinite one swamps every other point.
+        if !weights.iter().all(|w| w.is_normal()) {
+            return Err(BlsError::OutOfRange);
+        }
         let flux = lc.flux();
         let weight = weights.iter().copied().collect::<Sum>().value();
         let mean = weights
@@ -226,7 +232,7 @@ impl Weighted {
             .map(|(w, y)| w * (y - mean))
             .collect();
         if !(mean.is_finite() && centred.iter().all(|x| x.is_finite())) {
-            return Err(BlsError::Overflow);
+            return Err(BlsError::OutOfRange);
         }
         Ok(Self {
             mean,
@@ -297,14 +303,16 @@ impl BoxFit {
             depth,
             depth_err,
             snr: depth / depth_err,
-            delta_chi2: weight_in * weight_out / (weight_in + weight_out) * depth * depth,
+            // W_out / W first: W_in W_out alone overflows for weights above
+            // about 1e154, though the statistic itself is far smaller.
+            delta_chi2: weight_in * (weight_out / (weight_in + weight_out)) * depth * depth,
             likelihood: 0.5 * weight_in * depth * depth,
             weight_in,
             weight_out,
             n_in,
         };
         if !fit.is_finite() {
-            return Err(BlsError::Overflow);
+            return Err(BlsError::OutOfRange);
         }
         Ok(fit)
     }
