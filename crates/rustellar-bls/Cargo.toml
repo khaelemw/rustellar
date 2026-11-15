@@ -1,0 +1,12 @@
+[package]
+name = "rustellar-bls"
+description = "Box least squares transit search (Kovacs, Zucker & Mazeh 2002) in pure Rust"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "exoplanet", "transit", "periodogram"]
+categories = ["science", "algorithms"]
+
+[dependencies]
+rustellar-core.workspace = true

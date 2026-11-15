@@ -7,6 +7,7 @@
 //!
 //! | Feature | Module | What it does |
 //! |---|---|---|
+//! | `bls` | [`bls`] | Box least squares transit search (in development) |
 //! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
 //! | `full` | | Every tool |
 //!
@@ -47,6 +48,11 @@
 pub use rustellar_core::{
     Epoch, FoldedLightCurve, LightCurve, LightCurveError, TimeDelta, TimeError,
 };
+
+/// Box least squares transit search, from [`rustellar-bls`](rustellar_bls).
+#[cfg(feature = "bls")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bls")))]
+pub use rustellar_bls as bls;
 
 /// Transit light curves, from [`rustellar-model`](rustellar_model).
 #[cfg(feature = "model")]

@@ -46,3 +46,12 @@ fn model_feature_brings_in_the_model() {
     let flux = params.flux_at(Epoch::from_btjd(0.0).unwrap());
     assert!((flux - 0.99).abs() < 1e-15, "{flux}");
 }
+
+#[cfg(feature = "bls")]
+#[test]
+fn bls_feature_brings_in_bls() {
+    // Nothing is implemented in rustellar-bls yet; this checks the module is
+    // there under the feature.
+    #[allow(unused_imports)]
+    use rustellar::bls as _;
+}

@@ -11,6 +11,7 @@ rustellar = { version = "0.0", features = ["model"] }
 
 | Feature | Crate | What it does |
 |---|---|---|
+| `bls` | `rustellar-bls` | Box least squares transit search (in development) |
 | `model` | `rustellar-model` | Transit light curves (Mandel & Agol 2002), exposure averaging |
 | `full` | | Every tool |
 

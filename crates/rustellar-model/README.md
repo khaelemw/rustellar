@@ -127,8 +127,7 @@ here needs about half as many samples as batman's rule.
 ## Limits
 
 Circular orbits only, no light from the planet, and a radius ratio of at most
-10,000. See [SCOPE.md](SCOPE.md) for what is planned and what is left to other
-crates.
+10,000.
 
 ## References
 

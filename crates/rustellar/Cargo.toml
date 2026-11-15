@@ -12,10 +12,12 @@ categories = ["science", "algorithms"]
 # build compiles only what it uses. rustellar-core is always included.
 [features]
 default = []
-full = ["model"]
+full = ["bls", "model"]
+bls = ["dep:rustellar-bls"]
 model = ["dep:rustellar-model"]
 
 [dependencies]
+rustellar-bls = { workspace = true, optional = true }
 rustellar-core.workspace = true
 rustellar-model = { workspace = true, optional = true }
 
@@ -23,5 +25,6 @@ rustellar-model = { workspace = true, optional = true }
 all-features = true
 
 [dev-dependencies]
+rustellar-bls.workspace = true
 rustellar-core.workspace = true
 rustellar-model.workspace = true

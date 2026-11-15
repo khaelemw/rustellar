@@ -350,8 +350,16 @@ dependencies = [
 name = "rustellar"
 version = "0.0.0"
 dependencies = [
+ "rustellar-bls",
  "rustellar-core",
  "rustellar-model",
+]
+
+[[package]]
+name = "rustellar-bls"
+version = "0.0.0"
+dependencies = [
+ "rustellar-core",
 ]
 
 [[package]]
