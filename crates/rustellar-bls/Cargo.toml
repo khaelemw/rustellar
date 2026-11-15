@@ -20,11 +20,14 @@ exclude = [
     "tests/reference/ofir_cases.csv",
     "tests/reference/ofir_grids.csv",
     "tests/reference/slow_power.csv",
+    "tests/reference/survey_curves.csv",
+    "tests/reference/survey_power.csv",
     "tests/autoperiod.rs",
     "tests/ofir.rs",
     "tests/box_fit.rs",
     "tests/exact.rs",
     "tests/search.rs",
+    "tests/survey.rs",
 ]
 
 [dependencies]

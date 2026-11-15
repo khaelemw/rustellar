@@ -1,4 +1,4 @@
-// The shared light-curve recipe: the reference generator builds the same
+// The shared light-curve recipes: the reference generator builds the same
 // light curves from the same seeds, bit for bit, so only astropy's results
 // are stored. Only + - * / and floor are used, which IEEE 754 rounds the same
 // on every platform.
@@ -51,16 +51,58 @@ impl Recipe {
                 self.t_start + self.cadence * f64::from(i) + 0.5 * self.cadence * u_t
             };
             let mut yi = self.noise * (2.0 * u_y - 1.0);
-            if self.depth > 0.0 {
-                let r = (ti - self.tc) / self.period;
-                let f = r - r.floor();
-                if f.min(1.0 - f) * self.period < 0.5 * self.duration {
-                    yi -= self.depth;
-                }
+            if self.depth > 0.0 && in_box(ti, self.period, self.tc, self.duration) {
+                yi -= self.depth;
             }
             t.push(ti);
             y.push(yi);
             e.push(self.noise * (0.75 + 0.5 * u_e));
+        }
+        LightCurve::from_btjd(t, y, e).unwrap()
+    }
+}
+
+// Within `duration / 2` of `tc + k period`.
+fn in_box(t: f64, period: f64, tc: f64, duration: f64) -> bool {
+    let r = (t - tc) / period;
+    let f = r - r.floor();
+    f.min(1.0 - f) * period < 0.5 * duration
+}
+
+// Survey light curves: segments of `n` times every `cadence` from `start`,
+// each jittered by up to half a cadence, and each kept with probability
+// `keep`; noise, errors and box as `Recipe`. Four draws a point, kept or not.
+pub(super) struct Survey {
+    pub(super) seed: u64,
+    pub(super) segments: Vec<(f64, u32)>,
+    pub(super) cadence: f64,
+    pub(super) noise: f64,
+    pub(super) keep: f64,
+    pub(super) period: f64,
+    pub(super) tc: f64,
+    pub(super) duration: f64,
+    pub(super) depth: f64,
+}
+
+impl Survey {
+    pub(super) fn light_curve(&self) -> LightCurve {
+        let mut rng = Random(self.seed);
+        let (mut t, mut y, mut e) = (vec![], vec![], vec![]);
+        for &(start, n) in &self.segments {
+            for i in 0..n {
+                let (u_k, u_t, u_y, u_e) = (rng.unit(), rng.unit(), rng.unit(), rng.unit());
+                if u_k >= self.keep {
+                    continue;
+                }
+                let ti = start + self.cadence * f64::from(i) + 0.5 * self.cadence * u_t;
+                let mut yi = self.noise * (2.0 * u_y - 1.0);
+                if self.depth > 0.0 && in_box(ti, self.period, self.tc, self.duration) {
+                    yi -= self.depth;
+                }
+                t.push(ti);
+                y.push(yi);
+                e.push(self.noise * (0.75 + 0.5 * u_e));
+            }
         }
         LightCurve::from_btjd(t, y, e).unwrap()
     }

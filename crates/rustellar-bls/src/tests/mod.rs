@@ -7,3 +7,4 @@ mod grid;
 mod recipe;
 mod refine;
 mod sums;
+mod survey;
