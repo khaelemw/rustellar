@@ -1,51 +1,49 @@
-//! Analytic flux for quadratic limb darkening (Mandel & Agol 2002).
+//! Analytic flux for quadratic limb darkening (Mandel & Agol 2002; Agol,
+//! Luger & Foreman-Mackey 2020).
 //!
 //! With `I(mu) = c0 + c2 mu + c4 mu^2`, the blocked light splits into three
 //! integrals over the part of the star the planet covers, each divided by `pi`:
 //!
-//! - `B0`: of `1`, the covered area (from `overlap_area`),
+//! - `B0`: of `1`, the covered area ([`blocked_area`]),
 //! - `B1`: of `mu = sqrt(1 - r^2)`, Mandel & Agol's `lambda_d` plus `2/3` when
 //!   the planet covers the star's centre,
 //! - `B2`: of `r^2`, Mandel & Agol's `eta_d`.
 //!
 //! Over the whole star they are 1, 2/3 and 1/2.
 //!
-//! `B2` is one function for every position. `B1` has one function per region
-//! of Mandel & Agol's Table 1, since the general formulas are `0/0` or
-//! `0 * infinity` on the lines between regions, though `B1` itself is smooth
-//! there; [`blocked_mu`] picks the function.
+//! `B0` and `B2` need no elliptic integrals. `B1` uses the formulation of Agol,
+//! Luger & Foreman-Mackey (2020, section 3 and appendix A), written with
+//! Bulirsch's general complete integral `cel` ([`crate::elliptic`]). Their
+//! `Lambda_1` is `3 pi` times Mandel & Agol's `lambda_d`, so
+//! `B1 = Lambda_1 / (3 pi)`, plus `2/3` when the planet covers the centre.
+//!
+//! Compared with Mandel & Agol's own formulas, this needs one AGM iteration
+//! instead of three separate integrals, and it does not cancel terms of size
+//! `p^3` at large `p`. Near the line `z = p`, the third-kind integral carries a
+//! factor `1 / (z - p)` that Mandel & Agol's formula removes by subtraction.
+//! Here [`blocked_mu_inside`] and [`blocked_mu_partial`] instead pass `cel` the
+//! square root of its parameter, and the ratio that contains the factor, both
+//! already worked out, so the formula keeps full precision right up to the
+//! line. Only the line itself, where the formula is `0 / 0`, needs its own
+//! function, [`blocked_mu_centre_line`].
 //!
 //! In this module `p` is the radius ratio and `z` the separation, both in
-//! stellar radii, with `z >= 0`, as in the paper. The shorthand is
-//! `a = (z - p)^2`, `b = (z + p)^2` and `q = p^2 - z^2`. Elliptic integrals
-//! use the parameter `m`, with `mc = 1 - m`, and characteristic `n`, as in
-//! [`crate::elliptic`].
-//!
-//! TODO: rewrite with the formulation of Agol, Luger & Foreman-Mackey (2020,
-//! AJ 159, 123). Mandel & Agol's formulas cancel terms of size `k^3` at large
-//! `k`, which is why [`RadiusRatio::MAX`] is 100, and need the interpolation
-//! band around `z = p`; the 2020 formulation avoids both and would let the cap
-//! be lifted.
+//! stellar radii, with `z >= 0`, as in the papers.
 use std::f64::consts::PI;
 
 use crate::{
     LimbDarkening, RadiusRatio,
-    elliptic::{ellip_e, ellip_k, ellip_pi},
-    uniform::overlap_area,
+    elliptic::cel_e_d,
+    lens::{Lens, arc_1, arc_2, sum3},
+    uniform::blocked_area,
 };
 
-// Half-width of the band around `z = p` where `B1` is interpolated instead of
-// taken from the general formulas, which lose precision there like
-// `1e-16 / |z - p|` (about `3e-8` at `1e-8` from the line). The interpolation
-// runs from the exact value on the line to the general formula at the band's
-// edge, where it is still accurate to about `1e-11`; with this width the
-// interpolation's own error is of the same size.
-const CENTRE_LINE_BAND: f64 = 1e-5;
-
-// Half-width of the band around `z = 1 - p` (second and third contact), and
-// around `p = 1/2` on the line `z = p`. The formulas converge on these lines,
-// so the band only keeps `mc` away from zero, where `K` is infinite.
-const INNER_CONTACT_BAND: f64 = 1e-12;
+// Relative distance `|z - p| / (z + p)` below which `B1` is taken from the
+// line `z = p`. The general formulas are exact up to the line, but their
+// intermediate values grow like `(z + p) / |z - p|`, and would overflow for
+// distances near the smallest doubles. `B1` is smooth across the line, so its
+// value on the line differs by about this fraction of `B1`.
+const CENTRE_LINE: f64 = 1e-100;
 
 /// Flux of a limb-darkened star while a planet of radius ratio `k` sits a
 /// distance `z` from the star's centre on the sky.
@@ -63,12 +61,14 @@ const INNER_CONTACT_BAND: f64 = 1e-12;
 ///
 /// # Accuracy
 ///
-/// Within about `1e-10` of the exact flux for `k` up to 20, growing to about
-/// `2e-9` at [`RadiusRatio::MAX`]. Checked against the defining integral by
-/// quadrature, against [`flux_ring_sum`](crate::flux_ring_sum), and against
-/// Agol, Luger & Foreman-Mackey (2020), which it matches to `1e-13` for `k`
-/// below 1 (see the crate docs for the full range).
-/// Rounding is clamped so the result never leaves `[0, 1]`.
+/// Within `1e-15` of the exact flux for `k` up to 1, and within about
+/// `1.5e-16 k` above that, so `1.5e-12` at [`RadiusRatio::MAX`]. Checked at
+/// 36,742 points against 60-digit values, on and next to every line where the
+/// formulas change case and at separations down to the smallest double (see
+/// the crate docs). The error is relative to the star's flux, so relative to
+/// the transit depth `k^2` it is larger for small planets: about `1e-11` of
+/// the depth at `k = 0.01`. Rounding is clamped so the result never leaves
+/// `[0, 1]`.
 ///
 /// # Examples
 ///
@@ -100,7 +100,7 @@ pub fn flux(z: f64, k: RadiusRatio, ld: LimbDarkening) -> f64 {
         return 0.0;
     }
 
-    let b0 = overlap_area(z, p, 1.0) / PI;
+    let b0 = blocked_area(z, p);
     let b1 = blocked_mu(z, p);
     let b2 = blocked_r2(z, p);
 
@@ -121,46 +121,29 @@ pub fn flux(z: f64, k: RadiusRatio, ld: LimbDarkening) -> f64 {
 /// `pi`, for a planet that overlaps the star without covering it:
 /// `|1 - p| < z < 1 + p` or `z <= 1 - p`.
 ///
-/// Picks the formula for the region of Mandel & Agol's Table 1 that `z` and
-/// `p` fall in. The lines between regions cross, so the most specific comes
-/// first: `z = 0`, then `z = 1 - p` (which includes `z = p = 1/2`), then
-/// `z = p`.
-///
-/// Near `z = p` the general formulas lose precision, so within
-/// `CENTRE_LINE_BAND` of the line `B1` is interpolated linearly between its
-/// exact value on the line and the general formula at the band's edge, on the
-/// same side as `z`. `B1` is smooth across the line, so the error is second
-/// order in the band width.
+/// Picks the formula for the region `z` and `p` fall in. The lines between
+/// regions cross, so the most specific comes first: `z = 0`, then `z = p`
+/// (which includes `z = p = 1/2`), then inside the disk, across the limb, or
+/// touching the limb from inside (`z = 1 - p`).
 pub(crate) fn blocked_mu(z: f64, p: f64) -> f64 {
-    let offset = z - p;
-
-    if z != 0.0 && offset.abs() < CENTRE_LINE_BAND {
-        // The edge of the band; never below z = 0, which matters for p
-        // smaller than the band.
-        let z_edge = (p + CENTRE_LINE_BAND.copysign(offset)).max(0.0);
-        let on_line = blocked_mu_centre_line(p);
-        let at_edge = blocked_mu_off_centre_line(z_edge, p);
-
-        return on_line + (at_edge - on_line) * offset / (z_edge - p);
-    }
-
-    blocked_mu_off_centre_line(z, p)
-}
-
-// `blocked_mu` away from the band around `z = p`.
-fn blocked_mu_off_centre_line(z: f64, p: f64) -> f64 {
     if z == 0.0 {
         return blocked_mu_centred(p);
     }
 
-    if p < 1.0 && (z - (1.0 - p)).abs() < INNER_CONTACT_BAND {
-        return blocked_mu_inner_contact(p);
+    let sum = z + p;
+    if (z - p).abs() <= CENTRE_LINE * sum {
+        return blocked_mu_centre_line(p);
     }
 
-    if z < 1.0 - p {
+    // 1 - (z + p)^2, as a product with an exact first factor, so its sign is
+    // right however close z is to 1 - p.
+    let one_minus_sum2 = sum3(1.0, -z, -p) * (1.0 + sum);
+    if one_minus_sum2 > 0.0 {
         blocked_mu_inside(z, p)
-    } else {
+    } else if one_minus_sum2 < 0.0 {
         blocked_mu_partial(z, p)
+    } else {
+        blocked_mu_inner_contact(p)
     }
 }
 
@@ -168,16 +151,24 @@ fn blocked_mu_off_centre_line(z: f64, p: f64) -> f64 {
 /// `pi` (Mandel & Agol's `eta_d`). Valid for every `z` and `p`.
 ///
 /// ```text
-/// z >= 1 + p            0                                    (no overlap)
-/// p > 1, z <= p - 1     1/2                                  (star covered)
-/// z <= 1 - p            eta_2 = (p^2 / 2)(p^2 + 2 z^2)       (planet inside)
-/// otherwise             eta_1 = [kappa_1 + 2 eta_2 kappa_0
-///                                - (1/4)(1 + 5 p^2 + z^2) sqrt((1 - a)(b - 1))] / (2 pi)
+/// z >= 1 + p            0                                 (no overlap)
+/// p > 1, z <= p - 1     1/2                               (star covered)
+/// z <= 1 - p            eta_2 = (p^2 / 2)(p^2 + 2 z^2)    (planet inside)
+/// otherwise             the lens, below
 /// ```
 ///
-/// `kappa_0` and `kappa_1` are the half-angles of the arcs bounding the
-/// overlap, seen from the planet's and the star's centre, as in
-/// `overlap_area`.
+/// For a lens ([`Lens`]), Green's theorem turns the integral of `r^2` into
+/// `(1/4)` of the integral of `r^4` against the angle seen from the star's
+/// centre, along the lens's edge. The star's arc gives `kappa1 / 2`. Along the
+/// planet's arc `r^2 = d^2 + 4 z p h` and the angle element is
+/// `p (2 z h - d) dphi`, with `h = sin^2(phi / 2)` and `d = z - p`, so it gives
+///
+/// ```text
+/// (p / 4) [-2 d^3 kappa0 + 2 z d (d - 2 p) arc_1(kappa0) + 8 z^2 p arc_2(kappa0)]
+/// ```
+///
+/// Mandel & Agol's `eta_1` is the same quantity, but it cancels terms of size
+/// `p^4` when the planet is much larger than the star; these terms do not.
 pub(crate) fn blocked_r2(z: f64, p: f64) -> f64 {
     if z >= 1.0 + p {
         return 0.0;
@@ -187,113 +178,93 @@ pub(crate) fn blocked_r2(z: f64, p: f64) -> f64 {
         return 0.5;
     }
 
-    let p2 = p * p;
-    let z2 = z * z;
-
-    // The whole planet disk: by the parallel-axis theorem, a disk of radius p
-    // at distance z, weighted by r^2.
-    let eta2 = 0.5 * p2 * (p2 + 2.0 * z2);
-
     if z <= 1.0 - p {
-        return eta2;
+        // The whole planet disk: by the parallel-axis theorem, a disk of
+        // radius p at distance z, weighted by r^2.
+        return 0.5 * p * p * (p * p + 2.0 * z * z);
     }
 
-    // Partial: |1 - p| < z < 1 + p. Same factored form as in `overlap_area`,
-    // with R = 1; it is also sqrt((1 - a)(b - 1)).
-    let s = ((1.0 + p - z) * (1.0 + p + z) * (z - 1.0 + p) * (z + 1.0 - p))
-        .max(0.0)
-        .sqrt();
+    let lens = Lens::new(z, p);
+    let k0 = lens.kappa0;
+    let d = z - p;
 
-    // kappa_1 = acos((1 - p^2 + z^2) / (2 z)) and
-    // kappa_0 = acos((p^2 + z^2 - 1) / (2 p z)); atan2 keeps full precision
-    // near 0 and pi, where acos does not.
-    let kappa1 = s.atan2(1.0 - p2 + z2);
-    let kappa0 = s.atan2(p2 + z2 - 1.0);
+    let planet_arc = 0.25
+        * p
+        * (-2.0 * d * d * d * k0
+            + 2.0 * z * d * (d - 2.0 * p) * arc_1(k0)
+            + 8.0 * z * z * p * arc_2(k0));
 
-    (kappa1 + 2.0 * eta2 * kappa0 - 0.25 * (1.0 + 5.0 * p2 + z2) * s) / (2.0 * PI)
+    (0.5 * lens.kappa1 + planet_arc) / PI
 }
 
-/// `B1` with the planet fully inside the stellar disk: `0 < z < 1 - p`, away
-/// from `z = p`.
+/// `B1` with the planet fully inside the stellar disk: `z > 0`,
+/// `z + p < 1`, `z != p`.
 ///
-/// Mandel & Agol's `lambda_2`, plus `2/3` when `z < p`:
+/// Agol, Luger & Foreman-Mackey (2020), their cases 3 and 9 (`k^2 > 1`), with
+/// `d = z - p` and `s = z + p`:
 ///
 /// ```text
-/// m = 4 z p / (1 - a)      mc = (1 - b) / (1 - a)      n = 1 - b / a
+/// kc^2 = (1 - s^2) / (1 - d^2)       (the complementary modulus of 1 / k^2)
+/// P    = (d / s)^2 kc^2              mu = 3 (d / s) / (1 - d^2)
 ///
-/// lambda_2 = 2 / (9 pi sqrt(1 - a)) * {
-///       (1 - 5 z^2 + p^2 + q^2) K(m)
-///     + (1 - a)(z^2 + 7 p^2 - 4) E(m)
-///     - 3 (q / a) Pi(n | m) }
+/// Lambda_1 = (2/3) sqrt(1 - d^2) [(1 - s^2) cel(kc, P, 1 + mu, P + mu)
+///                                 - (4 - 7 p^2 - z^2) E]
 /// ```
 ///
-/// `n` is negative throughout. Near `z = p`, `q / a` grows like
-/// `1 / |z - p|` while `Pi` shrinks, and the result loses precision; see
-/// [`blocked_mu_centre_line`]. Near `z = 0` it is accurate, but
-/// [`blocked_mu_centred`] is exact and cheaper.
+/// `cel` gets `sqrt(P) = kc |d| / s` and
+/// `(P + mu) / sqrt(P) = sqrt(P) + 3 sign(d) / (kc (1 - d^2))`, both free of
+/// cancellation however close `z` is to `p`.
 pub(crate) fn blocked_mu_inside(z: f64, p: f64) -> f64 {
-    let p2 = p * p;
-    let z2 = z * z;
-    let a = (z - p) * (z - p);
-    let b = (z + p) * (z + p);
-    let q = p2 - z2;
+    let d = z - p;
+    let s = z + p;
+    let one_minus_d2 = sum3(1.0, -z, p) * sum3(1.0, z, -p);
+    let one_minus_s2 = sum3(1.0, -z, -p) * (1.0 + s);
 
-    // mc from 1 - m = (1 - a - 4 z p) / (1 - a) with b - a = 4 z p, so it is
-    // never a small difference from 1, even next to z = 1 - p where m -> 1.
-    let m = 4.0 * z * p / (1.0 - a);
-    let mc = (1.0 - b) / (1.0 - a);
-    let n = 1.0 - b / a;
+    let kc = (one_minus_s2 / one_minus_d2).sqrt();
+    let ratio = d / s;
+    let mu = 3.0 * ratio / one_minus_d2;
+    let sqrt_p = ratio.abs() * kc;
+    let b_over_sqrt_p = sqrt_p + 3.0_f64.copysign(d) / (kc * one_minus_d2);
 
-    let k = ellip_k(mc);
-    let e = ellip_e(k, m, mc);
-    let pi_n = ellip_pi(k, n, mc);
+    let (pi_term, e, _) = cel_e_d(kc, sqrt_p, 1.0 + mu, b_over_sqrt_p);
 
-    let lambda2 = 2.0 / (9.0 * PI * (1.0 - a).sqrt())
-        * ((1.0 - 5.0 * z2 + p2 + q * q) * k + (1.0 - a) * (z2 + 7.0 * p2 - 4.0) * e
-            - 3.0 * (q / a) * pi_n);
+    let lambda = 2.0 / 3.0
+        * one_minus_d2.sqrt()
+        * (one_minus_s2 * pi_term - (4.0 - 7.0 * p * p - z * z) * e);
 
-    lambda2 + covers_centre(z, p)
+    lambda / (3.0 * PI) + covers_centre(z, p)
 }
 
-/// `B1` with the planet across the stellar limb: `|1 - p| < z < 1 + p`, away
-/// from `z = p`.
+/// `B1` with the planet across the stellar limb: `|1 - p| < z < 1 + p`,
+/// `z != p`.
 ///
-/// Mandel & Agol's `lambda_1`, plus `2/3` when `z < p`:
+/// Agol, Luger & Foreman-Mackey (2020), their cases 2 and 8 (`k^2 < 1`), with
+/// `d = z - p` and `s = z + p`:
 ///
 /// ```text
-/// m = (1 - a) / (4 z p)    mc = (b - 1) / (4 z p)      n = 1 - 1 / a
+/// kc^2 = (s^2 - 1) / (4 z p)       P = d^2 kc^2
 ///
-/// lambda_1 = 1 / (9 pi sqrt(p z)) * {
-///       [(1 - b)(2 b + a - 3) - 3 q (b - 2)] K(m)
-///     + 4 p z (z^2 + 7 p^2 - 4) E(m)
-///     - 3 (q / a) Pi(n | m) }
+/// Lambda_1 = (1 - d^2) [cel(kc, P, 0, 3 kc^2 d s)
+///                       + (6 p^2 + 2 z p - 3) D - 4 z p E] / (3 sqrt(z p))
 /// ```
 ///
-/// `n` is negative throughout. Near `z = p` the result loses precision as for
-/// [`blocked_mu_inside`].
+/// `cel` gets `sqrt(P) = kc |d|` and `3 kc^2 d s / sqrt(P) = 3 kc s sign(d)`.
 pub(crate) fn blocked_mu_partial(z: f64, p: f64) -> f64 {
-    let p2 = p * p;
-    let z2 = z * z;
-    let a = (z - p) * (z - p);
-    let b = (z + p) * (z + p);
-    let q = p2 - z2;
+    let d = z - p;
+    let s = z + p;
+    let one_minus_d2 = sum3(1.0, -z, p) * sum3(1.0, z, -p);
+    let four_zp = 4.0 * z * p;
 
-    // mc from 1 - m = (4 z p - 1 + a) / (4 z p) with 4 z p + a = b, so it is
-    // never a small difference from 1, even next to z = 1 - p where m -> 1.
-    let m = (1.0 - a) / (4.0 * z * p);
-    let mc = (b - 1.0) / (4.0 * z * p);
-    let n = 1.0 - 1.0 / a;
+    let kc = (sum3(z, p, -1.0) * (s + 1.0) / four_zp).sqrt();
+    let sqrt_p = d.abs() * kc;
+    let b_over_sqrt_p = (3.0 * kc * s).copysign(d);
 
-    let k = ellip_k(mc);
-    let e = ellip_e(k, m, mc);
-    let pi_n = ellip_pi(k, n, mc);
+    let (pi_term, e, dk) = cel_e_d(kc, sqrt_p, 0.0, b_over_sqrt_p);
 
-    let lambda1 = 1.0 / (9.0 * PI * (p * z).sqrt())
-        * (((1.0 - b) * (2.0 * b + a - 3.0) - 3.0 * q * (b - 2.0)) * k
-            + 4.0 * p * z * (z2 + 7.0 * p2 - 4.0) * e
-            - 3.0 * (q / a) * pi_n);
+    let lambda = one_minus_d2 * (pi_term + (6.0 * p * p + 2.0 * z * p - 3.0) * dk - four_zp * e)
+        / (3.0 * (z * p).sqrt());
 
-    lambda1 + covers_centre(z, p)
+    lambda / (3.0 * PI) + covers_centre(z, p)
 }
 
 /// `B1` with the planet centred on the star: `z = 0`, `p < 1`.
@@ -311,45 +282,34 @@ pub(crate) fn blocked_mu_centred(p: f64) -> f64 {
 
 /// `B1` with the planet's edge on the star's centre: `z = p`, any `p`.
 ///
-/// Inside or across the limb, depending on `p`; no `2/3` is added on this line.
+/// Agol, Luger & Foreman-Mackey (2020), their cases 5, 6 and 7. No `2/3` is
+/// added on this line: the formulas already include half of it.
 ///
 /// ```text
-/// p < 1/2:  lambda_4 = 1/3 + 2 / (9 pi) [4 (2 p^2 - 1) E(m) + (1 - 4 p^2) K(m)]
-///           m = 4 p^2,         mc = (1 - 2 p)(1 + 2 p)
-///
-/// p > 1/2:  lambda_3 = 1/3 + 16 p / (9 pi) (2 p^2 - 1) E(m)
-///                          - (1 - 4 p^2)(3 - 8 p^2) / (9 pi p) K(m)
-///           m = 1 / (4 p^2),   mc = (2 p - 1)(2 p + 1) / (4 p^2)
-///
+/// p < 1/2:  1/3 + 2 / (9 pi) [(2 m - 3) E - m D]     kc^2 = 1 - m
 /// p = 1/2:  1/3 - 4 / (9 pi)
+/// p > 1/2:  1/3 + [(2 m - 3) D - m E] / (9 pi p)     kc^2 = 1 - 1 / m
 /// ```
 ///
-/// Near the line, where [`blocked_mu_inside`] and [`blocked_mu_partial`]
-/// lose precision, [`blocked_mu`] interpolates from this value.
+/// with `m = 4 p^2`. Neither formula needs `K`, so both stay finite at
+/// `p = 1/2`, where they meet.
 pub(crate) fn blocked_mu_centre_line(p: f64) -> f64 {
-    // Both formulas have mc = 0 at p = 1/2, where K is infinite and its
-    // coefficient is 0. They converge to this value, so use it close by too.
-    if (p - 0.5).abs() < INNER_CONTACT_BAND {
+    if p == 0.5 {
         return 1.0 / 3.0 - 4.0 / (9.0 * PI);
     }
 
-    let p2 = p * p;
+    let m = 4.0 * p * p;
+    let two_p = 2.0 * p;
 
     if p < 0.5 {
-        let m = 4.0 * p2;
-        let mc = (1.0 - 2.0 * p) * (1.0 + 2.0 * p);
-        let k = ellip_k(mc);
-        let lambda4 = 1.0 / 3.0
-            + 2.0 / (9.0 * PI)
-                * (4.0 * (2.0 * p2 - 1.0) * ellip_e(k, m, mc) + (1.0 - 4.0 * p2) * k);
-        return lambda4;
+        let kc = ((1.0 - two_p) * (1.0 + two_p)).sqrt();
+        let (_, e, dk) = cel_e_d(kc, 1.0, 1.0, 1.0);
+        return 1.0 / 3.0 + 2.0 / (9.0 * PI) * ((2.0 * m - 3.0) * e - m * dk);
     }
 
-    let m = 1.0 / (4.0 * p2);
-    let mc = (2.0 * p - 1.0) * (2.0 * p + 1.0) / (4.0 * p2);
-    let k = ellip_k(mc);
-    1.0 / 3.0 + 16.0 * p / (9.0 * PI) * (2.0 * p2 - 1.0) * ellip_e(k, m, mc)
-        - (1.0 - 4.0 * p2) * (3.0 - 8.0 * p2) / (9.0 * PI * p) * k
+    let kc = ((two_p - 1.0) * (two_p + 1.0)).sqrt() / two_p;
+    let (_, e, dk) = cel_e_d(kc, 1.0, 1.0, 1.0);
+    1.0 / 3.0 + ((2.0 * m - 3.0) * dk - m * e) / (9.0 * PI * p)
 }
 
 /// `B1` at second or third contact, the planet touching the limb from inside:
@@ -362,8 +322,8 @@ pub(crate) fn blocked_mu_centre_line(p: f64) -> f64 {
 /// 2 / (3 pi) acos(1 - 2 p) - 4 / (9 pi) (3 + 2 p - 8 p^2) sqrt(p (1 - p))
 /// ```
 ///
-/// On this line `mc = 0` in the general formulas. They converge to this
-/// value, with an error of about `3 d` at distance `d` from the line.
+/// On this line `kc = 0` in the general formulas, where `cel` is undefined.
+/// They converge to this value as `z` approaches the line.
 pub(crate) fn blocked_mu_inner_contact(p: f64) -> f64 {
     2.0 / (3.0 * PI) * (1.0 - 2.0 * p).acos()
         - 4.0 / (9.0 * PI) * (3.0 + 2.0 * p - 8.0 * p * p) * (p * (1.0 - p)).sqrt()

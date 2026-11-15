@@ -73,18 +73,21 @@
 //! # Limits
 //!
 //! Circular orbits only, with no light from the planet itself. The radius
-//! ratio is at most [`RadiusRatio::MAX`] (100), above which the analytic flux
-//! loses accuracy.
+//! ratio is at most [`RadiusRatio::MAX`] (10,000), as far as the flux's
+//! accuracy is tested.
 //!
 //! # Accuracy
 //!
-//! [`flux`] is within about `1e-10` of the exact value for `k` up to 20, and
-//! `2e-9` at 100. Against Agol, Luger & Foreman-Mackey (2020), the most
-//! precise published method, at about 28,000 random points over the whole
-//! valid range, the worst difference is `1e-13` for `k` below 1, `1.4e-12`
-//! below 10, `3.3e-11` below 30 and `1.5e-9` up to 100. It also stays accurate
-//! on the lines where the formula changes case, where batman, PyTransit and
-//! that method's reference code each fail somewhere.
+//! [`flux`] is within `1e-15` of the exact value for `k` up to 1 (at worst
+//! `6.7e-16`, three rounding steps of 1), and within about `1.5e-16 k` above
+//! that, up to `1.5e-12` at `k = 10,000`. The exact values are 60-digit
+//! evaluations of Mandel & Agol's closed forms, a different formulation from
+//! the one used here, checked against direct integration. They cover 36,742
+//! points: random ones over the whole valid range, and points on every line
+//! where the formula changes case, 1 to 10 rounding steps from it, and up to
+//! 0.1 away, with separations down to the smallest double. batman, PyTransit
+//! and the reference code of Agol, Luger & Foreman-Mackey (2020) each fail on
+//! some of those lines.
 //!
 //! The light curve agrees with batman 2.5.1 (Kreidberg 2015) to `2.1e-8`
 //! (0.02 ppm) at worst, over 840 transits with quadratic limb darkening:
@@ -96,6 +99,7 @@ mod analytic;
 mod elliptic;
 mod error;
 mod exposure;
+mod lens;
 mod model;
 mod numeric;
 mod params;

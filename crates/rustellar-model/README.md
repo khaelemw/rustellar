@@ -47,27 +47,40 @@ measurement's integration time.
 
 ## Accuracy
 
-There are 1,932 points, each a (k, z, u1, u2), chosen to cover every region
-of the formula, with many on and near the lines where it changes case. The
-differences are from the exact flux (adaptive quadrature, good to about
-1e-12):
+The flux is checked against exact values at 36,742 points: 60-digit
+evaluations of Mandel & Agol's closed forms, which are a different
+formulation from the one used here, and are cross-checked against direct
+integration. There are 32,768 random points over the whole valid range, and
+3,974 on and around every line where the formula changes case. The line
+points sit 1 to 10 rounding steps from each line and up to 0.1 away, with
+separations down to the smallest double.
+
+| Radius ratio k | Worst difference from exact |
+|---|---|
+| 1e-6 to 1 | 6.7e-16 |
+| 1 to 10 | 1.2e-15 |
+| 10 to 100 | 1.4e-14 |
+| 100 to 1,000 | 9.1e-14 |
+| 1,000 to 10,000 | 9.6e-13 |
+
+Above k = 1 the error grows in proportion to k, at about 1.5e-16 k.
+
+The other packages are compared at 1,932 points, each a (k, z, u1, u2), with
+many on and near the case lines. The differences are from an exact flux by
+adaptive quadrature, good to about 5e-12. At the point where this crate
+differs most from it, its value equals the 60-digit one to the last digit:
 
 | | Worst difference | Points off by more than 1 ppm |
 |---|---|---|
-| rustellar-model | 1.5e-11 | 0 |
+| rustellar-model | 5.0e-12 (the quadrature's own error) | 0 |
 | exoplanet-core 0.4.0 | 0.73 (one point just below z = k) | 1 |
 | batman 2.5.1 | 0.73 (on z = 1 − k for k > 0.5) | 49 |
 | PyTransit 2.6.18 | 0.10, and NaN at 12 points (all on z = 1 − k) | 15 |
 
 Away from those lines all four agree. batman and PyTransit agree to their
 stated precision of a few 1e-8, because they use polynomial approximations to
-the elliptic integrals. exoplanet-core agrees to 1e-13. The largest
-differences from exoplanet-core over 28,000 random points across the whole
-valid range are:
-
-- 1e-13 for k < 1;
-- 1.4e-12 for k < 10;
-- 1.5e-9 at 100, the largest k allowed.
+the elliptic integrals. exoplanet-core agrees to 1.4e-15 for k < 1, and its
+own error grows as k^3 above that, to 2.6e-10 at k = 100.
 
 Light curves match batman's orbit geometry to 7e-11 in separation over 1,984
 transits. Exposure averages match PyTransit sample for sample. Every one of
@@ -86,7 +99,7 @@ The setup for these timings:
 
 | | 100 times | 1,000 | 10,000 | 100,000 |
 |---|---|---|---|---|
-| rustellar-model | 23 µs | 232 µs | 2.2 ms | 24 ms |
+| rustellar-model | 5.3 µs | 53 µs | 0.52 ms | 5.2 ms |
 | batman 2.5.1 | 8 µs | 91 µs | 0.77 ms | 8.9 ms |
 | PyTransit 2.6.18 | 12 µs | 57 µs | 0.64 ms | 5.6 ms |
 | exoplanet-core 0.4.0 (flux only, no orbit) | 28 µs | 60 µs | 0.56 ms | 7.0 ms |
@@ -95,26 +108,26 @@ Kepler long cadence (29.4 min), 1,000 times:
 
 | Samples per exposure | 5 | 15 | 30 |
 |---|---|---|---|
-| rustellar-model | 1.3 ms | 3.6 ms | 7.1 ms |
+| rustellar-model | 0.28 ms | 0.84 ms | 1.7 ms |
 | batman 2.5.1 | 0.39 ms | 1.2 ms | 2.2 ms |
 | PyTransit 2.6.18 | 0.24 ms | 0.70 ms | 1.3 ms |
 
-This crate is currently 2.5 to 4 times slower than the others:
+A single flux in transit takes 43 ns with the planet fully on the disk and
+150 ns across the limb, at full double precision:
 
-- **rustellar-model** computes three separate Carlson elliptic integrals for
-  each point in transit, which takes about 450 ns.
+- **rustellar-model** computes all three elliptic integrals in one AGM
+  iteration (Bulirsch's `cel`, as in Agol et al. 2020).
 - **batman and PyTransit** use polynomial approximations good to about 1e-8.
-- **exoplanet-core** reaches full precision faster with the formulation of
-  Agol et al. (2020).
+- **exoplanet-core** uses the same formulation at full precision.
 
-Moving to that formulation is planned. At the same accuracy, the midpoint
-rule used here for exposures needs about half as many samples as batman's
-rule.
+This crate's light curves are the fastest of the four at every length. For
+exposures PyTransit is 15 to 30% faster. At the same accuracy, the midpoint rule used
+here needs about half as many samples as batman's rule.
 
 ## Limits
 
 Circular orbits only, no light from the planet, and a radius ratio of at most
-100. See [SCOPE.md](SCOPE.md) for what is planned and what is left to other
+10,000. See [SCOPE.md](SCOPE.md) for what is planned and what is left to other
 crates.
 
 ## References

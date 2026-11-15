@@ -114,14 +114,13 @@ fn continuous_across_case_lines(#[case] radius_ratio: f64) {
     let ld = sun_like();
     for line in lines(radius_ratio) {
         let on_line = flux(line, k(radius_ratio), ld);
-        // Includes both sides of the edge of the interpolation band at z = k.
         for d in [1e-3, 1.01e-5, 9.9e-6, 1e-7, 1e-9, 1e-11, 1e-13] {
             for z in [line - d, line + d] {
                 let near = flux(z, k(radius_ratio), ld);
                 // The flux changes by at most a few times d over d, plus
                 // rounding.
                 assert!(
-                    (near - on_line).abs() < 3.0 * d + 1e-10,
+                    (near - on_line).abs() < 3.0 * d + 1e-15,
                     "k {radius_ratio}, line {line}, z {z}: {near} vs {on_line}"
                 );
             }
@@ -324,8 +323,8 @@ fn moving_outwards_never_dims_a_darkened_star(#[case] radius_ratio: f64) {
 // Recorded edge behaviour
 // ==========================
 
-// Points where rounding once took the flux up to 1.5e-12 outside [0, 1]: just
-// inside first contact, and near full cover for large k.
+// Points where rounding took the flux of an earlier version up to 1.5e-12
+// outside [0, 1]: just inside first contact, and near full cover for large k.
 #[rstest]
 #[case(0.008_218_304_526_170_69, 1.008_218_304_526_167)]
 #[case(5.130_142_744_967_692, 6.130_142_744_967_677)]
@@ -342,15 +341,15 @@ fn stays_in_range_where_rounding_overshoots(#[case] radius_ratio: f64, #[case] z
 // More rings, since for large k the ring sum's own error grows.
 const MORE_RINGS: NonZeroUsize = NonZeroUsize::new(200_000).unwrap();
 
-// From vanishingly small radius ratios up to 100. The error grows roughly as
-// k^3 times 1e-15: at k = 100 it is 1.1e-9 (checked against scipy quadrature),
-// and above 1e3 the flux is not usable.
+// From vanishingly small radius ratios up to 100, where the ring sum's own
+// error sets the tolerance. The analytic flux is within 1e-15 max(1, k) of
+// exact up to k = 1e4 (tests/exact_reference.rs).
 #[rstest]
 #[case(1e-300, RING_TOLERANCE)]
 #[case(1e-12, RING_TOLERANCE)]
 #[case(1e-6, RING_TOLERANCE)]
 #[case(20.0, RING_TOLERANCE)]
-#[case(100.0, 2e-9)]
+#[case(100.0, RING_TOLERANCE)]
 fn accurate_for_extreme_radius_ratios(#[case] radius_ratio: f64, #[case] tolerance: f64) {
     let ld = sun_like();
     let start = (radius_ratio - 1.0).max(0.0);

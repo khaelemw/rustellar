@@ -16,8 +16,12 @@ use rustellar_model::{LimbDarkening, RadiusRatio, flux};
 
 const CSV: &str = include_str!("reference/flux_points.csv");
 
-// Measured worst difference from the exact values: 1.5e-11.
-const EXACT_TOLERANCE: f64 = 1e-10;
+// The exact values here are from quadrature, which is off by up to 5.0e-12
+// within 1e-4 of z = k (at k = 0.05, z = k - 1.01e-5, against 60-digit
+// values; this crate's flux is within 1e-16 of those there). Elsewhere the
+// difference is far smaller. tests/exact_reference.rs checks `flux` against
+// 60-digit values.
+const EXACT_TOLERANCE: f64 = 1e-11;
 
 // Measured worst differences of batman and PyTransit from the exact values,
 // at least 1e-3 from a case line: 4.2e-7, at k = 20. For planet-sized k
@@ -25,10 +29,9 @@ const EXACT_TOLERANCE: f64 = 1e-10;
 const OTHER_MODEL_TOLERANCE: f64 = 1e-6;
 const PLANET_TOLERANCE: f64 = 1e-7;
 
-// exoplanet-core is accurate to about 1e-13 away from case lines, so the
-// difference from it is our own error: at worst 1.4e-11, within 1e-6 of
-// z = k, where this crate interpolates.
-const AGOL_TOLERANCE: f64 = 3e-11;
+// Measured worst difference from exoplanet-core, off its failing points:
+// 1.6e-13, its own error at k = 20.
+const AGOL_TOLERANCE: f64 = 5e-13;
 
 // Measured worst difference between the exact values and exoplanet-core,
 // at least 1e-3 from a case line: 1.0e-13. Two independent methods agreeing

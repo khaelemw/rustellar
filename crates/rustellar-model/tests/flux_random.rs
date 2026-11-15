@@ -6,9 +6,9 @@
 //
 // Two references: the exact flux by quadrature, with an estimate of its own
 // error, and exoplanet-core (Agol, Luger & Foreman-Mackey 2020), the most
-// precise published method. The tolerances are this crate's measured error
-// in each range of k, with room; they are a record of how accurate `flux` is,
-// so a change that makes it worse anywhere fails here.
+// precise published method before this crate. Both are less precise than
+// `flux` itself, so these tests are bounded by their errors; the 60-digit
+// values in tests/exact_reference.rs bound `flux` tightly.
 
 use rustellar_model::{LimbDarkening, RadiusRatio, flux};
 
@@ -41,17 +41,24 @@ impl Point {
     }
 }
 
-// The allowed difference from exoplanet-core for each range of k, from the
-// measured worst cases: 9.2e-14 below 1, 1.4e-12 to 10, 1.3e-11 to 20,
-// 3.3e-11 to 30, and 1.5e-9 to 100 (where the error grows as k^3).
+// exoplanet-core's own error, from its measured worst difference from the
+// exact values in each range of k: 1.4e-15 below 1, then 1.9e-13 to 10,
+// 1.6e-12 to 20, 9.9e-12 to 30 and 2.6e-10 to 100, growing as k^3. This
+// crate's flux is within 1e-15 max(1, k) of exact (tests/exact_reference.rs),
+// so these bound how far the two can differ.
 fn agol_tolerance(k: f64) -> f64 {
     match k {
-        k if k < 1.0 => 3e-13,
-        k if k < 10.0 => 5e-12,
-        k if k < 20.0 => 5e-11,
-        k if k < 30.0 => 1e-10,
-        _ => 3e-9,
+        k if k < 1.0 => 5e-15,
+        k if k < 10.0 => 5e-13,
+        k if k < 20.0 => 5e-12,
+        k if k < 30.0 => 2e-11,
+        _ => 5e-10,
     }
+}
+
+// This crate's own error, from the 60-digit reference.
+fn own_tolerance(k: f64) -> f64 {
+    1e-15 * k.max(1.0)
 }
 
 // The quadrature is sometimes off by up to 1.5e-12 even where its two forms
@@ -131,7 +138,7 @@ fn matches_agol_everywhere() {
 fn matches_exact_values_everywhere() {
     for p in points() {
         let difference = (p.flux() - p.exact).abs();
-        let tolerance = agol_tolerance(p.k) + p.spread + QUADRATURE_FLOOR;
+        let tolerance = own_tolerance(p.k) + p.spread + QUADRATURE_FLOOR;
         assert!(difference < tolerance, "{difference:e} at {p:?}");
     }
 }
@@ -152,15 +159,13 @@ fn exact_outside_the_transit_and_under_full_cover() {
 }
 
 // The two references agree with each other, which checks the reference data
-// itself: two unrelated methods. exoplanet-core loses some precision at large
-// k too (2.6e-10 at k = 100).
+// itself: two unrelated methods, within exoplanet-core's own error.
 #[test]
 fn references_agree_with_each_other() {
     for p in points() {
-        let tolerance = if p.k < 30.0 { 2e-11 } else { 5e-10 };
         let difference = (p.agol - p.exact).abs();
         assert!(
-            difference < tolerance + p.spread + QUADRATURE_FLOOR,
+            difference < agol_tolerance(p.k) + p.spread + QUADRATURE_FLOOR,
             "{difference:e} at {p:?}"
         );
     }

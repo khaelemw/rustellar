@@ -77,7 +77,7 @@ fn params_accept_valid_value(#[case] constructor: Constructor, #[case] value: f6
 #[case::k_zero(k, 0.0, ParamError::RadiusRatioNotPositive)]
 #[case::k_negative_zero(k, -0.0, ParamError::RadiusRatioNotPositive)]
 #[case::k_negative(k, -0.1, ParamError::RadiusRatioNotPositive)]
-#[case::k_just_too_large(k, 100.000_000_000_001, ParamError::RadiusRatioTooLarge)]
+#[case::k_just_too_large(k, 10_000.000_000_01, ParamError::RadiusRatioTooLarge)]
 #[case::k_far_too_large(k, 1e15, ParamError::RadiusRatioTooLarge)]
 #[case::b_just_negative(b, -1e-12, ParamError::ImpactParameterNegative)]
 #[case::b_negative(b, -0.5, ParamError::ImpactParameterNegative)]

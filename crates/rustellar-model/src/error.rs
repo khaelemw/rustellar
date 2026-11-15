@@ -49,7 +49,7 @@ impl fmt::Display for ParamError {
             Self::RadiusRatioNotPositive => {
                 write!(f, "radius ratio k must be greater than zero")
             }
-            Self::RadiusRatioTooLarge => write!(f, "radius ratio k must be at most 100"),
+            Self::RadiusRatioTooLarge => write!(f, "radius ratio k must be at most 10000"),
             Self::ImpactParameterNegative => write!(f, "impact parameter b must not be negative"),
             Self::SemiMajorAxisTooSmall => {
                 write!(f, "scaled semi-major axis a_rs must be greater than 1")

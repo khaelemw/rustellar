@@ -3,7 +3,7 @@
 ## Done means
 
 - Primary-transit flux for uniform, linear and quadratic limb darkening, on
-  circular orbits, for radius ratios up to 100.
+  circular orbits, for radius ratios up to 10,000.
 - Exposure averaging, orbit geometry (separation, phase, in front or behind),
   durations T14 and T23, contact points and transit times.
 - A model object for evaluating many parameter sets on fixed times without
@@ -11,9 +11,7 @@
 - Accuracy measured against batman, PyTransit, exoplanet-core and an exact
   integral, with the comparisons in the test suite.
 
-All of this is in place. Before 1.0: the faster elliptic-integral formulation
-of Agol, Luger & Foreman-Mackey (2020), which would also lift the limit on
-the radius ratio.
+All of this is in place.
 
 ## May come later, in this crate
 

@@ -20,11 +20,11 @@ use crate::error::ParamError;
 pub struct RadiusRatio(f64);
 
 impl RadiusRatio {
-    /// The largest radius ratio accepted, 100.
+    /// The largest radius ratio accepted, 10,000.
     ///
-    /// Above this the analytic flux loses accuracy: its rounding error grows
-    /// roughly as `k^3 * 1e-15`, reaching about `2e-9` at 100 and `1e-6` at
-    /// 1000. Planets have `k` below about 0.3, and eclipsing binaries rarely
+    /// Above `k = 1` the analytic flux's rounding error grows in proportion to
+    /// `k`, about `1.5e-16 k`, so `1.5e-12` here; this is as far as it is
+    /// tested. Planets have `k` below about 0.3, and eclipsing binaries rarely
     /// exceed 50.
     ///
     /// # Examples
@@ -33,9 +33,9 @@ impl RadiusRatio {
     /// use rustellar_model::{ParamError, RadiusRatio};
     ///
     /// assert!(RadiusRatio::new(RadiusRatio::MAX).is_ok());
-    /// assert_eq!(RadiusRatio::new(150.0), Err(ParamError::RadiusRatioTooLarge));
+    /// assert_eq!(RadiusRatio::new(2e4), Err(ParamError::RadiusRatioTooLarge));
     /// ```
-    pub const MAX: f64 = 100.0;
+    pub const MAX: f64 = 1e4;
 
     /// Makes a radius ratio.
     ///

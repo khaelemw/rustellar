@@ -1,11 +1,40 @@
 use std::f64::consts::PI;
 
-use crate::RadiusRatio;
+use crate::{
+    RadiusRatio,
+    lens::{Lens, arc_1, sum3},
+};
+
+/// `B0`: the part of the star (radius 1) covered by a planet of radius `p` at
+/// distance `z >= 0`, divided by `pi`, so 1 for the whole star.
+///
+/// For a lens ([`Lens`]), Green's theorem gives the area as
+/// `kappa1 - p d kappa0 + p z arc_1(kappa0)` with `d = z - p`: the star's arc
+/// contributes `kappa1`, and the planet's arc the rest. This is the usual
+/// `kappa1 + p^2 kappa0 - s / 2` rearranged so that no two terms of size `p^2`
+/// cancel when the planet is much larger than the star.
+pub(crate) fn blocked_area(z: f64, p: f64) -> f64 {
+    if z >= 1.0 + p {
+        return 0.0;
+    }
+
+    if z <= 1.0 - p {
+        return p * p;
+    }
+
+    if z <= p - 1.0 {
+        return 1.0;
+    }
+
+    let lens = Lens::new(z, p);
+    let d = z - p;
+    (lens.kappa1 - p * d * lens.kappa0 + p * z * arc_1(lens.kappa0)) / PI
+}
 
 // Overlap area of a disk of radius `big_r` at the origin and a disk of radius
-// `k` whose centre is `z` away (the lens formula). Expects
-// `z >= 0`, `k > 0` and `big_r >= 0`; `big_r = 0` gives 0 with no special
-// case.
+// `k` whose centre is `z` away (the lens formula), for the ring sum, which
+// needs disks of any radius. Expects `z >= 0`, `k > 0` and `big_r >= 0`;
+// `big_r = 0` gives 0 with no special case.
 pub(crate) fn overlap_area(z: f64, k: f64, big_r: f64) -> f64 {
     if z >= big_r + k {
         return 0.0;
@@ -25,12 +54,13 @@ pub(crate) fn overlap_area(z: f64, k: f64, big_r: f64) -> f64 {
     let k2 = k * k;
     let z2 = z * z;
 
-    // s = sqrt(4 z^2 R^2 - (R^2 + z^2 - k^2)^2), written as a product so that
-    // no factor is a small difference of large numbers near the boundaries.
-    // Each factor is >= 0 in this branch; `max` only guards against rounding.
-    let s = ((big_r + k - z) * (big_r + k + z) * (z - big_r + k) * (z + big_r - k))
-        .max(0.0)
-        .sqrt();
+    // s = sqrt(4 z^2 R^2 - (R^2 + z^2 - k^2)^2), written as a product of exact
+    // sums so that no factor loses precision near the boundaries, and as a
+    // product of square roots so that it cannot underflow for a tiny `z`. Each
+    // factor is >= 0 in this branch; `max` only guards against rounding.
+    let s = (sum3(big_r, k, -z) * sum3(big_r, k, z)).max(0.0).sqrt()
+        * sum3(z, -big_r, k).max(0.0).sqrt()
+        * sum3(z, big_r, -k).max(0.0).sqrt();
 
     // Half-angles of the two circular segments. The usual form,
     // acos((R^2 - k^2 + z^2) / (2 R z)), loses about half the digits when the
@@ -70,6 +100,6 @@ pub(crate) fn overlap_area(z: f64, k: f64, big_r: f64) -> f64 {
 /// ```
 #[must_use]
 pub fn flux_uniform(z: f64, k: RadiusRatio) -> f64 {
-    // `overlap_area` expects z >= 0; a negative z is the same distance.
-    1.0 - overlap_area(z.abs(), k.get(), 1.0) / PI
+    // `blocked_area` expects z >= 0; a negative z is the same distance.
+    1.0 - blocked_area(z.abs(), k.get())
 }

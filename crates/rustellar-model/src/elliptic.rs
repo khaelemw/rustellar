@@ -1,187 +1,98 @@
-//! Complete elliptic integrals, from Carlson's symmetric forms.
+//! Complete elliptic integrals, from Bulirsch's general complete integral
 //!
-//! The symmetric integrals use the duplication algorithm of Carlson (1995,
-//! Numerical Algorithms 10, 13; DLMF 19.36). Each step replaces the arguments
-//! with ones closer to their mean, without changing the integral beyond a known
-//! factor; once they are close enough, a short Taylor series finishes it.
+//! ```text
+//! cel(kc, p, a, b) = integral from 0 to pi/2 of
+//!     (a cos^2 t + b sin^2 t) / ((cos^2 t + p sin^2 t) sqrt(cos^2 t + kc^2 sin^2 t)) dt
+//! ```
 //!
-//! The Legendre integrals use the parameter convention (`m`, not the modulus
-//! `sqrt(m)`), and the third kind is
-//! `Pi(n | m) = integral from 0 to pi/2 of dt / ((1 - n sin^2 t) sqrt(1 - m sin^2 t))`.
+//! (Bulirsch 1969, Numerische Mathematik 13, 305), as used by Agol, Luger &
+//! Foreman-Mackey (2020, AJ 159, 123). The algorithm is an arithmetic-geometric
+//! mean (AGM) iteration, which converges quadratically, so a few steps reach
+//! full precision for any `kc`. Every Legendre integral is a special case: with
+//! `k^2 = 1 - kc^2`, `cel(kc, 1, 1, 1) = K(k)`, `cel(kc, 1, 1, kc^2) = E(k)` and
+//! `cel(kc, 1, 1, 0) = (E(k) - kc^2 K(k)) / k^2`.
+//!
+//! The transit formulas need three integrals with the same `kc`, so
+//! [`cel_e_d`] computes them together, sharing the AGM steps.
 
-// Target relative error of the truncated series.
-const TOLERANCE: f64 = 1e-16;
+use std::f64::consts::FRAC_PI_2;
 
-/// Carlson's `R_F(x, y, z)`: symmetric in all three arguments.
+// The AGM stops once its two means agree to this relative difference. The
+// error left is about its square, below the rounding error of a double.
+const AGM_TOLERANCE: f64 = 1e-9;
+
+// More steps than the AGM ever needs: from kc = 1e-300 it converges in about
+// a dozen.
+const MAX_STEPS: usize = 64;
+
+/// The three integrals for one `kc` in `(0, 1]` or above:
 ///
-/// Arguments must be non-negative, with at most one of them zero.
-pub(crate) fn carlson_rf(x: f64, y: f64, z: f64) -> f64 {
-    let (x0, y0) = (x, y);
-    let (mut x, mut y, mut z) = (x, y, z);
+/// - `cel(kc, p, a, b)` for `p > 0`, taking `sqrt(p)` and `b / sqrt(p)`;
+/// - `E(k) = cel(kc, 1, 1, kc^2)`;
+/// - `D(k) = cel(kc, 1, 1, 0) = (E(k) - kc^2 K(k)) / k^2`.
+///
+/// Passing `sqrt(p)` and `b / sqrt(p)` rather than `p` and `b` lets callers
+/// work them out without forming `p`, which in the transit formulas is the
+/// square of a distance that can be far smaller than `sqrt(f64::MIN_POSITIVE)`.
+///
+/// `kc` must be positive: at `kc = 0` (`k = 1`) `K` is infinite.
+pub(crate) fn cel_e_d(kc: f64, sqrt_p: f64, a: f64, b_over_sqrt_p: f64) -> (f64, f64, f64) {
+    // The general integral, with its own p, and two with p = 1 (Bulirsch's
+    // `cel` after its set-up for p > 0, which divides b by sqrt(p)).
+    let mut general = Agm {
+        a,
+        b: b_over_sqrt_p,
+        p: sqrt_p,
+    };
+    let mut e = Agm {
+        a: 1.0,
+        b: kc * kc,
+        p: 1.0,
+    };
+    let mut d = Agm {
+        a: 1.0,
+        b: 0.0,
+        p: 1.0,
+    };
 
-    let a0 = (x + y + z) / 3.0;
-    let q =
-        (3.0 * TOLERANCE).powf(-1.0 / 6.0) * (a0 - x).abs().max((a0 - y).abs()).max((a0 - z).abs());
-    let mut a = a0;
-    // 4^-n after n steps; dividing by 4 is exact in binary.
-    let mut scale = 1.0;
+    let mut kc = kc;
+    let mut ee = kc;
+    let mut m = 1.0;
 
-    while scale * q > a.abs() {
-        let lambda = duplication_lambda(x, y, z);
-        x = (x + lambda) / 4.0;
-        y = (y + lambda) / 4.0;
-        z = (z + lambda) / 4.0;
-        a = (a + lambda) / 4.0;
-        scale /= 4.0;
+    for _ in 0..MAX_STEPS {
+        general.step(ee);
+        e.step(ee);
+        d.step(ee);
+
+        let previous_m = m;
+        m += kc;
+        if (previous_m - kc).abs() <= previous_m * AGM_TOLERANCE {
+            break;
+        }
+        kc = 2.0 * ee.sqrt();
+        ee = kc * m;
     }
 
-    let big_x = (a0 - x0) * scale / a;
-    let big_y = (a0 - y0) * scale / a;
-    let big_z = -big_x - big_y;
-    let e2 = big_x * big_y - big_z * big_z;
-    let e3 = big_x * big_y * big_z;
-
-    (1.0 - e2 / 10.0 + e3 / 14.0 + e2 * e2 / 24.0 - 3.0 * e2 * e3 / 44.0) / a.sqrt()
+    (general.finish(m), e.finish(m), d.finish(m))
 }
 
-/// Carlson's `R_D(x, y, z)`: symmetric in `x` and `y` only.
-///
-/// Arguments must be non-negative, `z` positive, and at most one of `x` and
-/// `y` zero.
-pub(crate) fn carlson_rd(x: f64, y: f64, z: f64) -> f64 {
-    let (x0, y0) = (x, y);
-    let (mut x, mut y, mut z) = (x, y, z);
+// One integral's share of the AGM iteration.
+struct Agm {
+    a: f64,
+    b: f64,
+    p: f64,
+}
 
-    let a0 = (x + y + 3.0 * z) / 5.0;
-    let q =
-        (TOLERANCE / 4.0).powf(-1.0 / 6.0) * (a0 - x).abs().max((a0 - y).abs()).max((a0 - z).abs());
-    let mut a = a0;
-    let mut scale = 1.0;
-    let mut sum = 0.0;
-
-    while scale * q > a.abs() {
-        let lambda = duplication_lambda(x, y, z);
-        sum += scale / (z.sqrt() * (z + lambda));
-        x = (x + lambda) / 4.0;
-        y = (y + lambda) / 4.0;
-        z = (z + lambda) / 4.0;
-        a = (a + lambda) / 4.0;
-        scale /= 4.0;
+impl Agm {
+    fn step(&mut self, ee: f64) {
+        let f = self.a;
+        self.a += self.b / self.p;
+        let g = ee / self.p;
+        self.b = 2.0 * (self.b + f * g);
+        self.p += g;
     }
 
-    let big_x = (a0 - x0) * scale / a;
-    let big_y = (a0 - y0) * scale / a;
-    let big_z = -(big_x + big_y) / 3.0;
-    let xy = big_x * big_y;
-    let z2 = big_z * big_z;
-    let e2 = xy - 6.0 * z2;
-    let e3 = (3.0 * xy - 8.0 * z2) * big_z;
-    let e4 = 3.0 * (xy - z2) * z2;
-    let e5 = xy * z2 * big_z;
-
-    scale * a.powf(-1.5) * series_d_j(e2, e3, e4, e5) + 3.0 * sum
-}
-
-/// Carlson's `R_J(x, y, z, p)`: symmetric in `x`, `y` and `z`.
-///
-/// Arguments must be non-negative, `p` positive, and at most one of `x`, `y`
-/// and `z` zero.
-pub(crate) fn carlson_rj(x: f64, y: f64, z: f64, p: f64) -> f64 {
-    let (x0, y0, z0) = (x, y, z);
-    let (mut x, mut y, mut z, mut p) = (x, y, z, p);
-
-    let a0 = (x + y + z + 2.0 * p) / 5.0;
-    let delta = (p - x) * (p - y) * (p - z);
-    let q = (TOLERANCE / 4.0).powf(-1.0 / 6.0)
-        * (a0 - x)
-            .abs()
-            .max((a0 - y).abs())
-            .max((a0 - z).abs())
-            .max((a0 - p).abs());
-    let mut a = a0;
-    let mut scale = 1.0;
-    let mut sum = 0.0;
-
-    while scale * q > a.abs() {
-        let lambda = duplication_lambda(x, y, z);
-        let sqrt_p = p.sqrt();
-        let d = (sqrt_p + x.sqrt()) * (sqrt_p + y.sqrt()) * (sqrt_p + z.sqrt());
-        let e = scale * scale * scale * delta / (d * d);
-        sum += scale / d * carlson_rc_one(e);
-        x = (x + lambda) / 4.0;
-        y = (y + lambda) / 4.0;
-        z = (z + lambda) / 4.0;
-        p = (p + lambda) / 4.0;
-        a = (a + lambda) / 4.0;
-        scale /= 4.0;
-    }
-
-    let big_x = (a0 - x0) * scale / a;
-    let big_y = (a0 - y0) * scale / a;
-    let big_z = (a0 - z0) * scale / a;
-    let big_p = -(big_x + big_y + big_z) / 2.0;
-    let xyz = big_x * big_y * big_z;
-    let p2 = big_p * big_p;
-    let e2 = big_x * big_y + big_x * big_z + big_y * big_z - 3.0 * p2;
-    let e3 = xyz + 2.0 * e2 * big_p + 4.0 * p2 * big_p;
-    let e4 = (2.0 * xyz + e2 * big_p + 3.0 * p2 * big_p) * big_p;
-    let e5 = xyz * p2;
-
-    scale * a.powf(-1.5) * series_d_j(e2, e3, e4, e5) + 6.0 * sum
-}
-
-/// Complete elliptic integral of the first kind, `K(m)`, from `mc = 1 - m`.
-pub(crate) fn ellip_k(mc: f64) -> f64 {
-    carlson_rf(0.0, mc, 1.0)
-}
-
-/// Complete elliptic integral of the second kind, `E(m)`.
-///
-/// Takes `m` and `mc = 1 - m` separately, so callers can pass an `mc` worked
-/// out without the cancellation in `1.0 - m`. `k_m` is `K(m)` from
-/// [`ellip_k`], passed in so that it is computed once when `E` and `Pi` are
-/// both needed.
-pub(crate) fn ellip_e(k_m: f64, m: f64, mc: f64) -> f64 {
-    k_m - m / 3.0 * carlson_rd(0.0, mc, 1.0)
-}
-
-/// Complete elliptic integral of the third kind, `Pi(n | m)`, for `n < 1`,
-/// from `mc = 1 - m`.
-///
-/// For large negative `n` the result is small and comes from cancelling
-/// `K(m)` against a term of nearly the same size, so its error is about
-/// `1e-16 * K(m)` absolute rather than relative. `k_m` is `K(m)`, as for
-/// [`ellip_e`].
-pub(crate) fn ellip_pi(k_m: f64, n: f64, mc: f64) -> f64 {
-    k_m + n / 3.0 * carlson_rj(0.0, mc, 1.0, 1.0 - n)
-}
-
-// The `lambda` of one duplication step.
-fn duplication_lambda(x: f64, y: f64, z: f64) -> f64 {
-    let (sx, sy, sz) = (x.sqrt(), y.sqrt(), z.sqrt());
-    sx * sy + sx * sz + sy * sz
-}
-
-// The Taylor series that finishes `R_D` and `R_J`; both use the same one.
-fn series_d_j(e2: f64, e3: f64, e4: f64, e5: f64) -> f64 {
-    1.0 - 3.0 * e2 / 14.0 + e3 / 6.0 + 9.0 * e2 * e2 / 88.0 - 3.0 * e4 / 22.0 - 9.0 * e2 * e3 / 52.0
-        + 3.0 * e5 / 26.0
-}
-
-// Carlson's `R_C(1, 1 + e)` for `e > -1`, in closed form: `atan(sqrt(e)) /
-// sqrt(e)` for `e > 0`, and `atanh(sqrt(-e)) / sqrt(-e)` for `e < 0`. Both
-// tend to 1 as `e` goes to 0 and keep full relative precision for small `e`,
-// so only `e = 0` needs its own case. `e < 0` comes from `Pi(n | m)` with
-// `n > 0`, which the transit formulas never use.
-fn carlson_rc_one(e: f64) -> f64 {
-    if e == 0.0 {
-        return 1.0;
-    }
-
-    let root = e.abs().sqrt();
-    if e > 0.0 {
-        root.atan() / root
-    } else {
-        root.atanh() / root
+    fn finish(&self, m: f64) -> f64 {
+        FRAC_PI_2 * (self.a * m + self.b) / (m * (m + self.p))
     }
 }

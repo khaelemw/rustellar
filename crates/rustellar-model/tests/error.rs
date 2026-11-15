@@ -9,7 +9,7 @@ use rustellar_model::{LimbDarkeningError, ParamError};
 )]
 #[case::radius_ratio_too_large(
     ParamError::RadiusRatioTooLarge,
-    "radius ratio k must be at most 100"
+    "radius ratio k must be at most 10000"
 )]
 #[case::impact_parameter_negative(
     ParamError::ImpactParameterNegative,
