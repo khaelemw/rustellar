@@ -27,6 +27,7 @@ mod error;
 mod exact;
 mod grid;
 mod ofir;
+mod parallel;
 mod refine;
 mod search;
 mod sums;

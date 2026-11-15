@@ -86,6 +86,7 @@ fn equals_the_exact_search_at_each_period() {
         &top,
         2,
         Objective::DeltaChi2,
+        1,
     )
     .unwrap();
     assert_eq!(refined.len(), 3);
@@ -171,6 +172,7 @@ fn reach_stops_at_the_ends() {
         &[0, 2],
         5,
         Objective::DeltaChi2,
+        1,
     )
     .unwrap();
     assert_eq!(refined.len(), 2);
@@ -193,7 +195,8 @@ fn reach_stops_at_the_ends() {
             &[0.1],
             &[1],
             1,
-            Objective::DeltaChi2
+            Objective::DeltaChi2,
+            1
         )
         .unwrap()
         .is_empty()
@@ -219,6 +222,7 @@ fn periods_near_a_peak_without_a_box() {
         &[1],
         1,
         Objective::DeltaChi2,
+        1,
     )
     .unwrap();
     assert_eq!(refined.len(), 1);
@@ -239,7 +243,8 @@ fn statistics_that_overflow() {
             &[0.5],
             &[0],
             0,
-            Objective::DeltaChi2
+            Objective::DeltaChi2,
+            1
         ),
         Err(crate::BlsError::OutOfRange)
     );
@@ -315,6 +320,7 @@ fn injected() -> Vec<Errors> {
                 &peaks(&power, 1),
                 2,
                 Objective::DeltaChi2,
+                1,
             )
             .unwrap()[0];
             let ours_time = at_middle(times[0] + ours.centre, periods[ours.period]);
@@ -407,8 +413,64 @@ fn second_step_overflows() {
             &[0.2, 0.3],
             &[0],
             0,
-            Objective::DeltaChi2
+            Objective::DeltaChi2,
+            1
         ),
         Err(crate::BlsError::OutOfRange)
     );
+}
+
+// Every period near every peak is a job of its own: the same refined boxes,
+// to the bit, on any number of threads, with peaks whose reaches overlap and
+// one at each end of the periods.
+#[rstest]
+fn same_on_any_number_of_threads(#[values(2, 3, 7, 64)] threads: usize) {
+    let lc = Recipe {
+        seed: 22,
+        n: 600,
+        t_start: 1325.0,
+        cadence: 0.03,
+        noise: 1e-3,
+        period: 2.3,
+        tc: 1325.7,
+        duration: 0.1,
+        depth: 2e-3,
+    }
+    .light_curve();
+    let times = btjd(&lc);
+    let weighted = Weighted::new(&lc).unwrap();
+    let periods: Vec<f64> = (0..60).map(|i| 1.5 + 0.03 * f64::from(i)).collect();
+    let durations = [0.05, 0.1, 0.2];
+    let top = [27, 28, 0, 59, 30, 12];
+    let one = refine(
+        &times,
+        &weighted,
+        &periods,
+        &durations,
+        &top,
+        3,
+        Objective::Snr,
+        1,
+    )
+    .unwrap();
+    assert_eq!(one.len(), top.len());
+    let many = refine(
+        &times,
+        &weighted,
+        &periods,
+        &durations,
+        &top,
+        3,
+        Objective::Snr,
+        threads,
+    )
+    .unwrap();
+    for (a, b) in one.iter().zip(&many) {
+        assert_eq!((a.peak, a.period), (b.peak, b.period));
+        assert_eq!(
+            [a.duration, a.centre, a.fit.snr].map(f64::to_bits),
+            [b.duration, b.centre, b.fit.snr].map(f64::to_bits)
+        );
+    }
+    assert_eq!(one, many);
 }

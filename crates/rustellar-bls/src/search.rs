@@ -11,6 +11,7 @@ use crate::{
     binned::{Scratch, best_binned, bin_count},
     box_fit::Weighted,
     grid::check_durations_fit,
+    parallel::on_threads,
     refine::{peaks, refine},
 };
 
@@ -278,29 +279,6 @@ impl BlsResult {
     }
 }
 
-/// `work` on each of `jobs`, the first on this thread and the others on
-/// threads of their own, the outcomes in the jobs' order. A panic on any
-/// thread is raised again here once every thread has finished.
-fn on_threads<J: Send, T: Send>(
-    jobs: impl Iterator<Item = J>,
-    work: &(impl Fn(J) -> T + Sync),
-) -> Vec<T> {
-    let jobs: Vec<J> = jobs.collect();
-    let mut outcomes: Vec<Option<T>> = jobs.iter().map(|_| None).collect();
-    thread::scope(|scope| {
-        let mut pairs = jobs.into_iter().zip(outcomes.iter_mut());
-        let (job, slot) = pairs.next().expect("at least one job");
-        for (job, slot) in pairs {
-            scope.spawn(move || *slot = Some(work(job)));
-        }
-        *slot = Some(work(job));
-    });
-    outcomes
-        .into_iter()
-        .map(|outcome| outcome.expect("every job ran"))
-        .collect()
-}
-
 /// The longest of `periods`, in days.
 fn longest(periods: &[TimeDelta]) -> f64 {
     periods.iter().map(|p| p.as_days()).fold(0.0, f64::max)
@@ -488,34 +466,26 @@ impl Bls {
         .into_iter()
         .collect::<Result<(), BlsError>>()?;
 
-        if options.refine_peaks == 0 {
-            return Ok(());
-        }
         let top = peaks(&result.power, options.refine_peaks);
         if top.is_empty() {
             return Ok(());
         }
         let days: Vec<f64> = periods.iter().map(|p| p.as_days()).collect();
-        // The peaks in contiguous chunks too.
-        let chunk = top.len().div_ceil(options.threads.get().min(top.len()));
-        let refined = on_threads(top.chunks(chunk), &|peaks| {
-            refine(
-                &self.times,
-                &self.weighted,
-                &days,
-                &durations,
-                peaks,
-                options.refine_reach,
-                options.objective,
-            )
-        });
-        for chunk in refined {
-            result.peaks.extend(chunk?.into_iter().map(|r| Peak {
-                peak_index: r.peak,
-                period_index: r.period,
-                best: self.best_box(periods[r.period], r.duration, r.centre, r.fit),
-            }));
-        }
+        let refined = refine(
+            &self.times,
+            &self.weighted,
+            &days,
+            &durations,
+            &top,
+            options.refine_reach,
+            options.objective,
+            options.threads.get(),
+        )?;
+        result.peaks.extend(refined.into_iter().map(|r| Peak {
+            peak_index: r.peak,
+            period_index: r.period,
+            best: self.best_box(periods[r.period], r.duration, r.centre, r.fit),
+        }));
         Ok(())
     }
 
