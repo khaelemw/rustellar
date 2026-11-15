@@ -371,3 +371,11 @@ fn fit_is_plain_data() {
     let copy = fit;
     assert_eq!(copy, fit);
 }
+
+// Errors of 1e-100 give weights of 1e200, each fine, but W_in W_out is 1e400.
+#[test]
+fn statistics_that_overflow() {
+    let lc =
+        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1.0, 0.9, 1.0], vec![1e-100; 3]).unwrap();
+    assert_eq!(transit(10.0, 0.5, 1.0).fit(&lc), Err(BlsError::Overflow));
+}

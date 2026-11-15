@@ -39,6 +39,17 @@ impl Sum {
     }
 }
 
+/// `later - earlier`, for two running totals over the same terms: the sum of
+/// the terms added in between. The difference of the plain sums is split
+/// into its rounded value and exact error (Knuth's two-sum), so the result is
+/// about as accurate as the terms in between allow, however large the totals.
+pub(crate) fn between(earlier: Sum, later: Sum) -> f64 {
+    let d = later.sum - earlier.sum;
+    let back = d - later.sum;
+    let error = (later.sum - (d - back)) - (earlier.sum + back);
+    d + (error + (later.compensation - earlier.compensation))
+}
+
 impl FromIterator<f64> for Sum {
     fn from_iter<I: IntoIterator<Item = f64>>(terms: I) -> Self {
         let mut sum = Self::default();

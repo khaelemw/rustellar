@@ -3,7 +3,7 @@
 
 use rstest::rstest;
 
-use crate::sums::Sum;
+use crate::sums::{Sum, between};
 
 // ==========================
 // Helper Functions
@@ -86,4 +86,55 @@ fn million_terms_within_one_rounding_of_the_exact_sum() {
     // Plain addition, for comparison, is far off.
     let plain: f64 = terms.iter().sum();
     assert!(ulps_apart(plain, exact) > 100, "{plain} vs {exact}");
+}
+
+// ==========================
+// Sums between two running totals
+// ==========================
+
+// The terms between two totals near 1e16, summed far more finely than the
+// totals themselves are spaced.
+#[test]
+fn between_keeps_small_differences() {
+    let mut total = Sum::default();
+    total.add(1e16);
+    let earlier = total;
+    for _ in 0..10 {
+        total.add(0.1);
+    }
+    total.add(1.0);
+    assert_eq!(between(earlier, total), 2.0);
+    assert_eq!(between(earlier, earlier), 0.0);
+}
+
+// Stretches of a hundred thousand random terms, from running totals, within one
+// rounding of its exact sum.
+#[test]
+fn between_matches_exact_sums_of_stretches() {
+    let mut rng = Random(7);
+    let (terms, scaled): (Vec<f64>, Vec<i128>) = (0..100_000).map(|_| rng.term()).unzip();
+    let mut totals = vec![Sum::default()];
+    let mut exact = vec![0_i128];
+    for (x, k) in terms.iter().zip(&scaled) {
+        let mut next = totals[totals.len() - 1];
+        next.add(*x);
+        totals.push(next);
+        exact.push(exact[exact.len() - 1] + k);
+    }
+    for _ in 0..1_000 {
+        let i = (rng.next_u64() % 100_001) as usize;
+        let j = (rng.next_u64() % 100_001) as usize;
+        let (i, j) = (i.min(j), i.max(j));
+        let ours = between(totals[i], totals[j]);
+        let truth = (exact[j] - exact[i]) as f64 * 2f64.powi(-20);
+        let ulps = if ours == truth {
+            0
+        } else {
+            ulps_apart(ours, truth)
+        };
+        assert!(
+            ulps <= 1 || (ours - truth).abs() < 1e-30,
+            "{i}..{j}: {ours} vs {truth}"
+        );
+    }
 }

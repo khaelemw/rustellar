@@ -12,7 +12,9 @@
 //! - two period grids: astropy's automatic one, [`AutoPeriod`], and Ofir's
 //!   (2014) optimal one, [`OfirPeriod`];
 //! - one box, [`TransitBox`], and its exact fit to a light curve,
-//!   [`BoxFit`].
+//!   [`BoxFit`];
+//! - the exact search at one period and duration,
+//!   [`TransitBox::best`], over every mid-transit time ([`BestBox`]).
 //!
 //! The search's phase resolution will be a
 //! [`NonZeroUsize`](std::num::NonZeroUsize) (`oversample`), so it needs no
@@ -21,6 +23,7 @@
 mod autoperiod;
 mod box_fit;
 mod error;
+mod exact;
 mod grid;
 mod ofir;
 mod sums;
@@ -31,5 +34,6 @@ mod tests;
 pub use autoperiod::AutoPeriod;
 pub use box_fit::{BoxFit, TransitBox};
 pub use error::BlsError;
+pub use exact::BestBox;
 pub use grid::{Durations, Periods};
 pub use ofir::OfirPeriod;

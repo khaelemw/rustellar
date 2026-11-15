@@ -18,3 +18,5 @@ All notable changes to this crate are recorded here. The format follows
 - `TransitBox` and `BoxFit`: one box fitted exactly, with compensated sums
   and an in-transit test right to about a picosecond far from the
   mid-transit time.
+- `TransitBox::best` and `BestBox`: the exact search at one period and
+  duration, over every mid-transit time; never below astropy's slow search.

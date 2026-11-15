@@ -164,13 +164,55 @@ impl TransitBox {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn fit(&self, lc: &LightCurve) -> Result<BoxFit, BlsError> {
+        let weighted = Weighted::new(lc)?;
+        let (mut weight_in, mut weight_out) = (Sum::default(), Sum::default());
+        let (mut sum_in, mut sum_out) = (Sum::default(), Sum::default());
+        let mut n_in = 0;
+        for ((&time, &w), &wy) in lc
+            .time()
+            .iter()
+            .zip(&weighted.weights)
+            .zip(&weighted.centred)
+        {
+            if self.contains(time) {
+                n_in += 1;
+                weight_in.add(w);
+                sum_in.add(wy);
+            } else {
+                weight_out.add(w);
+                sum_out.add(wy);
+            }
+        }
+        if n_in == 0 {
+            return Err(BlsError::NoPointsInTransit);
+        }
+        if n_in == lc.len() {
+            return Err(BlsError::NoPointsOutOfTransit);
+        }
+        BoxFit::from_sums(
+            weighted.mean,
+            [weight_in.value(), sum_in.value()],
+            [weight_out.value(), sum_out.value()],
+            n_in,
+        )
+    }
+}
+
+/// A light curve's weights `w = 1 / flux_err^2` and the weighted flux
+/// `w (y - mean)`, centred on the weighted mean: the box's levels are then
+/// small numbers, and their difference, the depth, loses nothing to
+/// cancellation when the flux is near 1 and the depth near 1e-4.
+pub(crate) struct Weighted {
+    pub(crate) mean: f64,
+    pub(crate) weights: Vec<f64>,
+    pub(crate) centred: Vec<f64>,
+}
+
+impl Weighted {
+    pub(crate) fn new(lc: &LightCurve) -> Result<Self, BlsError> {
         let weights: Vec<f64> = lc.flux_err().iter().map(|e| 1.0 / (e * e)).collect();
         let flux = lc.flux();
-
-        // Centre the flux on its weighted mean first: the box's levels are
-        // then small numbers, and their difference, the depth, loses nothing
-        // to cancellation when the flux is near 1 and the depth near 1e-4.
-        let weight: f64 = weights.iter().copied().collect::<Sum>().value();
+        let weight = weights.iter().copied().collect::<Sum>().value();
         let mean = weights
             .iter()
             .zip(flux)
@@ -178,49 +220,19 @@ impl TransitBox {
             .collect::<Sum>()
             .value()
             / weight;
-
-        let (mut weight_in, mut weight_out) = (Sum::default(), Sum::default());
-        let (mut sum_in, mut sum_out) = (Sum::default(), Sum::default());
-        let mut n_in = 0;
-        for ((&time, &y), &w) in lc.time().iter().zip(flux).zip(&weights) {
-            if self.contains(time) {
-                n_in += 1;
-                weight_in.add(w);
-                sum_in.add(w * (y - mean));
-            } else {
-                weight_out.add(w);
-                sum_out.add(w * (y - mean));
-            }
-        }
-        if n_in == 0 {
-            return Err(BlsError::NoPointsInTransit);
-        }
-        if n_in == flux.len() {
-            return Err(BlsError::NoPointsOutOfTransit);
-        }
-
-        let (weight_in, weight_out) = (weight_in.value(), weight_out.value());
-        let level_in = sum_in.value() / weight_in;
-        let level_out = sum_out.value() / weight_out;
-        let depth = level_out - level_in;
-        let depth_err = (1.0 / weight_in + 1.0 / weight_out).sqrt();
-
-        let fit = BoxFit {
-            flux_in: mean + level_in,
-            flux_out: mean + level_out,
-            depth,
-            depth_err,
-            snr: depth / depth_err,
-            delta_chi2: weight_in * weight_out / weight * depth * depth,
-            likelihood: 0.5 * weight_in * depth * depth,
-            weight_in,
-            weight_out,
-            n_in,
-        };
-        if !fit.is_finite() {
+        let centred: Vec<f64> = weights
+            .iter()
+            .zip(flux)
+            .map(|(w, y)| w * (y - mean))
+            .collect();
+        if !(mean.is_finite() && centred.iter().all(|x| x.is_finite())) {
             return Err(BlsError::Overflow);
         }
-        Ok(fit)
+        Ok(Self {
+            mean,
+            weights,
+            centred,
+        })
     }
 }
 
@@ -267,6 +279,36 @@ pub struct BoxFit {
 }
 
 impl BoxFit {
+    /// The fit from the summed weight and summed centred flux, `[W, S]`, in
+    /// and out of transit, and the mean the flux was centred on.
+    pub(crate) fn from_sums(
+        mean: f64,
+        [weight_in, sum_in]: [f64; 2],
+        [weight_out, sum_out]: [f64; 2],
+        n_in: usize,
+    ) -> Result<Self, BlsError> {
+        let level_in = sum_in / weight_in;
+        let level_out = sum_out / weight_out;
+        let depth = level_out - level_in;
+        let depth_err = (1.0 / weight_in + 1.0 / weight_out).sqrt();
+        let fit = Self {
+            flux_in: mean + level_in,
+            flux_out: mean + level_out,
+            depth,
+            depth_err,
+            snr: depth / depth_err,
+            delta_chi2: weight_in * weight_out / (weight_in + weight_out) * depth * depth,
+            likelihood: 0.5 * weight_in * depth * depth,
+            weight_in,
+            weight_out,
+            n_in,
+        };
+        if !fit.is_finite() {
+            return Err(BlsError::Overflow);
+        }
+        Ok(fit)
+    }
+
     fn is_finite(&self) -> bool {
         [
             self.flux_in,
