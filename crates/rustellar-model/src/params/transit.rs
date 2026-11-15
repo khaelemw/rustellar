@@ -57,6 +57,27 @@ impl TransitParams {
     /// 1. [`ParamError::PeriodNotPositive`] if `period` is zero or negative.
     /// 2. [`ParamError::ImpactParameterTooLarge`] if `b` is not less than
     ///    `a_rs`, since no inclination gives that orbit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{Epoch, TimeDelta};
+    /// use rustellar_model::{
+    ///     ImpactParameter, LimbDarkening, ParamError, RadiusRatio, ScaledSemiMajorAxis,
+    ///     TransitParams,
+    /// };
+    ///
+    /// let result = TransitParams::new(
+    ///     Epoch::from_btjd(0.0)?,
+    ///     TimeDelta::from_days(3.0)?,
+    ///     RadiusRatio::new(0.1)?,
+    ///     ScaledSemiMajorAxis::new(10.0)?,
+    ///     ImpactParameter::new(12.0)?, // farther than the orbit itself
+    ///     LimbDarkening::uniform(),
+    /// );
+    /// assert_eq!(result, Err(ParamError::ImpactParameterTooLarge));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn new(
         t0: Epoch,
         period: TimeDelta,
@@ -94,6 +115,25 @@ impl TransitParams {
     /// - [`ParamError::InclinationOutOfRange`] if `inc_deg` is not greater than
     ///   0 and at most 90.
     /// - Any error from [`new`](Self::new).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{Epoch, TimeDelta};
+    /// use rustellar_model::{LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams};
+    ///
+    /// let params = TransitParams::from_inclination_deg(
+    ///     Epoch::from_btjd(0.0)?,
+    ///     TimeDelta::from_days(3.0)?,
+    ///     RadiusRatio::new(0.1)?,
+    ///     ScaledSemiMajorAxis::new(10.0)?,
+    ///     88.0,
+    ///     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// )?;
+    /// // b = a_rs cos(i)
+    /// assert!((params.b().get() - 10.0 * 88_f64.to_radians().cos()).abs() < 1e-15);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn from_inclination_deg(
         t0: Epoch,
         period: TimeDelta,
@@ -120,42 +160,185 @@ impl TransitParams {
     }
 
     /// Time of mid-transit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// assert_eq!(params.t0().as_btjd(), 0.0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn t0(self) -> Epoch {
         self.t0
     }
 
     /// Orbital period.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// assert_eq!(params.period().as_days(), 3.0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn period(self) -> TimeDelta {
         self.period
     }
 
     /// Planet to star radius ratio.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// // The depth is roughly k squared.
+    /// let depth = params.k().get().powi(2);
+    /// assert!((depth - 0.01).abs() < 1e-15);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn k(self) -> RadiusRatio {
         self.k
     }
 
     /// Semi-major axis in stellar radii.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// assert_eq!(params.a_rs().get(), 10.0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn a_rs(self) -> ScaledSemiMajorAxis {
         self.a_rs
     }
 
     /// Impact parameter in stellar radii.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// assert_eq!(params.b().get(), 0.3);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn b(self) -> ImpactParameter {
         self.b
     }
 
     /// Orbital inclination in degrees, from `b` and `a_rs`. 90 is edge-on.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// // cos(i) = b / a_rs = 0.03
+    /// assert!((params.inclination_deg() - 88.281).abs() < 1e-3);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn inclination_deg(self) -> f64 {
         (self.b.get() / self.a_rs.get()).acos().to_degrees()
     }
 
     /// Limb-darkening law of the star.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// assert_eq!(params.limb_darkening().quadratic_coefficients(), (0.3, 0.25));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn limb_darkening(self) -> LimbDarkening {
         self.ld
@@ -166,6 +349,32 @@ impl TransitParams {
     /// In `[-pi, pi)`, with 0 at mid-transit and `-pi` half an orbit away.
     /// Times many orbits from `t0` keep full precision, because whole orbits
     /// are removed before scaling to radians.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// use std::f64::consts::PI;
+    ///
+    /// assert_eq!(params.phase_angle(Epoch::from_btjd(0.0)?), 0.0);
+    /// // A quarter of the way round the 3-day orbit.
+    /// assert!((params.phase_angle(Epoch::from_btjd(0.75)?) - PI / 2.0).abs() < 1e-15);
+    /// // Half an orbit away is -pi, never +pi.
+    /// assert_eq!(params.phase_angle(Epoch::from_btjd(1.5)?), -PI);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn phase_angle(self, t: Epoch) -> f64 {
         2.0 * PI * (((t - self.t0) / self.period + 0.5).rem_euclid(1.0) - 0.5)
@@ -177,6 +386,29 @@ impl TransitParams {
     /// Equal to `b` at mid-transit. The value is the same half an orbit later,
     /// when the planet is behind the star, so check [`in_front`](Self::in_front)
     /// before treating a small separation as a transit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// // At mid-transit the separation is the impact parameter.
+    /// assert!((params.separation(Epoch::from_btjd(0.0)?) - 0.3).abs() < 1e-15);
+    /// // A quarter orbit later the planet is a_rs from the star on the sky.
+    /// assert!((params.separation(Epoch::from_btjd(0.75)?) - 10.0).abs() < 1e-12);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn separation(self, t: Epoch) -> f64 {
         let (sin_phi, cos_phi) = self.phase_angle(t).sin_cos();
@@ -188,6 +420,27 @@ impl TransitParams {
     }
 
     /// Whether the planet is between the observer and the star at time `t`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// assert!(params.in_front(Epoch::from_btjd(0.0)?));
+    /// assert!(!params.in_front(Epoch::from_btjd(1.5)?)); // behind the star
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn in_front(self, t: Epoch) -> bool {
         self.phase_angle(t).cos() > 0.0
@@ -198,6 +451,27 @@ impl TransitParams {
     /// `None` if the planet misses the star (`b >= 1 + k`). If the orbit is so
     /// close that the planet overlaps the star for its whole near-side half
     /// orbit (`a_rs < 1 + k`), this is half the period.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// let t14 = params.t14().expect("this planet transits");
+    /// assert!((t14.as_hours() - 2.431).abs() < 1e-3);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn t14(self) -> Option<TimeDelta> {
         let edge = 1.0 + self.k.get();
@@ -214,6 +488,27 @@ impl TransitParams {
     ///
     /// `None` for a grazing transit (`b >= 1 - k`), which also covers a planet
     /// at least as large as the star (`k >= 1`).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// let t23 = params.t23().expect("not grazing");
+    /// assert!(t23 < params.t14().unwrap());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn t23(self) -> Option<TimeDelta> {
         let edge = 1.0 - self.k.get();
@@ -243,6 +538,28 @@ impl TransitParams {
     ///
     /// `None` if the planet misses the star. Second and third contact are
     /// `None` for a grazing transit, as for [`t23`](Self::t23).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// let contacts = params.contacts().expect("this planet transits");
+    /// let ingress = contacts.t2.unwrap() - contacts.t1;
+    /// assert!(ingress.as_hours() > 0.0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn contacts(self) -> Option<Contacts> {
         let half_t14 = self.t14()? * 0.5;
@@ -259,6 +576,30 @@ impl TransitParams {
     /// Mid-transit times from `start` to `end`, both included, in time order.
     ///
     /// Empty if no transit falls in the window, or if `end` is before `start`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// // A 27-day TESS sector starting at BTJD 1.
+    /// let start = Epoch::from_btjd(1.0)?;
+    /// let end = Epoch::from_btjd(28.0)?;
+    /// let mid_times: Vec<f64> = params.transit_times(start, end).map(|t| t.as_btjd()).collect();
+    /// assert_eq!(mid_times, [3.0, 6.0, 9.0, 12.0, 15.0, 18.0, 21.0, 24.0, 27.0]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn transit_times(self, start: Epoch, end: Epoch) -> impl Iterator<Item = Epoch> {
         let t0 = self.t0;
         let period = self.period;

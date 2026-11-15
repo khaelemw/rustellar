@@ -61,6 +61,34 @@ impl TransitModel {
     ///
     /// The times do not need to be sorted. For a
     /// [`LightCurve`](rustellar_core::LightCurve), pass `lc.time().to_vec()`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::Epoch;
+    /// # use rustellar_model::TransitModel;
+    /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
+    /// #     .into_iter()
+    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .collect();
+    /// # use rustellar_core::TimeDelta;
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// let mut model = TransitModel::new(times);
+    /// let flux = model.light_curve(params);
+    /// assert!(flux[1] < flux[0]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn new(times: Vec<Epoch>) -> Self {
         let flux = vec![1.0; times.len()];
@@ -72,6 +100,29 @@ impl TransitModel {
     }
 
     /// A model of the mean flux over an exposure centred on each of `times`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroUsize;
+    /// # use rustellar_core::Epoch;
+    /// # use rustellar_model::TransitModel;
+    /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
+    /// #     .into_iter()
+    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .collect();
+    /// # use rustellar_core::TimeDelta;
+    /// use rustellar_model::Exposure;
+    ///
+    /// // TESS 200-second full-frame images, averaged over 5 samples.
+    /// let exposure = Exposure::new(
+    ///     TimeDelta::from_hours(200.0 / 3600.0)?,
+    ///     NonZeroUsize::new(5).unwrap(),
+    /// )?;
+    /// let model = TransitModel::with_exposure(times, exposure);
+    /// assert_eq!(model.exposure(), Some(exposure));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn with_exposure(times: Vec<Epoch>, exposure: Exposure) -> Self {
         Self {
@@ -81,12 +132,39 @@ impl TransitModel {
     }
 
     /// The times modelled, in the order given.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::Epoch;
+    /// # use rustellar_model::TransitModel;
+    /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
+    /// #     .into_iter()
+    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .collect();
+    /// let model = TransitModel::new(times.clone());
+    /// assert_eq!(model.times(), times.as_slice());
+    /// # Ok::<(), rustellar_core::TimeError>(())
+    /// ```
     #[must_use]
     pub fn times(&self) -> &[Epoch] {
         &self.times
     }
 
     /// The exposure averaged over, if any.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::Epoch;
+    /// # use rustellar_model::TransitModel;
+    /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
+    /// #     .into_iter()
+    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .collect();
+    /// assert_eq!(TransitModel::new(times).exposure(), None);
+    /// # Ok::<(), rustellar_core::TimeError>(())
+    /// ```
     #[must_use]
     pub fn exposure(&self) -> Option<Exposure> {
         self.exposure
@@ -97,6 +175,35 @@ impl TransitModel {
     ///
     /// Written into a buffer the model owns, so this does not allocate. The
     /// slice is overwritten by the next call.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::Epoch;
+    /// # use rustellar_model::TransitModel;
+    /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
+    /// #     .into_iter()
+    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .collect();
+    /// # use rustellar_core::TimeDelta;
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// let mut model = TransitModel::new(times);
+    /// let flux = model.light_curve(params);
+    /// assert_eq!(flux.len(), 3);
+    /// assert_eq!(flux[0], flux[2]); // symmetric about mid-transit
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn light_curve(&mut self, params: TransitParams) -> &[f64] {
         fill(&self.times, self.exposure, params, &mut self.flux);
         &self.flux
@@ -110,6 +217,37 @@ impl TransitModel {
     ///
     /// [`LengthMismatch`] if `out` is not the same length as the times; `out`
     /// is then left unchanged.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::Epoch;
+    /// # use rustellar_model::TransitModel;
+    /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
+    /// #     .into_iter()
+    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .collect();
+    /// # use rustellar_core::TimeDelta;
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_btjd(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// let model = TransitModel::new(times);
+    ///
+    /// // Each thread can keep its own buffer and share the model.
+    /// let mut out = vec![0.0; model.times().len()];
+    /// model.light_curve_into(params, &mut out)?;
+    /// assert!(out[1] < 1.0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn light_curve_into(
         &self,
         params: TransitParams,

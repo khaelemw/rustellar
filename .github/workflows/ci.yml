@@ -33,6 +33,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
+      # The umbrella crate's tools are behind features, off by default.
+      - run: cargo test -p rustellar --all-features
 
   msrv:
     runs-on: ubuntu-latest

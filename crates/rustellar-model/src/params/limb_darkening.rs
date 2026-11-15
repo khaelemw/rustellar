@@ -8,6 +8,17 @@ use crate::error::LimbDarkeningError;
 ///
 /// Coefficients are rejected only if they make the intensity negative
 /// somewhere on the disk. Negative `u1` (brighter towards the edge) is allowed.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_model::LimbDarkening;
+///
+/// // A Sun-like star in the TESS band.
+/// let ld = LimbDarkening::quadratic(0.4, 0.2)?;
+/// assert_eq!(ld.quadratic_coefficients(), (0.4, 0.2));
+/// # Ok::<(), rustellar_model::LimbDarkeningError>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LimbDarkening(Law);
 
@@ -21,6 +32,14 @@ enum Law {
 
 impl LimbDarkening {
     /// A star with the same brightness everywhere on its disk.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::LimbDarkening;
+    ///
+    /// assert_eq!(LimbDarkening::uniform().quadratic_coefficients(), (0.0, 0.0));
+    /// ```
     #[must_use]
     pub fn uniform() -> Self {
         Self(Law::Uniform)
@@ -32,6 +51,16 @@ impl LimbDarkening {
     ///
     /// - [`LimbDarkeningError::NonFinite`] if `u1` is NaN or infinite.
     /// - [`LimbDarkeningError::NegativeIntensity`] if `u1` is greater than 1.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::{LimbDarkening, LimbDarkeningError};
+    ///
+    /// assert_eq!(LimbDarkening::linear(0.6)?.quadratic_coefficients(), (0.6, 0.0));
+    /// assert_eq!(LimbDarkening::linear(1.2), Err(LimbDarkeningError::NegativeIntensity));
+    /// # Ok::<(), LimbDarkeningError>(())
+    /// ```
     pub fn linear(u1: f64) -> Result<Self, LimbDarkeningError> {
         check_intensity(u1, 0.0)?;
         Ok(Self(Law::Linear { u1 }))
@@ -44,6 +73,23 @@ impl LimbDarkening {
     /// - [`LimbDarkeningError::NonFinite`] if `u1` or `u2` is NaN or infinite.
     /// - [`LimbDarkeningError::NegativeIntensity`] if the intensity is
     ///   negative anywhere on the disk.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::{LimbDarkening, LimbDarkeningError};
+    ///
+    /// let ld = LimbDarkening::quadratic(0.4, 0.2)?;
+    /// assert_eq!(ld.quadratic_coefficients(), (0.4, 0.2));
+    ///
+    /// // Brighter towards the edge is allowed, as long as no point is negative.
+    /// assert!(LimbDarkening::quadratic(-0.2, 0.1).is_ok());
+    /// assert_eq!(
+    ///     LimbDarkening::quadratic(f64::NAN, 0.0),
+    ///     Err(LimbDarkeningError::NonFinite)
+    /// );
+    /// # Ok::<(), LimbDarkeningError>(())
+    /// ```
     pub fn quadratic(u1: f64, u2: f64) -> Result<Self, LimbDarkeningError> {
         check_intensity(u1, u2)?;
         Ok(Self(Law::Quadratic { u1, u2 }))
@@ -51,6 +97,16 @@ impl LimbDarkening {
 
     /// The law as quadratic coefficients `(u1, u2)`: `(0, 0)` for uniform and
     /// `(u1, 0)` for linear.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::LimbDarkening;
+    ///
+    /// let (u1, u2) = LimbDarkening::linear(0.5)?.quadratic_coefficients();
+    /// assert_eq!((u1, u2), (0.5, 0.0));
+    /// # Ok::<(), rustellar_model::LimbDarkeningError>(())
+    /// ```
     #[must_use]
     pub fn quadratic_coefficients(self) -> (f64, f64) {
         match self.0 {

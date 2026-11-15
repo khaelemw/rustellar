@@ -11,6 +11,29 @@ use rustellar_core::TimeDelta;
 ///
 /// More fields may be added in minor releases, so it cannot be built or
 /// matched exhaustively outside this crate.
+///
+/// # Examples
+///
+/// ```
+/// # use rustellar_core::{Epoch, TimeDelta};
+/// # use rustellar_model::{
+/// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+/// # };
+/// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+/// # let params = TransitParams::new(
+/// #     Epoch::from_btjd(0.0)?,
+/// #     TimeDelta::from_days(3.0)?,
+/// #     RadiusRatio::new(0.1)?,
+/// #     ScaledSemiMajorAxis::new(10.0)?,
+/// #     ImpactParameter::new(0.3)?,
+/// #     LimbDarkening::quadratic(0.3, 0.25)?,
+/// # )?;
+/// let contacts = params.contacts().expect("this planet transits");
+/// assert_eq!(contacts.t1, -contacts.t4);
+/// assert!(contacts.t2.is_some()); // not grazing
+/// assert_eq!(contacts.t4 - contacts.t1, params.t14().unwrap());
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct Contacts {

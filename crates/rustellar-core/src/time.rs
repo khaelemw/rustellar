@@ -43,6 +43,17 @@ impl TimeDelta {
     /// # Errors
     ///
     /// [`TimeError::NonFinite`] if `days` is NaN or infinite.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{TimeDelta, TimeError};
+    ///
+    /// let period = TimeDelta::from_days(2.5)?;
+    /// assert_eq!(period.as_hours(), 60.0);
+    /// assert_eq!(TimeDelta::from_days(f64::INFINITY), Err(TimeError::NonFinite));
+    /// # Ok::<(), TimeError>(())
+    /// ```
     pub fn from_days(days: f64) -> Result<Self, TimeError> {
         Self::new(days)
     }
@@ -52,17 +63,45 @@ impl TimeDelta {
     /// # Errors
     ///
     /// [`TimeError::NonFinite`] if `hours` is NaN or infinite.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::TimeDelta;
+    ///
+    /// let duration = TimeDelta::from_hours(3.0)?;
+    /// assert_eq!(duration.as_days(), 0.125);
+    /// # Ok::<(), rustellar_core::TimeError>(())
+    /// ```
     pub fn from_hours(hours: f64) -> Result<Self, TimeError> {
         Self::new(hours / HOURS_PER_DAY)
     }
 
     /// The time delta in days.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::TimeDelta;
+    ///
+    /// assert_eq!(TimeDelta::from_hours(12.0)?.as_days(), 0.5);
+    /// # Ok::<(), rustellar_core::TimeError>(())
+    /// ```
     #[must_use]
     pub fn as_days(self) -> f64 {
         self.days
     }
 
     /// The time delta in hours.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::TimeDelta;
+    ///
+    /// assert_eq!(TimeDelta::from_days(0.25)?.as_hours(), 6.0);
+    /// # Ok::<(), rustellar_core::TimeError>(())
+    /// ```
     #[must_use]
     pub fn as_hours(self) -> f64 {
         self.days * HOURS_PER_DAY
@@ -158,6 +197,17 @@ impl Epoch {
     /// # Errors
     ///
     /// [`TimeError::NonFinite`] if `btjd` is NaN or infinite.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{Epoch, TimeDelta};
+    ///
+    /// let t0 = Epoch::from_btjd(1325.5)?;
+    /// let later = t0 + TimeDelta::from_days(2.0)?;
+    /// assert_eq!(later.as_btjd(), 1327.5);
+    /// # Ok::<(), rustellar_core::TimeError>(())
+    /// ```
     pub fn from_btjd(btjd: f64) -> Result<Self, TimeError> {
         Self::new(btjd)
     }
@@ -167,17 +217,44 @@ impl Epoch {
     /// # Errors
     ///
     /// [`TimeError::NonFinite`] if `bjd` is NaN or infinite.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::Epoch;
+    ///
+    /// assert_eq!(Epoch::from_bjd(2_458_325.5)?.as_btjd(), 1325.5);
+    /// # Ok::<(), rustellar_core::TimeError>(())
+    /// ```
     pub fn from_bjd(bjd: f64) -> Result<Self, TimeError> {
         Self::new(bjd - BTJD_OFFSET)
     }
 
     /// The epoch as BTJD.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::Epoch;
+    ///
+    /// assert_eq!(Epoch::from_btjd(1325.5)?.as_btjd(), 1325.5);
+    /// # Ok::<(), rustellar_core::TimeError>(())
+    /// ```
     #[must_use]
     pub fn as_btjd(self) -> f64 {
         self.btjd
     }
 
     /// The epoch as BJD_TDB.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::Epoch;
+    ///
+    /// assert_eq!(Epoch::from_btjd(1325.5)?.as_bjd(), 2_458_325.5);
+    /// # Ok::<(), rustellar_core::TimeError>(())
+    /// ```
     #[must_use]
     pub fn as_bjd(self) -> f64 {
         self.btjd + BTJD_OFFSET

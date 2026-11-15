@@ -64,6 +64,15 @@ impl std::error::Error for LightCurveError {}
 ///
 /// New variants may be added in minor releases, so a `match` on this type needs
 /// a wildcard arm.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_core::{Epoch, TimeError};
+///
+/// assert_eq!(Epoch::from_btjd(f64::NAN), Err(TimeError::NonFinite));
+/// assert_eq!(TimeError::NonFinite.to_string(), "time value must be finite");
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TimeError {

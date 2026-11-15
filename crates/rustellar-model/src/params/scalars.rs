@@ -5,6 +5,17 @@ use crate::error::ParamError;
 /// Always finite, greater than zero and at most [`RadiusRatio::MAX`]. Values
 /// above 1 are allowed: the geometry still works for a body larger than the
 /// star, as in an eclipsing binary.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_model::RadiusRatio;
+///
+/// // A Jupiter around a Sun-like star.
+/// let k = RadiusRatio::new(0.1)?;
+/// assert_eq!(k.get(), 0.1);
+/// # Ok::<(), rustellar_model::ParamError>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct RadiusRatio(f64);
 
@@ -15,6 +26,15 @@ impl RadiusRatio {
     /// roughly as `k^3 * 1e-15`, reaching about `2e-9` at 100 and `1e-6` at
     /// 1000. Planets have `k` below about 0.3, and eclipsing binaries rarely
     /// exceed 50.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::{ParamError, RadiusRatio};
+    ///
+    /// assert!(RadiusRatio::new(RadiusRatio::MAX).is_ok());
+    /// assert_eq!(RadiusRatio::new(150.0), Err(ParamError::RadiusRatioTooLarge));
+    /// ```
     pub const MAX: f64 = 100.0;
 
     /// Makes a radius ratio.
@@ -25,6 +45,17 @@ impl RadiusRatio {
     /// - [`ParamError::RadiusRatioNotPositive`] if `k` is zero or negative.
     /// - [`ParamError::RadiusRatioTooLarge`] if `k` is above
     ///   [`RadiusRatio::MAX`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::{ParamError, RadiusRatio};
+    ///
+    /// assert!(RadiusRatio::new(0.1).is_ok());
+    /// assert!(RadiusRatio::new(2.0).is_ok()); // a body larger than the star
+    /// assert_eq!(RadiusRatio::new(0.0), Err(ParamError::RadiusRatioNotPositive));
+    /// assert_eq!(RadiusRatio::new(f64::NAN), Err(ParamError::NonFinite { name: "k" }));
+    /// ```
     pub fn new(k: f64) -> Result<Self, ParamError> {
         if !k.is_finite() {
             return Err(ParamError::NonFinite { name: "k" });
@@ -42,6 +73,15 @@ impl RadiusRatio {
     }
 
     /// The radius ratio as a number.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::RadiusRatio;
+    ///
+    /// assert_eq!(RadiusRatio::new(0.1)?.get(), 0.1);
+    /// # Ok::<(), rustellar_model::ParamError>(())
+    /// ```
     #[must_use]
     pub fn get(self) -> f64 {
         self.0
@@ -53,6 +93,16 @@ impl RadiusRatio {
 ///
 /// Always finite and zero or more. `b = 0` is a central transit; `b` above
 /// `1 + k` means the planet misses the star.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_model::ImpactParameter;
+///
+/// let central = ImpactParameter::new(0.0)?;
+/// assert_eq!(central.get(), 0.0);
+/// # Ok::<(), rustellar_model::ParamError>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 // `pub(super)` lets `TransitParams::from_inclination_deg` build one directly
 // after its own range check; everything else goes through `new`.
@@ -65,6 +115,16 @@ impl ImpactParameter {
     ///
     /// - [`ParamError::NonFinite`] if `b` is NaN or infinite.
     /// - [`ParamError::ImpactParameterNegative`] if `b` is negative.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::{ImpactParameter, ParamError};
+    ///
+    /// assert!(ImpactParameter::new(0.5).is_ok());
+    /// assert!(ImpactParameter::new(1.5).is_ok()); // misses the star, still valid
+    /// assert_eq!(ImpactParameter::new(-0.1), Err(ParamError::ImpactParameterNegative));
+    /// ```
     pub fn new(b: f64) -> Result<Self, ParamError> {
         if !b.is_finite() {
             return Err(ParamError::NonFinite { name: "b" });
@@ -78,6 +138,15 @@ impl ImpactParameter {
     }
 
     /// The impact parameter in stellar radii.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::ImpactParameter;
+    ///
+    /// assert_eq!(ImpactParameter::new(0.5)?.get(), 0.5);
+    /// # Ok::<(), rustellar_model::ParamError>(())
+    /// ```
     #[must_use]
     pub fn get(self) -> f64 {
         self.0
@@ -87,6 +156,17 @@ impl ImpactParameter {
 /// Orbital semi-major axis divided by star radius, `a_rs = a / Rs`.
 ///
 /// Always finite and greater than 1, so the orbit is outside the star.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_model::ScaledSemiMajorAxis;
+///
+/// // A hot Jupiter: about ten stellar radii out.
+/// let a_rs = ScaledSemiMajorAxis::new(10.0)?;
+/// assert_eq!(a_rs.get(), 10.0);
+/// # Ok::<(), rustellar_model::ParamError>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct ScaledSemiMajorAxis(f64);
 
@@ -97,6 +177,15 @@ impl ScaledSemiMajorAxis {
     ///
     /// - [`ParamError::NonFinite`] if `a_rs` is NaN or infinite.
     /// - [`ParamError::SemiMajorAxisTooSmall`] if `a_rs` is 1 or less.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::{ParamError, ScaledSemiMajorAxis};
+    ///
+    /// assert!(ScaledSemiMajorAxis::new(1.5).is_ok());
+    /// assert_eq!(ScaledSemiMajorAxis::new(0.9), Err(ParamError::SemiMajorAxisTooSmall));
+    /// ```
     pub fn new(a_rs: f64) -> Result<Self, ParamError> {
         if !a_rs.is_finite() {
             return Err(ParamError::NonFinite { name: "a_rs" });
@@ -110,6 +199,15 @@ impl ScaledSemiMajorAxis {
     }
 
     /// The scaled semi-major axis in stellar radii.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::ScaledSemiMajorAxis;
+    ///
+    /// assert_eq!(ScaledSemiMajorAxis::new(10.0)?.get(), 10.0);
+    /// # Ok::<(), rustellar_model::ParamError>(())
+    /// ```
     #[must_use]
     pub fn get(self) -> f64 {
         self.0

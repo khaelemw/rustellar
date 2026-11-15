@@ -8,6 +8,16 @@ use crate::{Epoch, LightCurveError, TimeDelta};
 ///
 /// Times are [`Epoch`]s, so their time system is fixed. Flux and flux error can
 /// be in any unit, as long as both use the same one.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_core::LightCurve;
+///
+/// let lc = LightCurve::from_btjd(vec![1.0, 2.0], vec![1.0, 0.99], vec![0.01, 0.01])?;
+/// assert_eq!(lc.flux(), &[1.0, 0.99]);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightCurve {
     time: Vec<Epoch>,
@@ -126,6 +136,15 @@ impl LightCurve {
 
     /// Number of points. Never zero, because [`new`](Self::new) rejects empty
     /// input.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::LightCurve;
+    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// assert_eq!(lc.len(), 3);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[expect(
         clippy::len_without_is_empty,
         reason = "new() rejects empty input, so a LightCurve is never empty"
@@ -136,18 +155,46 @@ impl LightCurve {
     }
 
     /// Observation times, strictly increasing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::LightCurve;
+    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let btjd: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+    /// assert_eq!(btjd, [1.0, 2.0, 3.0]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn time(&self) -> &[Epoch] {
         &self.time
     }
 
     /// Flux values, one per time.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::LightCurve;
+    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// assert_eq!(lc.flux(), &[1.0, 0.99, 1.0]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn flux(&self) -> &[f64] {
         &self.flux
     }
 
     /// Flux errors, one per time, all greater than zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::LightCurve;
+    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// assert_eq!(lc.flux_err(), &[0.01, 0.01, 0.01]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn flux_err(&self) -> &[f64] {
         &self.flux_err
@@ -211,6 +258,17 @@ impl LightCurve {
 /// Rows are sorted by phase. Row `i` of [`phase`](Self::phase),
 /// [`flux`](Self::flux), and [`flux_err`](Self::flux_err) is the same
 /// measurement.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_core::{Epoch, LightCurve, TimeDelta};
+///
+/// let lc = LightCurve::from_btjd(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+/// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_btjd(0.5)?)?;
+/// assert_eq!(folded.phase(), &[-0.5, -0.5, 0.0]);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct FoldedLightCurve {
     phase: Vec<f64>,
@@ -220,18 +278,49 @@ pub struct FoldedLightCurve {
 
 impl FoldedLightCurve {
     /// Phases in `[-0.5, 0.5)`, in increasing order, with 0 at the fold's `t0`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, LightCurve, TimeDelta};
+    /// # let lc = LightCurve::from_btjd(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_btjd(0.5)?)?;
+    /// // Times 0.0 and 1.0 are half a period from t0; 0.5 is at t0.
+    /// assert_eq!(folded.phase(), &[-0.5, -0.5, 0.0]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn phase(&self) -> &[f64] {
         &self.phase
     }
 
     /// Flux values from the original light curve, in phase order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, LightCurve, TimeDelta};
+    /// # let lc = LightCurve::from_btjd(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_btjd(0.5)?)?;
+    /// assert_eq!(folded.flux(), &[1.0, 1.0, 0.99]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn flux(&self) -> &[f64] {
         &self.flux
     }
 
     /// Flux errors from the original light curve, in phase order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, LightCurve, TimeDelta};
+    /// # let lc = LightCurve::from_btjd(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_btjd(0.5)?)?;
+    /// assert_eq!(folded.flux_err(), &[0.01, 0.01, 0.01]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn flux_err(&self) -> &[f64] {
         &self.flux_err

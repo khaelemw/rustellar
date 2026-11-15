@@ -4,6 +4,16 @@ use std::fmt;
 ///
 /// New variants may be added in minor releases, so a `match` on this type needs
 /// a wildcard arm.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_model::{ParamError, RadiusRatio};
+///
+/// let err = RadiusRatio::new(-0.1).unwrap_err();
+/// assert_eq!(err, ParamError::RadiusRatioNotPositive);
+/// assert_eq!(err.to_string(), "radius ratio k must be greater than zero");
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParamError {
@@ -65,6 +75,16 @@ impl std::error::Error for ParamError {}
 ///
 /// New variants may be added in minor releases, so a `match` on this type needs
 /// a wildcard arm.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_model::{LimbDarkening, LimbDarkeningError};
+///
+/// // u1 + u2 > 1 makes the edge of the disk darker than black.
+/// let err = LimbDarkening::quadratic(0.8, 0.5).unwrap_err();
+/// assert_eq!(err, LimbDarkeningError::NegativeIntensity);
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum LimbDarkeningError {
@@ -93,6 +113,30 @@ impl std::error::Error for LimbDarkeningError {}
 ///
 /// Returned by the `light_curve_into` methods, which write one flux per time
 /// into a buffer the caller owns.
+///
+/// # Examples
+///
+/// ```
+/// # use rustellar_core::{Epoch, TimeDelta};
+/// # use rustellar_model::{
+/// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+/// # };
+/// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+/// # let params = TransitParams::new(
+/// #     Epoch::from_btjd(0.0)?,
+/// #     TimeDelta::from_days(3.0)?,
+/// #     RadiusRatio::new(0.1)?,
+/// #     ScaledSemiMajorAxis::new(10.0)?,
+/// #     ImpactParameter::new(0.3)?,
+/// #     LimbDarkening::quadratic(0.3, 0.25)?,
+/// # )?;
+/// let times = [Epoch::from_btjd(0.0)?, Epoch::from_btjd(0.1)?];
+/// let mut out = [0.0; 3];
+/// let err = params.light_curve_into(&times, &mut out).unwrap_err();
+/// assert_eq!((err.times, err.output), (2, 3));
+/// assert_eq!(err.to_string(), "output has length 3 but there are 2 times");
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct LengthMismatch {

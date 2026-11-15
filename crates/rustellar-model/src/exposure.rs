@@ -61,6 +61,23 @@ impl Exposure {
     /// # Errors
     ///
     /// [`ParamError::ExposureNotPositive`] if `duration` is zero or negative.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroUsize;
+    ///
+    /// use rustellar_core::TimeDelta;
+    /// use rustellar_model::{Exposure, ParamError};
+    ///
+    /// let samples = NonZeroUsize::new(5).unwrap();
+    /// let tess_2min = Exposure::new(TimeDelta::from_hours(2.0 / 60.0)?, samples)?;
+    /// assert_eq!(tess_2min.samples(), samples);
+    ///
+    /// let none = Exposure::new(TimeDelta::from_days(0.0)?, samples);
+    /// assert_eq!(none, Err(ParamError::ExposureNotPositive));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn new(duration: TimeDelta, samples: NonZeroUsize) -> Result<Self, ParamError> {
         if duration.as_days() <= 0.0 {
             return Err(ParamError::ExposureNotPositive);
@@ -70,12 +87,38 @@ impl Exposure {
     }
 
     /// How long each measurement integrates for.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroUsize;
+    ///
+    /// use rustellar_core::TimeDelta;
+    /// use rustellar_model::Exposure;
+    ///
+    /// let exposure = Exposure::new(TimeDelta::from_hours(0.5)?, NonZeroUsize::new(15).unwrap())?;
+    /// assert_eq!(exposure.duration().as_hours(), 0.5);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn duration(self) -> TimeDelta {
         self.duration
     }
 
     /// How many instants each measurement is averaged over.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroUsize;
+    ///
+    /// use rustellar_core::TimeDelta;
+    /// use rustellar_model::Exposure;
+    ///
+    /// let exposure = Exposure::new(TimeDelta::from_hours(0.5)?, NonZeroUsize::new(15).unwrap())?;
+    /// assert_eq!(exposure.samples().get(), 15);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn samples(self) -> NonZeroUsize {
         self.samples
@@ -87,6 +130,21 @@ impl Exposure {
     ///
     /// Exactly symmetric about zero, so the averaging adds no asymmetry of
     /// its own to the light curve.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroUsize;
+    ///
+    /// use rustellar_core::TimeDelta;
+    /// use rustellar_model::Exposure;
+    ///
+    /// // Four samples over one day: the middles of four six-hour slices.
+    /// let exposure = Exposure::new(TimeDelta::from_days(1.0)?, NonZeroUsize::new(4).unwrap())?;
+    /// let hours: Vec<f64> = exposure.offsets().map(|dt| dt.as_hours()).collect();
+    /// assert_eq!(hours, [-9.0, -3.0, 3.0, 9.0]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn offsets(self) -> impl Iterator<Item = TimeDelta> {
         let n = self.samples.get() as f64;
         // (i + 1/2) / n - 1/2 as (2i + 1 - n) / 2n: the numerator is an exact

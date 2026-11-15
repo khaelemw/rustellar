@@ -1,0 +1,27 @@
+[package]
+name = "rustellar"
+description = "Exoplanet and astronomy time-series tools in pure Rust; enable the parts you need as features"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "exoplanet", "transit", "light-curve"]
+categories = ["science", "algorithms"]
+
+# Each tool is its own crate, brought in by a feature of the same name, so a
+# build compiles only what it uses. rustellar-core is always included.
+[features]
+default = []
+full = ["model"]
+model = ["dep:rustellar-model"]
+
+[dependencies]
+rustellar-core.workspace = true
+rustellar-model = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[dev-dependencies]
+rustellar-core.workspace = true
+rustellar-model.workspace = true
