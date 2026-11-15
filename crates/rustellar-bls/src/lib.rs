@@ -21,6 +21,7 @@
 //! type of its own.
 
 mod autoperiod;
+mod binned;
 mod box_fit;
 mod error;
 mod exact;
