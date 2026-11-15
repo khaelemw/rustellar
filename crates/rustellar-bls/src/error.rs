@@ -54,6 +54,14 @@ pub enum BlsError {
     },
     /// The grid would hold more than 100 million periods.
     GridTooLarge,
+    /// A box holds none of the light curve's points.
+    NoPointsInTransit,
+    /// A box holds every one of the light curve's points, leaving no
+    /// out-of-transit level.
+    NoPointsOutOfTransit,
+    /// A weight `1 / flux_err^2`, or a sum of weights or of their products
+    /// with the flux, is too large for an `f64`.
+    Overflow,
 }
 
 impl fmt::Display for BlsError {
@@ -81,6 +89,14 @@ impl fmt::Display for BlsError {
                 "frequency_factor is too large for the period range: the grid reaches zero frequency"
             ),
             Self::NotPositive { name } => write!(f, "{name} must be greater than zero"),
+            Self::NoPointsInTransit => write!(f, "the box holds none of the points"),
+            Self::NoPointsOutOfTransit => {
+                write!(f, "the box holds every point, leaving none out of transit")
+            }
+            Self::Overflow => write!(
+                f,
+                "the weights 1 / flux_err^2, or their sums, are too large for an f64"
+            ),
             Self::GridTooLarge => write!(
                 f,
                 "the period grid would hold more than 100 million periods"

@@ -9,7 +9,7 @@ keywords = ["astronomy", "exoplanet", "transit", "periodogram"]
 categories = ["science", "algorithms"]
 # Reference data for the tests only, and the tests that read it; users of the
 # crate do not need them.
-exclude = ["tests/reference", "tests/autoperiod.rs", "tests/ofir.rs"]
+exclude = ["tests/reference", "tests/autoperiod.rs", "tests/ofir.rs", "tests/box_fit.rs"]
 
 [dependencies]
 rustellar-core.workspace = true

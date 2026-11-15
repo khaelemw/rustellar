@@ -15,3 +15,6 @@ All notable changes to this crate are recorded here. The format follows
 - `OfirPeriod`: Ofir's (2014) optimal period grid, with the IAU 2015 solar
   values, about 50 times fewer periods than `AutoPeriod` over a TESS
   sector.
+- `TransitBox` and `BoxFit`: one box fitted exactly, with compensated sums
+  and an in-transit test right to about a picosecond far from the
+  mid-transit time.

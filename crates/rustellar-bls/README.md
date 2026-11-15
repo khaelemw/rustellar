@@ -5,8 +5,9 @@ part of [rustellar](../../README.md).
 
 **Status:** in development. So far: the checked search inputs (`Durations`,
 `Periods`), astropy's automatic period grid (`AutoPeriod`, the same periods to
-the last bit) and Ofir's (2014) optimal period grid (`OfirPeriod`). The search
-itself is not written yet.
+the last bit), Ofir's (2014) optimal period grid (`OfirPeriod`), and one box
+fitted exactly (`TransitBox`, `BoxFit`). The search itself is not written
+yet.
 
 ## License
 

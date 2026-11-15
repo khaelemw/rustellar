@@ -166,6 +166,15 @@ fn period_not_finite() {
     BlsError::NotPositive { name: "stellar_mass" },
     "stellar_mass must be greater than zero"
 )]
+#[case(BlsError::NoPointsInTransit, "the box holds none of the points")]
+#[case(
+    BlsError::NoPointsOutOfTransit,
+    "the box holds every point, leaving none out of transit"
+)]
+#[case(
+    BlsError::Overflow,
+    "the weights 1 / flux_err^2, or their sums, are too large for an f64"
+)]
 #[case(
     BlsError::GridTooLarge,
     "the period grid would hold more than 100 million periods"
