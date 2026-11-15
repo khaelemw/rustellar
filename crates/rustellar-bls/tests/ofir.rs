@@ -1,6 +1,6 @@
-// Ofir's (2014) optimal period grid: the same periods as the reference grids,
-// the step the paper asks for, far fewer periods than astropy's grid, and an
-// error wherever TLS quietly changes a setting.
+// Ofir's (2014) optimal period grid: the same periods as the reference grids
+// (to rounding), the step the paper asks for, far fewer periods than astropy's
+// grid, and an error wherever TLS quietly changes a setting.
 
 use std::f64::consts::{PI, TAU};
 
@@ -123,14 +123,19 @@ fn same_number_of_periods_as_the_reference() {
     }
 }
 
+// Not to the last bit: `cbrt` comes from each platform's maths library, and
+// IEEE 754 does not require it to be correctly rounded. A cube root one
+// rounding off moves A by that much, and the cube in f(x) triples it: the
+// reference (numpy on Windows) and Linux and macOS differ by up to 7 roundings
+// (1.6e-15). 1e-14 leaves room for other libraries and nothing more.
 #[test]
-fn same_periods_as_the_reference_to_the_last_bit() {
+fn same_periods_as_the_reference() {
     let grids: Vec<Periods> = cases().iter().map(grid).collect();
     for (case, index, period) in sampled_periods() {
         let ours = grids[case].as_slice()[index].as_days();
-        assert_eq!(
-            ours.to_bits(),
-            period.to_bits(),
+        let error = (ours / period - 1.0).abs();
+        assert!(
+            error < 1e-14,
             "case {case}, index {index}: {ours} vs {period}"
         );
     }
