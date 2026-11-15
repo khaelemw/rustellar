@@ -24,6 +24,7 @@ exclude = [
     "tests/ofir.rs",
     "tests/box_fit.rs",
     "tests/exact.rs",
+    "tests/search.rs",
 ]
 
 [dependencies]

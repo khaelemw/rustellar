@@ -227,13 +227,6 @@ impl Periods {
 ///
 /// [`BlsError::DurationNotShorterThanPeriod`] if the longest duration is at
 /// least the shortest period.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the search calls this when it is set up; not written yet"
-    )
-)]
 pub(crate) fn check_durations_fit(
     periods: &Periods,
     durations: &Durations,

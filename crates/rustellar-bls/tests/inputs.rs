@@ -179,6 +179,10 @@ fn period_not_finite() {
     BlsError::GridTooLarge,
     "the period grid would hold more than 100 million periods"
 )]
+#[case(
+    BlsError::TooManyBins,
+    "the longest period would need more than 1 million phase bins"
+)]
 fn error_messages(#[case] error: BlsError, #[case] message: &str) {
     assert_eq!(error.to_string(), message);
 }

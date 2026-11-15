@@ -3,7 +3,11 @@
 
 use rustellar_core::{LightCurve, TimeDelta};
 
-use crate::{TransitBox, box_fit::Weighted, exact::Folded};
+use crate::{Objective, TransitBox, box_fit::Weighted, exact::Folded};
+
+fn btjd(lc: &LightCurve) -> Vec<f64> {
+    lc.time().iter().map(|t| t.as_btjd()).collect()
+}
 
 fn dip() -> LightCurve {
     LightCurve::from_btjd(
@@ -20,9 +24,9 @@ fn dip() -> LightCurve {
 fn best_of_the_durations() {
     let lc = dip();
     let weighted = Weighted::new(&lc).unwrap();
-    let folded = Folded::new(&lc, &weighted, 10.0);
+    let folded = Folded::new(&btjd(&lc), &weighted, 10.0);
     let (duration, centre, fit) = folded
-        .best_of(&weighted, &[0.5, 3.0, 12.0])
+        .best_of(&weighted, &[0.5, 3.0, 12.0], Objective::DeltaChi2)
         .unwrap()
         .unwrap();
     assert_eq!((duration, centre, fit.n_in), (1, 1.5, 2));
@@ -43,6 +47,11 @@ fn best_of_the_durations() {
 fn every_duration_too_long() {
     let lc = dip();
     let weighted = Weighted::new(&lc).unwrap();
-    let folded = Folded::new(&lc, &weighted, 2.5);
-    assert_eq!(folded.best_of(&weighted, &[2.5, 3.0]).unwrap(), None);
+    let folded = Folded::new(&btjd(&lc), &weighted, 2.5);
+    assert_eq!(
+        folded
+            .best_of(&weighted, &[2.5, 3.0], Objective::DeltaChi2)
+            .unwrap(),
+        None
+    );
 }

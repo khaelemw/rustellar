@@ -20,3 +20,10 @@ All notable changes to this crate are recorded here. The format follows
   mid-transit time.
 - `TransitBox::best` and `BestBox`: the exact search at one period and
   duration, over every mid-transit time; never below astropy's slow search.
+- `Bls`, `SearchOptions`, `Objective`, `BlsResult` and `Peak`: the search
+  over many periods. Bins that tile the orbit, the power and best box at
+  every period, and the highest peaks refined exactly over every
+  mid-transit time and a continuous range of durations. Runs on all cores
+  with the same results, to the bit, on any number; `search_into` reuses a
+  result's memory.
+- `BlsError::TooManyBins`.

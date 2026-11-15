@@ -14,11 +14,11 @@
 //! - one box, [`TransitBox`], and its exact fit to a light curve,
 //!   [`BoxFit`];
 //! - the exact search at one period and duration,
-//!   [`TransitBox::best`], over every mid-transit time ([`BestBox`]).
-//!
-//! The search's phase resolution will be a
-//! [`NonZeroUsize`](std::num::NonZeroUsize) (`oversample`), so it needs no
-//! type of its own.
+//!   [`TransitBox::best`], over every mid-transit time ([`BestBox`]);
+//! - the search over many periods, [`Bls::search`]: binned at every period,
+//!   on all cores, with the highest peaks refined exactly ([`BlsResult`],
+//!   [`Peak`]), set up by [`SearchOptions`] and maximising an
+//!   [`Objective`].
 
 mod autoperiod;
 mod binned;
@@ -28,6 +28,7 @@ mod exact;
 mod grid;
 mod ofir;
 mod refine;
+mod search;
 mod sums;
 mod totals;
 
@@ -40,3 +41,4 @@ pub use error::BlsError;
 pub use exact::BestBox;
 pub use grid::{Durations, Periods};
 pub use ofir::OfirPeriod;
+pub use search::{Bls, BlsResult, Objective, Peak, SearchOptions};

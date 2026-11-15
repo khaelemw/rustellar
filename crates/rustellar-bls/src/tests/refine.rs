@@ -7,11 +7,15 @@ use rustellar_core::{Epoch, LightCurve, TimeDelta};
 
 use super::recipe::{Recipe, check_samples};
 use crate::{
-    TransitBox,
-    binned::best_binned,
+    Objective, TransitBox,
+    binned::{Scratch, best_binned},
     box_fit::{Weighted, offset_from_transit},
     refine::{peaks, refine},
 };
+
+fn btjd(lc: &LightCurve) -> Vec<f64> {
+    lc.time().iter().map(|t| t.as_btjd()).collect()
+}
 
 #[rstest]
 #[case::several(&[1.0, 3.0, 2.0, 5.0, 5.0, 4.0, 0.0, 7.0], 2, &[7, 3])]
@@ -19,6 +23,8 @@ use crate::{
 #[case::ends(&[5.0, 1.0, 2.0], 5, &[0, 2])]
 #[case::equal_heights(&[0.0, 2.0, 0.0, 2.0, 0.0], 5, &[1, 3])]
 #[case::flat(&[1.0, 1.0, 1.0], 5, &[0])]
+#[case::zero(&[0.0, 0.0, 1.0, 0.0], 5, &[2])]
+#[case::all_zero(&[0.0, 0.0], 5, &[])]
 #[case::no_dip_anywhere(&[f64::NEG_INFINITY, 0.5, f64::NEG_INFINITY], 5, &[1])]
 #[case::one(&[4.0], 1, &[0])]
 #[case::empty(&[], 3, &[])]
@@ -54,16 +60,34 @@ fn equals_the_exact_search_at_each_period() {
     let weighted = Weighted::new(&lc).unwrap();
     let periods: Vec<f64> = (0..400).map(|i| 1.0 + 9.0 * f64::from(i) / 399.0).collect();
     let durations = [0.05, 0.08, 0.12, 0.16];
+    let mut scratch = Scratch::default();
     let power: Vec<f64> = periods
         .iter()
         .map(|&p| {
-            best_binned(&times, &weighted, p, &durations, 8)
-                .unwrap()
-                .map_or(0.0, |b| b.fit.delta_chi2)
+            best_binned(
+                &times,
+                &weighted,
+                p,
+                &durations,
+                8,
+                Objective::DeltaChi2,
+                &mut scratch,
+            )
+            .unwrap()
+            .map_or(0.0, |b| b.fit.delta_chi2)
         })
         .collect();
     let top = peaks(&power, 3);
-    let refined = refine(&lc, &weighted, &periods, &durations, &top, 2).unwrap();
+    let refined = refine(
+        &btjd(&lc),
+        &weighted,
+        &periods,
+        &durations,
+        &top,
+        2,
+        Objective::DeltaChi2,
+    )
+    .unwrap();
     assert_eq!(refined.len(), 3);
 
     for (r, &peak) in refined.iter().zip(&top) {
@@ -112,7 +136,7 @@ fn equals_the_exact_search_at_each_period() {
         let refit = TransitBox::new(
             days(periods[r.period]),
             days(r.duration),
-            Epoch::from_btjd(r.transit_time).unwrap(),
+            Epoch::from_btjd(times[0] + r.centre).unwrap(),
         )
         .unwrap()
         .fit(&lc)
@@ -139,7 +163,16 @@ fn reach_stops_at_the_ends() {
     let weighted = Weighted::new(&lc).unwrap();
     let periods = [1.9, 2.0, 2.1];
     // The 3-day duration is longer than every period, and is skipped.
-    let refined = refine(&lc, &weighted, &periods, &[0.1, 3.0], &[0, 2], 5).unwrap();
+    let refined = refine(
+        &btjd(&lc),
+        &weighted,
+        &periods,
+        &[0.1, 3.0],
+        &[0, 2],
+        5,
+        Objective::DeltaChi2,
+    )
+    .unwrap();
     assert_eq!(refined.len(), 2);
     for r in &refined {
         assert_eq!((r.period, r.duration), (1, 0.1));
@@ -153,9 +186,17 @@ fn reach_stops_at_the_ends() {
     .unwrap();
     let weighted = Weighted::new(&flat).unwrap();
     assert!(
-        refine(&flat, &weighted, &periods, &[0.1], &[1], 1)
-            .unwrap()
-            .is_empty()
+        refine(
+            &btjd(&flat),
+            &weighted,
+            &periods,
+            &[0.1],
+            &[1],
+            1,
+            Objective::DeltaChi2
+        )
+        .unwrap()
+        .is_empty()
     );
 }
 
@@ -170,7 +211,16 @@ fn periods_near_a_peak_without_a_box() {
         .collect();
     let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 20]).unwrap();
     let weighted = Weighted::new(&lc).unwrap();
-    let refined = refine(&lc, &weighted, &[0.4, 1.0, 5.0], &[0.5], &[1], 1).unwrap();
+    let refined = refine(
+        &btjd(&lc),
+        &weighted,
+        &[0.4, 1.0, 5.0],
+        &[0.5],
+        &[1],
+        1,
+        Objective::DeltaChi2,
+    )
+    .unwrap();
     assert_eq!(refined.len(), 1);
     assert_eq!((refined[0].period, refined[0].fit.n_in), (2, 4));
 }
@@ -182,7 +232,15 @@ fn statistics_that_overflow() {
         LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
     let weighted = Weighted::new(&lc).unwrap();
     assert_eq!(
-        refine(&lc, &weighted, &[10.0], &[0.5], &[0], 0),
+        refine(
+            &btjd(&lc),
+            &weighted,
+            &[10.0],
+            &[0.5],
+            &[0],
+            0,
+            Objective::DeltaChi2
+        ),
         Err(crate::BlsError::OutOfRange)
     );
 }
@@ -232,17 +290,34 @@ fn injected() -> Vec<Errors> {
             let periods: Vec<f64> = (0..201)
                 .map(|k| period * (1.0 + 0.02 * f64::from(k - 100) / 100.0))
                 .collect();
+            let mut scratch = Scratch::default();
             let power: Vec<f64> = periods
                 .iter()
                 .map(|&p| {
-                    best_binned(&times, &weighted, p, &durations, 10)
-                        .unwrap()
-                        .map_or(0.0, |b| b.fit.delta_chi2)
+                    best_binned(
+                        &times,
+                        &weighted,
+                        p,
+                        &durations,
+                        10,
+                        Objective::DeltaChi2,
+                        &mut scratch,
+                    )
+                    .unwrap()
+                    .map_or(0.0, |b| b.fit.delta_chi2)
                 })
                 .collect();
-            let ours =
-                refine(&lc, &weighted, &periods, &durations, &peaks(&power, 1), 2).unwrap()[0];
-            let ours_time = at_middle(ours.transit_time, periods[ours.period]);
+            let ours = refine(
+                &btjd(&lc),
+                &weighted,
+                &periods,
+                &durations,
+                &peaks(&power, 1),
+                2,
+                Objective::DeltaChi2,
+            )
+            .unwrap()[0];
+            let ours_time = at_middle(times[0] + ours.centre, periods[ours.period]);
             let theirs_time = at_middle(f(7), f(6));
             Errors {
                 time: [ours_time, theirs_time].map(|t| offset_from_transit(t, tc, period).abs()),
@@ -317,10 +392,23 @@ fn second_step_overflows() {
     )
     .unwrap();
     let weighted = Weighted::new(&lc).unwrap();
-    let folded = crate::exact::Folded::new(&lc, &weighted, 1.0);
-    assert!(folded.best_of(&weighted, &[0.2, 0.3]).unwrap().is_some());
+    let folded = crate::exact::Folded::new(&btjd(&lc), &weighted, 1.0);
+    assert!(
+        folded
+            .best_of(&weighted, &[0.2, 0.3], Objective::DeltaChi2)
+            .unwrap()
+            .is_some()
+    );
     assert_eq!(
-        refine(&lc, &weighted, &[1.0], &[0.2, 0.3], &[0], 0),
+        refine(
+            &btjd(&lc),
+            &weighted,
+            &[1.0],
+            &[0.2, 0.3],
+            &[0],
+            0,
+            Objective::DeltaChi2
+        ),
         Err(crate::BlsError::OutOfRange)
     );
 }

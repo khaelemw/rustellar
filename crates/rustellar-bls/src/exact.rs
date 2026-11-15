@@ -22,7 +22,7 @@
 use rustellar_core::{LightCurve, TimeDelta};
 
 use crate::{
-    BlsError, BoxFit, TransitBox,
+    BlsError, BoxFit, Objective, TransitBox,
     box_fit::{Weighted, offset_from_transit},
     totals::{Orbit, Total, box_sums},
 };
@@ -84,9 +84,10 @@ impl TransitBox {
         // Checks the period and duration; the mid-transit time is replaced.
         Self::new(period, duration, reference)?;
         let weighted = Weighted::new(lc)?;
-        let folded = Folded::new(lc, &weighted, period.as_days());
+        let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+        let folded = Folded::new(&times, &weighted, period.as_days());
         Ok(folded
-            .best(&weighted, duration.as_days())?
+            .best(&weighted, duration.as_days(), Objective::DeltaChi2)?
             .map(|(centre, fit)| BestBox {
                 transit: Self::new(
                     period,
@@ -110,14 +111,13 @@ pub(crate) struct Folded {
 }
 
 impl Folded {
-    pub(crate) fn new(lc: &LightCurve, weighted: &Weighted, period: f64) -> Self {
-        let reference = lc.time()[0].as_btjd();
-        let n = lc.len();
-        let mut order: Vec<(f64, usize)> = lc
-            .time()
+    /// `times` in BTJD, with weights `weighted`, folded at `period` days.
+    pub(crate) fn new(times: &[f64], weighted: &Weighted, period: f64) -> Self {
+        let n = times.len();
+        let mut order: Vec<(f64, usize)> = times
             .iter()
             .enumerate()
-            .map(|(k, t)| (offset_from_transit(t.as_btjd(), reference, period), k))
+            .map(|(k, &t)| (offset_from_transit(t, times[0], period), k))
             .collect();
         order.sort_by(|a, b| a.0.total_cmp(&b.0));
         let phase = order
@@ -140,25 +140,22 @@ impl Folded {
         }
     }
 
-    /// The best box over the durations, in days: which duration, the box's
+    /// The best box by `objective` over the durations, in days: which duration, the box's
     /// middle, in days from the first time, and its fit. The first of equal
     /// boxes is kept, and durations not shorter than the period are skipped.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the search calls this; not written yet")
-    )]
     pub(crate) fn best_of(
         &self,
         weighted: &Weighted,
         durations: &[f64],
+        objective: Objective,
     ) -> Result<Option<(usize, f64, BoxFit)>, BlsError> {
         let mut best: Option<(usize, f64, BoxFit)> = None;
         for (k, &d) in durations.iter().enumerate() {
             if d >= self.period {
                 continue;
             }
-            if let Some((centre, fit)) = self.best(weighted, d)? {
-                if best.is_none_or(|b| fit.delta_chi2 > b.2.delta_chi2) {
+            if let Some((centre, fit)) = self.best(weighted, d, objective)? {
+                if best.is_none_or(|b| objective.of(&fit) > objective.of(&b.2)) {
                     best = Some((k, centre, fit));
                 }
             }
@@ -166,19 +163,20 @@ impl Folded {
         Ok(best)
     }
 
-    /// The best box of duration `d` days: its middle, in days from the first
+    /// The best box by `objective` of duration `d` days: its middle, in days from the first
     /// time, and its fit. See [`TransitBox::best`].
     pub(crate) fn best(
         &self,
         weighted: &Weighted,
         d: f64,
+        objective: Objective,
     ) -> Result<Option<(f64, BoxFit)>, BlsError> {
         Ok(self
-            .best_between(weighted, d, d)?
+            .best_between(weighted, d, d, objective)?
             .map(|(centre, _, fit)| (centre, fit)))
     }
 
-    /// The best box of any duration from `shortest` to `longest` days: its
+    /// The best box by `objective` of any duration from `shortest` to `longest` days: its
     /// middle, in days from the first time, its duration, and its fit.
     ///
     /// A run of points `i..j` is held by a box of duration `d` exactly when
@@ -194,6 +192,7 @@ impl Folded {
         weighted: &Weighted,
         shortest: f64,
         longest: f64,
+        objective: Objective,
     ) -> Result<Option<(f64, f64, BoxFit)>, BlsError> {
         let (p, phase, totals) = (self.period, &self.phase, &self.totals);
         let n = phase.len() / 2;
@@ -204,8 +203,8 @@ impl Folded {
                 phase[i - 1]
             }
         };
-        let orbit = Orbit::new(&totals[0], &totals[n]);
-        // The best run's statistic, first point and one past its last.
+        let orbit = Orbit::new(&totals[0], &totals[n], objective);
+        // The best run's score, first point and one past its last.
         let mut best: Option<(f64, usize, usize)> = None;
         let (mut first_end, mut last_end) = (1, 1);
         for i in 0..n {
@@ -228,9 +227,9 @@ impl Folded {
                 if phase[j - 1] >= phase[j] {
                     continue;
                 }
-                let delta_chi2 = orbit.statistic(&totals[i], &totals[j], &totals[i + n])?;
-                if delta_chi2 > best.map_or(0.0, |b| b.0) {
-                    best = Some((delta_chi2, i, j));
+                let score = orbit.statistic(&totals[i], &totals[j], &totals[i + n])?;
+                if score > best.map_or(0.0, |b| b.0) {
+                    best = Some((score, i, j));
                 }
             }
         }

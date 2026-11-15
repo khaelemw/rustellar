@@ -18,15 +18,9 @@
 //! them against the rest of the spectrum and inflate any detection statistic
 //! measured from it.
 
-use rustellar_core::LightCurve;
-
-use crate::{BlsError, BoxFit, box_fit::Weighted, exact::Folded};
+use crate::{BlsError, BoxFit, Objective, box_fit::Weighted, exact::Folded};
 
 /// A peak of the binned power, refined by the exact search.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the search reads this; not written yet")
-)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Refined {
     /// The index of the peak's period.
@@ -35,24 +29,23 @@ pub(crate) struct Refined {
     pub(crate) period: usize,
     /// The duration, days.
     pub(crate) duration: f64,
-    /// The mid-transit time, BTJD.
-    pub(crate) transit_time: f64,
+    /// The mid-transit time, days after the first time.
+    pub(crate) centre: f64,
     /// The box's fit.
     pub(crate) fit: BoxFit,
 }
 
-/// The indices of the `count` highest local maxima of `power`, highest first
-/// (the first of equal ones first). A local maximum is above the point
-/// before it and not below the point after it, so a flat top counts once.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the search calls this; not written yet")
-)]
+/// The indices of the `count` highest local maxima of `power` above zero,
+/// highest first (the first of equal ones first). A local maximum is above
+/// the point before it and not below the point after it, so a flat top
+/// counts once.
 pub(crate) fn peaks(power: &[f64], count: usize) -> Vec<usize> {
     let n = power.len();
     let mut peaks: Vec<usize> = (0..n)
         .filter(|&i| {
-            (i == 0 || power[i] > power[i - 1]) && (i + 1 == n || power[i] >= power[i + 1])
+            power[i] > 0.0
+                && (i == 0 || power[i] > power[i - 1])
+                && (i + 1 == n || power[i] >= power[i + 1])
         })
         .collect();
     peaks.sort_by(|&a, &b| power[b].total_cmp(&power[a]).then(a.cmp(&b)));
@@ -63,33 +56,30 @@ pub(crate) fn peaks(power: &[f64], count: usize) -> Vec<usize> {
 /// Each peak searched exactly at its period and the `reach` periods either
 /// side, over the durations, then at those periods over every duration
 /// between the best one's neighbours: the best box of each, in the peaks'
-/// order. Peaks with no box with a dip are left out.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "the search calls this; not written yet")
-)]
+/// order, each the best by `objective`. Peaks with no box with a dip are
+/// left out.
 pub(crate) fn refine(
-    lc: &LightCurve,
+    times: &[f64],
     weighted: &Weighted,
     periods: &[f64],
     durations: &[f64],
     peaks: &[usize],
     reach: usize,
+    objective: Objective,
 ) -> Result<Vec<Refined>, BlsError> {
-    let first = lc.time()[0].as_btjd();
     let mut refined = Vec::with_capacity(peaks.len());
     for &peak in peaks {
         let near = peak.saturating_sub(reach)..(peak + reach + 1).min(periods.len());
         let folds: Vec<Folded> = near
             .clone()
-            .map(|k| Folded::new(lc, weighted, periods[k]))
+            .map(|k| Folded::new(times, weighted, periods[k]))
             .collect();
         // The best duration on the grid, over the periods near the peak.
         let mut grid: Option<(usize, f64)> = None;
         for folded in &folds {
-            if let Some((duration, _, fit)) = folded.best_of(weighted, durations)? {
-                if grid.is_none_or(|g| fit.delta_chi2 > g.1) {
-                    grid = Some((duration, fit.delta_chi2));
+            if let Some((duration, _, fit)) = folded.best_of(weighted, durations, objective)? {
+                if grid.is_none_or(|g| objective.of(&fit) > g.1) {
+                    grid = Some((duration, objective.of(&fit)));
                 }
             }
         }
@@ -117,13 +107,15 @@ pub(crate) fn refine(
                 .filter(|&x| x > d && x < p)
                 .reduce(f64::min)
                 .unwrap_or(d);
-            if let Some((centre, duration, fit)) = folded.best_between(weighted, below, above)? {
-                if best.is_none_or(|b| fit.delta_chi2 > b.fit.delta_chi2) {
+            if let Some((centre, duration, fit)) =
+                folded.best_between(weighted, below, above, objective)?
+            {
+                if best.is_none_or(|b| objective.of(&fit) > objective.of(&b.fit)) {
                     best = Some(Refined {
                         peak,
                         period,
                         duration,
-                        transit_time: first + centre,
+                        centre,
                         fit,
                     });
                 }

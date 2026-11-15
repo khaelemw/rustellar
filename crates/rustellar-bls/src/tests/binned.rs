@@ -7,8 +7,8 @@ use rustellar_core::{Epoch, LightCurve, TimeDelta};
 
 use super::recipe::{Random, Recipe, check_samples};
 use crate::{
-    BlsError, TransitBox,
-    binned::{BinnedBox, best_binned},
+    BlsError, Objective, TransitBox,
+    binned::{BinnedBox, Scratch, best_binned},
     box_fit::Weighted,
 };
 
@@ -35,6 +35,8 @@ fn binned(lc: &LightCurve, period: f64, durations: &[f64], oversample: usize) ->
         period,
         durations,
         oversample,
+        Objective::DeltaChi2,
+        &mut Scratch::default(),
     )
     .unwrap()
 }
@@ -47,6 +49,23 @@ fn exact(lc: &LightCurve, period: f64, duration: f64) -> Option<f64> {
     )
     .unwrap()
     .map(|b| b.fit.delta_chi2)
+}
+
+// The box reported, fitted point by point, holds the same points with the
+// same fit, though points may sit exactly on its bins' edges.
+fn holds_its_own_points(lc: &LightCurve, ours: &BinnedBox, period: f64) {
+    let transit = TransitBox::new(
+        TimeDelta::from_days(period).unwrap(),
+        TimeDelta::from_days(ours.bins as f64 * ours.bin).unwrap(),
+        lc.time()[0] + TimeDelta::from_days(ours.centre).unwrap(),
+    )
+    .unwrap();
+    let fit = transit.fit(lc).unwrap();
+    assert_eq!(fit.n_in, ours.fit.n_in, "P {period}: {ours:?}");
+    assert!(
+        (fit.delta_chi2 / ours.fit.delta_chi2 - 1.0).abs() < 1e-12,
+        "P {period}: {fit:?} vs {ours:?}"
+    );
 }
 
 // How far astropy's plain sums can be from the exact snr, relative: each of
@@ -156,6 +175,7 @@ fn equals_fitting_each_box_point_by_point() {
         }
         let lc = LightCurve::from_btjd(time, flux, err).unwrap();
         let ours = binned(&lc, period, &durations, 4).unwrap();
+        holds_its_own_points(&lc, &ours, period);
 
         let first = lc.time()[0].as_btjd();
         let mut best = 0.0_f64;
@@ -206,7 +226,15 @@ fn statistics_that_overflow() {
         LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
     let times = [0.0, 1.0, 2.0];
     assert_eq!(
-        best_binned(&times, &Weighted::new(&lc).unwrap(), 10.0, &[0.5], 1),
+        best_binned(
+            &times,
+            &Weighted::new(&lc).unwrap(),
+            10.0,
+            &[0.5],
+            1,
+            Objective::DeltaChi2,
+            &mut Scratch::default()
+        ),
         Err(BlsError::OutOfRange)
     );
 }
@@ -244,6 +272,7 @@ fn agrees_with_astropy_fast_away_from_phase_zero() {
         let lc = &curves[v[0].parse::<usize>().unwrap()];
         let period: f64 = v[1].parse().unwrap();
         let ours = binned(lc, period, &FAST_DURATIONS, FAST_OVERSAMPLE).unwrap();
+        holds_its_own_points(lc, &ours, period);
         let (snr, depth): (f64, f64) = (v[2].parse().unwrap(), v[3].parse().unwrap());
         let m: usize = v[8].parse().unwrap();
         assert_eq!(ours.bin, period / m as f64);
@@ -494,7 +523,15 @@ fn best_box_whose_fit_overflows() {
     let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![0.0, 1e5], vec![1e-150, 1.0]).unwrap();
     let times = [0.0, 1.0];
     assert_eq!(
-        best_binned(&times, &Weighted::new(&lc).unwrap(), 10.0, &[0.5], 1),
+        best_binned(
+            &times,
+            &Weighted::new(&lc).unwrap(),
+            10.0,
+            &[0.5],
+            1,
+            Objective::DeltaChi2,
+            &mut Scratch::default()
+        ),
         Err(BlsError::OutOfRange)
     );
     assert_eq!(

@@ -54,6 +54,10 @@ pub enum BlsError {
     },
     /// The grid would hold more than 100 million periods.
     GridTooLarge,
+    /// The search would need more than 1 million phase bins at its longest
+    /// period: the longest period times `oversample`, over the shortest
+    /// duration, is too large.
+    TooManyBins,
     /// A box holds none of the light curve's points.
     NoPointsInTransit,
     /// A box holds every one of the light curve's points, leaving no
@@ -101,6 +105,10 @@ impl fmt::Display for BlsError {
             Self::GridTooLarge => write!(
                 f,
                 "the period grid would hold more than 100 million periods"
+            ),
+            Self::TooManyBins => write!(
+                f,
+                "the longest period would need more than 1 million phase bins"
             ),
         }
     }

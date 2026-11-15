@@ -203,6 +203,7 @@ impl TransitBox {
 /// `w (y - mean)`, centred on the weighted mean: the box's levels are then
 /// small numbers, and their difference, the depth, loses nothing to
 /// cancellation when the flux is near 1 and the depth near 1e-4.
+#[derive(Debug, Clone)]
 pub(crate) struct Weighted {
     pub(crate) mean: f64,
     pub(crate) weights: Vec<f64>,

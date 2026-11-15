@@ -2,7 +2,7 @@
 //! from them: the inner loop of both searches.
 
 use crate::{
-    BlsError,
+    BlsError, Objective,
     sums::{Sum, between},
 };
 
@@ -35,21 +35,27 @@ pub(crate) struct Orbit {
     weight: f64,
     flux: f64,
     inverse_weight: f64,
+    likelihood: bool,
 }
 
 impl Orbit {
-    /// From the totals at the start and one orbit on.
-    pub(crate) fn new(first: &Total, wrap: &Total) -> Self {
+    /// From the totals at the start and one orbit on, for boxes ranked by
+    /// `objective`.
+    pub(crate) fn new(first: &Total, wrap: &Total, objective: Objective) -> Self {
         let weight = between(first.weight, wrap.weight);
         Self {
             weight,
             flux: between(first.flux, wrap.flux),
             inverse_weight: 1.0 / weight,
+            likelihood: objective == Objective::AstropyLikelihood,
         }
     }
 
-    /// The box's `delta_chi2` if it has a dip, else zero, with one division
-    /// (this is the inner loop of the search). It differs from
+    /// The box's score if it has a dip, else zero, with one division (this is
+    /// the inner loop of the search): its `delta_chi2`, or for
+    /// [`Objective::AstropyLikelihood`] its likelihood,
+    /// `delta_chi2 W / (2 W_out)`. (The snr ranks boxes as `delta_chi2`, its
+    /// square, does.) It differs from
     /// [`BoxFit::from_sums`](crate::BoxFit::from_sums) only in rounding, and the best box's fit is
     /// built with that.
     ///
@@ -84,9 +90,14 @@ impl Orbit {
         let u = between(first.flux, end.flux) - self.flux * (weight_in * self.inverse_weight);
         // W_in (W_out / W) first: W_in W_out alone can overflow.
         let delta_chi2 = u * (u / (weight_in * (weight_out * self.inverse_weight)));
-        if !delta_chi2.is_finite() {
+        let score = if self.likelihood {
+            delta_chi2 * (0.5 * self.weight / weight_out)
+        } else {
+            delta_chi2
+        };
+        if !score.is_finite() {
             return Err(BlsError::OutOfRange);
         }
-        Ok(if u < 0.0 { delta_chi2 } else { 0.0 })
+        Ok(if u < 0.0 { score } else { 0.0 })
     }
 }
