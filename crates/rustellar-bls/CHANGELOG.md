@@ -8,4 +8,4 @@ All notable changes to this crate are recorded here. The format follows
 
 ### Added
 
-- The crate, with its scope. Nothing is implemented yet.
+- The crate. Nothing is implemented yet.
