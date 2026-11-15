@@ -79,10 +79,12 @@
 //! # Accuracy
 //!
 //! [`flux`] is within about `1e-10` of the exact value for `k` up to 20, and
-//! `1e-9` at 100. It matches Agol, Luger & Foreman-Mackey (2020), the most
-//! precise published method, to `1.4e-11`, and stays accurate on the lines
-//! where the formula changes case, where batman, PyTransit and that method's
-//! reference code each fail somewhere.
+//! `2e-9` at 100. Against Agol, Luger & Foreman-Mackey (2020), the most
+//! precise published method, at about 28,000 random points over the whole
+//! valid range, the worst difference is `1e-13` for `k` below 1, `1.4e-12`
+//! below 10, `3.3e-11` below 30 and `1.5e-9` up to 100. It also stays accurate
+//! on the lines where the formula changes case, where batman, PyTransit and
+//! that method's reference code each fail somewhere.
 //!
 //! The light curve agrees with batman 2.5.1 (Kreidberg 2015) to `2.1e-8`
 //! (0.02 ppm) at worst, over 840 transits with quadratic limb darkening:

@@ -12,7 +12,7 @@ impl RadiusRatio {
     /// The largest radius ratio accepted, 100.
     ///
     /// Above this the analytic flux loses accuracy: its rounding error grows
-    /// roughly as `k^3 * 1e-15`, reaching about `1e-9` at 100 and `1e-6` at
+    /// roughly as `k^3 * 1e-15`, reaching about `2e-9` at 100 and `1e-6` at
     /// 1000. Planets have `k` below about 0.3, and eclipsing binaries rarely
     /// exceed 50.
     pub const MAX: f64 = 100.0;

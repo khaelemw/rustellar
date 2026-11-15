@@ -7,13 +7,15 @@ rust-version.workspace = true
 license.workspace = true
 keywords = ["astronomy", "exoplanet", "transit", "light-curve"]
 categories = ["science", "algorithms"]
-# Reference data for the tests only, and the test that reads it; users of the
+# Reference data for the tests only, and the tests that read it; users of the
 # crate do not need them.
 exclude = [
     "tests/reference",
     "tests/reference.rs",
     "tests/flux_reference.rs",
     "tests/exposure_reference.rs",
+    "tests/flux_random.rs",
+    "tests/lightcurve_reference.rs",
 ]
 
 [dependencies]

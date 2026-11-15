@@ -64,9 +64,10 @@ const INNER_CONTACT_BAND: f64 = 1e-12;
 /// # Accuracy
 ///
 /// Within about `1e-10` of the exact flux for `k` up to 20, growing to about
-/// `1e-9` at [`RadiusRatio::MAX`]. Checked against the defining integral by
+/// `2e-9` at [`RadiusRatio::MAX`]. Checked against the defining integral by
 /// quadrature, against [`flux_ring_sum`](crate::flux_ring_sum), and against
-/// Agol, Luger & Foreman-Mackey (2020), which it matches to `1.4e-11`.
+/// Agol, Luger & Foreman-Mackey (2020), which it matches to `1e-13` for `k`
+/// below 1 (see the crate docs for the full range).
 /// Rounding is clamped so the result never leaves `[0, 1]`.
 ///
 /// # Examples
