@@ -17,9 +17,9 @@ const SETS_CSV: &str = include_str!("reference/batman_sets.csv");
 const POINTS_CSV: &str = include_str!("reference/batman_points.csv");
 
 // The largest difference from batman allowed at any point. The measured
-// worst case is about 2e-8, and comes from batman: the ring sum moves by less
-// than 3e-9 there when its ring count is raised to 100,000.
-const TOLERANCE: f64 = 1e-7;
+// worst case is about 2e-8, and comes from batman: a 100,000-ring sum agrees
+// with this crate's flux to 2e-15 at the same points.
+const TOLERANCE: f64 = 5e-8;
 
 #[derive(Debug, Clone, Copy)]
 struct Set {

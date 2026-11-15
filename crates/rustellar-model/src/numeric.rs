@@ -13,7 +13,9 @@ use crate::{LimbDarkening, RadiusRatio};
 /// inside it times the star's brightness at the ring's middle. The rings are
 /// equal steps in `asin(r)`, so they get narrower towards the limb, where the
 /// brightness changes fastest. This works for any limb-darkening law, but is
-/// slow; it is the reference that faster methods are checked against.
+/// slow: [`flux`](crate::flux) gives the exact answer much faster for the
+/// laws this crate supports. The ring sum is the independent check that
+/// `flux` is tested against.
 ///
 /// `z` is in stellar radii, and only its size matters, as for
 /// [`flux_uniform`](crate::flux_uniform). The flux is relative to the star on

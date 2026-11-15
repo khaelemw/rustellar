@@ -1,14 +1,9 @@
-use std::{f64::consts::PI, num::NonZeroUsize};
+use std::f64::consts::PI;
 
 use rustellar_core::{Epoch, TimeDelta};
 
 use super::{Contacts, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis};
-use crate::{error::ParamError, flux_ring_sum};
-
-// Rings per point for the light curve, until the analytic formula replaces the
-// ring sum. 1000 keeps typical planets within about 1e-9 of the exact flux.
-// A `const` unwrap runs at compile time, so 0 here would fail to build.
-const LIGHT_CURVE_RINGS: NonZeroUsize = NonZeroUsize::new(1000).unwrap();
+use crate::{error::ParamError, flux};
 
 /// Everything needed to model one planet's transit on a circular orbit.
 ///
@@ -264,19 +259,18 @@ impl TransitParams {
 
     /// Flux of the star at time `t`, relative to its flux out of transit.
     ///
-    /// 1 when the planet is clear of the star or behind it. For now the flux
-    /// comes from [`flux_ring_sum`](crate::flux_ring_sum) with 1000 rings,
-    /// which is within about `1e-9` of the exact value for typical planets;
-    /// a faster analytic formula will replace it with the same results.
+    /// 1 when the planet is clear of the star or behind it. Otherwise the
+    /// analytic [`flux`] at the planet's separation.
     ///
     /// # Accuracy
     ///
     /// Compared with batman 2.5.1 (Kreidberg 2015) at 25,160 times over 840
     /// transits with quadratic limb darkening (`k` from 0.005 to 0.29, `b`
     /// from 0 to 1.05, `a_rs` from 1.5 to 100), the largest difference is
-    /// `2.1e-8`. That difference is batman's: raising the ring count to
-    /// 100,000 changes this result by less than `3e-9` at the same points,
-    /// and batman's paper states 0.03 ppm (`3e-8`) for its quadratic model.
+    /// `2.1e-8`. That difference is batman's: at the points where it is
+    /// largest, [`flux_ring_sum`](crate::flux_ring_sum) with 100,000 rings
+    /// agrees with this result to `2e-15`, and batman's paper states 0.03 ppm
+    /// (`3e-8`) for its quadratic model.
     ///
     /// # Examples
     ///
@@ -309,7 +303,7 @@ impl TransitParams {
             return 1.0;
         }
 
-        flux_ring_sum(self.separation(t), self.k, self.ld, LIGHT_CURVE_RINGS)
+        flux(self.separation(t), self.k, self.ld)
     }
 
     /// Flux at each of `times`, as for [`flux_at`](Self::flux_at), and with

@@ -8,6 +8,8 @@
 //! and scaled semi-major axis `a_rs` from 1.5 to 100. The comparison is part
 //! of the test suite in the source repository. See
 //! [`TransitParams::flux_at`] for why the remaining difference is batman's.
+mod analytic;
+mod elliptic;
 mod error;
 mod numeric;
 mod params;
@@ -16,6 +18,7 @@ mod uniform;
 #[cfg(test)]
 mod tests;
 
+pub use analytic::flux;
 pub use error::{LimbDarkeningError, ParamError};
 pub use numeric::flux_ring_sum;
 pub use params::{

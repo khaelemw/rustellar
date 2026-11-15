@@ -47,8 +47,8 @@ fn four_rings_match_reference_value() {
     assert!((flux - 0.988_887_305).abs() < 1e-8);
 }
 
-// 1000 rings is the count the light curve will use, so check it is within
-// 1e-9 of the converged values everywhere, including on the limb.
+// 1000 rings is the count quoted in the docs, so check it is within 1e-9 of
+// the converged values everywhere, including on the limb.
 #[rstest]
 #[case::centre(0.0)]
 #[case::inside(0.5)]
