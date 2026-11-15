@@ -1,0 +1,14 @@
+# Ofir (2014) period grid, IAU 2015 nominal GM_sun and R_sun, from numpy; checked against transitleastsquares 1.32, numpy 2.4.3, Python 3.12.9 given the same constants.
+# Empty minimum_period or maximum_period: the default edge.
+case,t_min,t_max,stellar_radius,stellar_mass,minimum_period,maximum_period,oversampling_factor,minimum_n_transit,count
+0,1325.293,1353.177,1.0,1.0,,,3.0,2,2552
+1,1325.293,1353.177,0.3,0.25,,,3.0,2,9063
+2,1325.293,1353.177,2.5,1.4,,,3.0,2,560
+3,1325.293,1353.177,1.0,1.0,,,5.0,3,3920
+4,1325.293,1353.177,1.0,1.0,,,1.5,2,1276
+5,1325.293,1353.177,0.9,0.95,0.5,15.0,3.0,2,3097
+6,1325.293,1353.177,1.0,1.0,0.5,,3.0,2,2802
+7,1325.293,1353.177,1.0,1.0,,6.0,3.0,2,2104
+8,1325.293,2061.508,1.0,1.0,1.0,50.0,3.0,2,63822
+9,0.0025,3.1,1.0,1.0,,,3.0,2,118
+10,1325.293,1353.177,1.0,1.0,0.7,0.7,3.0,2,1

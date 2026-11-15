@@ -7,6 +7,12 @@ rust-version.workspace = true
 license.workspace = true
 keywords = ["astronomy", "exoplanet", "transit", "periodogram"]
 categories = ["science", "algorithms"]
+# Reference data for the tests only, and the tests that read it; users of the
+# crate do not need them.
+exclude = ["tests/reference", "tests/autoperiod.rs", "tests/ofir.rs"]
 
 [dependencies]
 rustellar-core.workspace = true
+
+[dev-dependencies]
+rstest = "0.28.0"
