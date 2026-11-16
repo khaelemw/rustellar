@@ -217,13 +217,20 @@ impl SearchOptions {
 pub struct Peak {
     /// The index of the peak's period in the grid.
     pub peak_index: usize,
-    /// The index of the period, within the refinement's reach of the peak,
-    /// that holds the best box.
+    /// The index of the period on the grid, within the refinement's reach
+    /// of the peak, that holds the best box there; the box's own period is
+    /// within half a step of it.
     pub period_index: usize,
-    /// The best box at the periods near the peak, over every mid-transit
-    /// time and every duration between the neighbours on the grid of the
-    /// best duration there.
+    /// The best box near the peak, over every mid-transit time and every
+    /// duration between the neighbours on the grid of the best duration
+    /// there; at the best period on the grid, then refined between it and
+    /// halfway to its neighbours.
     pub best: BestBox,
+    /// The objective of the best box at the grid's periods, before the
+    /// period is refined: the peaks are compared by this. The refinement
+    /// tries more periods at some peaks than at others, so comparing the
+    /// refined boxes would favour those.
+    pub grid_objective: f64,
 }
 
 /// The result of a search: the power and best box at each period, indexed
@@ -266,15 +273,23 @@ impl BlsResult {
         &self.peaks
     }
 
-    /// The best box found: the refined peak with the highest objective, or,
-    /// with no refined peaks, the binned box at the highest power (the first
-    /// of equal ones). `None` if no box has a dip.
+    /// The best box found: the refined box of the peak with the highest
+    /// [`grid_objective`](Peak::grid_objective), or, with no refined peaks,
+    /// the binned box at the highest power (the first of equal ones). `None`
+    /// if no box has a dip.
     #[must_use]
     pub fn best(&self) -> Option<&BestBox> {
         if self.peaks.is_empty() {
             first_best(self.objective, self.boxes.iter().flatten())
         } else {
-            first_best(self.objective, self.peaks.iter().map(|p| &p.best))
+            let first = self
+                .peaks
+                .iter()
+                .fold(None::<&Peak>, |best, next| match best {
+                    Some(b) if next.grid_objective <= b.grid_objective => Some(b),
+                    _ => Some(next),
+                });
+            first.map(|p| &p.best)
         }
     }
 }
@@ -367,7 +382,9 @@ impl Bls {
     /// power is searched again exactly, at its period and the `refine_reach`
     /// periods either side: over every mid-transit time and every duration,
     /// then over every duration between the best one's neighbours on the
-    /// grid. The power itself stays binned.
+    /// grid, then at periods between the best one and halfway to its
+    /// neighbours, ever closer, until a step moves the last point by less
+    /// than the time between points. The power itself stays binned.
     ///
     /// # Errors
     ///
@@ -484,7 +501,13 @@ impl Bls {
         result.peaks.extend(refined.into_iter().map(|r| Peak {
             peak_index: r.peak,
             period_index: r.period,
-            best: self.best_box(periods[r.period], r.duration, r.centre, r.fit),
+            grid_objective: r.grid,
+            best: self.best_box(
+                TimeDelta::from_days(r.days).expect("a period"),
+                r.duration,
+                r.centre,
+                r.fit,
+            ),
         }));
         Ok(())
     }

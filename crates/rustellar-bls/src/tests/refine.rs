@@ -40,8 +40,9 @@ fn days(value: f64) -> TimeDelta {
 // A transit of depth 3e-3 every 3.1 days in 27 days of data, the binned
 // power at 400 periods from 1 to 10 days, and its three highest peaks refined
 // two periods either side. Each refined box beats the exact search run at
-// each of those periods and durations in turn, is the best of a fine scan of
-// durations about the best one at each period, and fits to itself.
+// each of those periods and durations in turn, and a fine scan of durations
+// about the best one at each period; is the best of that scan at its own
+// period, within half a step of the grid's; and fits to itself.
 #[test]
 fn equals_the_exact_search_at_each_period() {
     let lc = Recipe {
@@ -128,14 +129,28 @@ fn equals_the_exact_search_at_each_period() {
             }
         }
         assert_eq!(r.period, scan.1, "peak {peak}");
+        // Step 3 does at least as well, at a period within half a step of
+        // the grid's, where the same scan of durations finds nothing better.
+        assert!(r.fit.delta_chi2 >= scan.0 * (1.0 - 1e-13), "peak {peak}");
+        let step = periods[1] - periods[0];
         assert!(
-            (r.fit.delta_chi2 / scan.0 - 1.0).abs() < 1e-13,
-            "peak {peak}: {} vs {}",
-            r.fit.delta_chi2,
-            scan.0
+            (r.days - periods[r.period]).abs() <= 0.5 * step,
+            "peak {peak}"
+        );
+        let mut own = 0.0_f64;
+        for k in 0..=200 {
+            let d = below + (above - below) * f64::from(k) / 200.0;
+            if let Some(b) = TransitBox::best(&lc, days(r.days), days(d)).unwrap() {
+                own = own.max(b.fit.delta_chi2);
+            }
+        }
+        assert!(
+            (r.fit.delta_chi2 / own - 1.0).abs() < 1e-13,
+            "peak {peak}: {} vs {own}",
+            r.fit.delta_chi2
         );
         let refit = TransitBox::new(
-            days(periods[r.period]),
+            days(r.days),
             days(r.duration),
             Epoch::from_btjd(times[0] + r.centre).unwrap(),
         )
@@ -148,7 +163,7 @@ fn equals_the_exact_search_at_each_period() {
     // The highest peak is the transit's period, and its refined depth is the
     // injected one, to the noise.
     let best = refined[0];
-    assert!((periods[best.period] - 3.1).abs() < 0.03, "{best:?}");
+    assert!((best.days - 3.1).abs() < 0.03, "{best:?}");
     assert!((best.fit.depth - 3e-3).abs() < 3.0 * best.fit.depth_err);
 }
 
@@ -227,6 +242,35 @@ fn periods_near_a_peak_without_a_box() {
     .unwrap();
     assert_eq!(refined.len(), 1);
     assert_eq!((refined[0].period, refined[0].fit.n_in), (2, 4));
+}
+
+// Daily points with a dip every third day, on a grid of 0.5 and 1.5 days:
+// the box at 1.5 days holds the dips. Step 3 searches from halfway to 0.5
+// days, 1 day, where every point has the same phase and no box has a dip,
+// so it keeps the best of the other periods it tries.
+#[test]
+fn refined_period_without_a_box() {
+    let time: Vec<f64> = (0..30).map(f64::from).collect();
+    let flux = (0..30)
+        .map(|i| if i % 3 == 0 { 0.99 } else { 1.0 })
+        .collect();
+    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 30]).unwrap();
+    let weighted = Weighted::new(&lc).unwrap();
+    let refined = refine(
+        &btjd(&lc),
+        &weighted,
+        &[0.5, 1.5],
+        &[0.2],
+        &[1],
+        1,
+        Objective::DeltaChi2,
+        1,
+    )
+    .unwrap();
+    assert_eq!(refined.len(), 1);
+    let r = refined[0];
+    assert_eq!((r.period, r.fit.n_in), (1, 10));
+    assert!((1.0..=1.5).contains(&r.days), "{r:?}");
 }
 
 // Weights of 1e300 and a dip of 1e5: every box's delta_chi2 overflows.
@@ -323,7 +367,7 @@ fn injected() -> Vec<Errors> {
                 1,
             )
             .unwrap()[0];
-            let ours_time = at_middle(times[0] + ours.centre, periods[ours.period]);
+            let ours_time = at_middle(times[0] + ours.centre, ours.days);
             let theirs_time = at_middle(f(7), f(6));
             Errors {
                 time: [ours_time, theirs_time].map(|t| offset_from_transit(t, tc, period).abs()),
@@ -352,9 +396,9 @@ fn largest(x: &[f64]) -> f64 {
 //
 // | group      | time, ours        | time, astropy     | depth, ours | depth, astropy |
 // |------------|-------------------|-------------------|-------------|----------------|
-// | random     | 1.05e-3 (5.8e-3)  | 2.19e-3 (1.27e-2) | 5.0e-5      | 5.9e-5         |
-// | bright     | 7.2e-4 (4.2e-3)   | 2.82e-3 (9.6e-3)  | 7.9e-5      | 2.41e-4        |
-// | phase zero | 6.8e-4 (3.8e-3)   | 3.36e-3 (2.06e-2) | 6.7e-5      | 1.15e-4        |
+// | random     | 1.05e-3 (5.8e-3)  | 2.13e-3 (1.27e-2) | 5.0e-5      | 5.8e-5         |
+// | bright     | 7.1e-4 (4.2e-3)   | 2.77e-3 (9.6e-3)  | 7.7e-5      | 2.40e-4        |
+// | phase zero | 6.7e-4 (3.8e-3)   | 3.24e-3 (2.06e-2) | 6.6e-5      | 1.08e-4        |
 //
 // At snr 8 to 20 the noise sets much of the error; when it does not, the
 // grid of durations does (a box shorter than the transit can sit anywhere in

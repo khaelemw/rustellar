@@ -11,7 +11,15 @@
 //!    anywhere round it, with much the same fit: the mid-transit time is
 //!    then uncertain by up to half the difference, and the depth is diluted.
 //!    Each edge is put halfway between the last point in transit and the
-//!    first point out.
+//!    first point out;
+//! 3. between the best period and halfway to its neighbours on the grid,
+//!    over the same durations: eight periods across that stretch, then eight
+//!    across the step about the best of them, and so on, until a step moves
+//!    the last point by less than the time between points. A slightly wrong
+//!    period moves the transits far from the middle of the data, and a grid
+//!    fine enough not to is too slow to search everywhere. A period is only
+//!    taken if its box is strictly better, so the box is never worse than
+//!    on the grid.
 //!
 //! The power spectrum itself stays binned: the exact search fits noise
 //! better than the binned one does, so refining only the peaks would raise
@@ -25,14 +33,20 @@ use crate::{BlsError, BoxFit, Objective, box_fit::Weighted, exact::Folded, paral
 pub(crate) struct Refined {
     /// The index of the peak's period.
     pub(crate) peak: usize,
-    /// The index of the best period near it.
+    /// The index of the best period near it on the grid.
     pub(crate) period: usize,
+    /// The best period itself, days: within half a step of the grid's.
+    pub(crate) days: f64,
     /// The duration, days.
     pub(crate) duration: f64,
     /// The mid-transit time, days after the first time.
     pub(crate) centre: f64,
     /// The box's fit.
     pub(crate) fit: BoxFit,
+    /// The objective of the best box at the grid's periods (step 2), by
+    /// which peaks are compared: step 3 tries more periods at some peaks
+    /// than at others, so its boxes would favour those.
+    pub(crate) grid: f64,
 }
 
 /// The indices of the `count` highest local maxima of `power` above zero,
@@ -67,9 +81,9 @@ pub(crate) fn peaks(power: &[f64], count: usize) -> Vec<usize> {
 
 /// Each peak searched exactly at its period and the `reach` periods either
 /// side, over the durations, then at those periods over every duration
-/// between the best one's neighbours: the best box of each, in the peaks'
-/// order, each the best by `objective`. Peaks with no box with a dip are
-/// left out.
+/// between the best one's neighbours, then at periods between the best one
+/// and halfway to its neighbours: the best box of each, in the peaks' order,
+/// each the best by `objective`. Peaks with no box with a dip are left out.
 ///
 /// In each step every period near every peak is a job of its own, spread
 /// over `threads` threads; the outcomes are taken in order, so the result is
@@ -147,26 +161,107 @@ pub(crate) fn refine(
         Ok(found.map(|(centre, duration, fit)| Refined {
             peak,
             period,
+            days: periods[period],
             duration,
             centre,
             fit,
+            grid: objective.of(&fit),
         }))
     });
 
-    // Each peak's best, the first of equal ones. A peak's jobs are together.
-    let mut refined: Vec<Refined> = Vec::with_capacity(peaks.len());
-    for found in boxes {
+    // Each peak's best, the first of equal ones, with its duration range. A
+    // peak's jobs are together.
+    let mut refined: Vec<(Refined, f64, f64)> = Vec::with_capacity(peaks.len());
+    for (found, &(_, _, below, above)) in boxes.into_iter().zip(&jobs) {
         let Some(found) = found? else {
             continue;
         };
         match refined.last_mut() {
-            Some(last) if last.peak == found.peak => {
-                if objective.of(&found.fit) > objective.of(&last.fit) {
-                    *last = found;
+            Some(last) if last.0.peak == found.peak => {
+                if objective.of(&found.fit) > objective.of(&last.0.fit) {
+                    *last = (found, below, above);
                 }
             }
-            _ => refined.push(found),
+            _ => refined.push((found, below, above)),
         }
     }
-    Ok(refined)
+
+    // Step 3: periods between each best one and halfway to its neighbours.
+    // (A box with a dip needs two points or more.)
+    if refined.is_empty() {
+        return Ok(Vec::new());
+    }
+    let spacing = spacing(times);
+    let span = times[times.len() - 1] - times[0];
+    let mut stretches: Vec<(f64, f64)> = refined
+        .iter()
+        .map(|(r, _, _)| {
+            let p = periods[r.period];
+            let halfway =
+                |k: Option<usize>| k.and_then(|k| periods.get(k)).map_or(p, |&q| 0.5 * (p + q));
+            (
+                halfway(r.period.checked_sub(1)),
+                halfway(Some(r.period + 1)),
+            )
+        })
+        .collect();
+    for _ in 0..LEVELS {
+        // Each peak still to refine, and its eight periods across its
+        // stretch, but for the best so far.
+        let mut jobs: Vec<(usize, f64)> = Vec::new();
+        for (k, (&(low, high), (r, _, above))) in stretches.iter().zip(&refined).enumerate() {
+            let step = (high - low) / f64::from(STEPS);
+            if span * step < spacing * r.days {
+                continue;
+            }
+            for j in 0..=STEPS {
+                let p = low + step * f64::from(j);
+                if p != r.days && *above < p {
+                    jobs.push((k, p));
+                }
+            }
+        }
+        if jobs.is_empty() {
+            break;
+        }
+        let boxes = map(&jobs, threads, &|&(k, p)| {
+            let (_, below, above) = refined[k];
+            Folded::new(times, weighted, p).best_between(weighted, below, above, objective)
+        });
+        for (found, &(k, p)) in boxes.into_iter().zip(&jobs) {
+            let Some((centre, duration, fit)) = found? else {
+                continue;
+            };
+            let best = &mut refined[k].0;
+            if objective.of(&fit) > objective.of(&best.fit) {
+                *best = Refined {
+                    days: p,
+                    duration,
+                    centre,
+                    fit,
+                    ..*best
+                };
+            }
+        }
+        // The next stretch: a step either side of the best period.
+        for (k, stretch) in stretches.iter_mut().enumerate() {
+            let step = (stretch.1 - stretch.0) / f64::from(STEPS);
+            let p = refined[k].0.days;
+            *stretch = ((p - step).max(stretch.0), (p + step).min(stretch.1));
+        }
+    }
+    Ok(refined.into_iter().map(|(r, _, _)| r).collect())
+}
+
+/// Periods across each stretch in step 3, and the most times it narrows.
+const STEPS: u32 = 8;
+const LEVELS: usize = 12;
+
+/// The median time between consecutive points, days, of two or more points
+/// (strictly increasing): a step in period that moves the last point by
+/// less than this cannot change which points a box holds by much.
+fn spacing(times: &[f64]) -> f64 {
+    let mut gaps: Vec<f64> = times.windows(2).map(|w| w[1] - w[0]).collect();
+    let middle = gaps.len() / 2;
+    *gaps.select_nth_unstable_by(middle, f64::total_cmp).1
 }

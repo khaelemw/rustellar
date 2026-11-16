@@ -4,7 +4,7 @@
 use rstest::rstest;
 
 use crate::{
-    Objective,
+    BlsError, Objective,
     totals::{Orbit, Total},
 };
 
@@ -58,4 +58,30 @@ fn every_box_as_one_box(
         }
     }
     assert_eq!(empty, m);
+}
+
+// Two bins of fluxes 1e200 and -1e200: a box of either one's delta_chi2
+// overflows, an error from both, for every objective.
+#[rstest]
+fn overflow_in_either(
+    #[values(Objective::DeltaChi2, Objective::Snr, Objective::AstropyLikelihood)]
+    objective: Objective,
+) {
+    let mut total = Total::default();
+    let mut totals = vec![total];
+    for f in [1e200, -1e200, 1e200, -1e200] {
+        total.weight.add(1.0);
+        total.flux.add(f);
+        totals.push(total);
+    }
+    let orbit = Orbit::new(&totals[0], &totals[2], objective);
+    let mut scores = [0.0; 2];
+    assert_eq!(
+        orbit.statistics(&totals, 1, &mut scores),
+        Err(BlsError::OutOfRange)
+    );
+    assert_eq!(
+        orbit.statistic(&totals[1], &totals[2], &totals[3]),
+        Err(BlsError::OutOfRange)
+    );
 }
