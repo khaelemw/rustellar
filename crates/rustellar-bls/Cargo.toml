@@ -50,3 +50,8 @@ rustellar-core.workspace = true
 [dev-dependencies]
 rstest = "0.28.0"
 rustellar-model.workspace = true
+criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "search"
+harness = false

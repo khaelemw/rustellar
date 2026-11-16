@@ -6,7 +6,7 @@
 //! The best box's improvement in chi-squared over a flat line is the power at
 //! that period; the period with the most power is the best candidate.
 //!
-//! This crate is in development. So far:
+//! The crate provides:
 //!
 //! - the checked inputs, [`Durations`] and [`Periods`];
 //! - two period grids: astropy's automatic one, [`AutoPeriod`], and Ofir's
@@ -16,9 +16,13 @@
 //! - the exact search at one period and duration,
 //!   [`TransitBox::best`], over every mid-transit time ([`BestBox`]);
 //! - the search over many periods, [`Bls::search`]: binned at every period,
-//!   on all cores, with the highest peaks refined exactly ([`BlsResult`],
-//!   [`Peak`]), set up by [`SearchOptions`] and maximising an
-//!   [`Objective`].
+//!   on all cores, with the highest peaks searched again exactly over every
+//!   mid-transit time, a continuous range of durations and periods between
+//!   the grid's ([`BlsResult`], [`Peak`]), set up by [`SearchOptions`] and
+//!   maximising an [`Objective`].
+//!
+//! Its accuracy against astropy, transitleastsquares and exact arithmetic,
+//! and its speed, are in the README.
 
 mod autoperiod;
 mod binned;
@@ -43,3 +47,8 @@ pub use exact::BestBox;
 pub use grid::{Durations, Periods};
 pub use ofir::OfirPeriod;
 pub use search::{Bls, BlsResult, Objective, Peak, SearchOptions};
+
+// The README's example, compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

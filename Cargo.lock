@@ -359,6 +359,7 @@ dependencies = [
 name = "rustellar-bls"
 version = "0.0.0"
 dependencies = [
+ "criterion",
  "rstest",
  "rustellar-core",
  "rustellar-model",

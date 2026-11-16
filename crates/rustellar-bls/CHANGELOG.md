@@ -23,7 +23,8 @@ All notable changes to this crate are recorded here. The format follows
 - `Bls`, `SearchOptions`, `Objective`, `BlsResult` and `Peak`: the search
   over many periods. Bins that tile the orbit, the power and best box at
   every period, and the highest peaks refined exactly over every
-  mid-transit time and a continuous range of durations. Runs on all cores
-  with the same results, to the bit, on any number; `search_into` reuses a
-  result's memory.
+  mid-transit time, a continuous range of durations, and periods between
+  the grid's (ranked by their best box on the grid,
+  `Peak::grid_objective`). Runs on all cores with the same results, to the
+  bit, on any number; `search_into` reuses a result's memory.
 - `BlsError::TooManyBins`.
