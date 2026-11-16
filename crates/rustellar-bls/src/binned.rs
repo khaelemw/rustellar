@@ -53,6 +53,7 @@ pub(crate) struct BinnedBox {
 pub(crate) struct Scratch {
     bins: Vec<Bin>,
     totals: Vec<Total>,
+    scores: Vec<f64>,
 }
 
 impl Scratch {
@@ -61,6 +62,7 @@ impl Scratch {
         Self {
             bins: Vec::with_capacity(bins),
             totals: Vec::with_capacity(2 * bins + 1),
+            scores: Vec::with_capacity(bins),
         }
     }
 }
@@ -80,7 +82,11 @@ pub(crate) fn best_binned(
     let m = (bin_count(period, durations, oversample) as usize).max(1);
     let bin = period / m as f64;
 
-    let Scratch { bins, totals } = scratch;
+    let Scratch {
+        bins,
+        totals,
+        scores,
+    } = scratch;
     bins.clear();
     bins.resize(m, Bin::default());
     for (k, &t) in times.iter().enumerate() {
@@ -118,13 +124,11 @@ pub(crate) fn best_binned(
         if length >= m {
             continue;
         }
-        // The totals at each box's start, end, and start one orbit on.
-        let ends = totals[..m]
-            .iter()
-            .zip(&totals[length..length + m])
-            .zip(&totals[m..2 * m]);
-        for (start, ((first, end), wrap)) in ends.enumerate() {
-            let score = whole.statistic(first, end, wrap)?;
+        // Every start's score at once, then the first of the highest.
+        scores.clear();
+        scores.resize(m, 0.0);
+        whole.statistics(totals, length, scores)?;
+        for (start, &score) in scores.iter().enumerate() {
             if score > best.map_or(0.0, |b| b.0) {
                 best = Some((score, length, start, duration));
             }

@@ -19,6 +19,8 @@
 //! pointers find every possible run, about two per point, and running totals
 //! give each run's sums.
 
+use std::ops::RangeInclusive;
+
 use rustellar_core::{LightCurve, TimeDelta};
 
 use crate::{
@@ -119,7 +121,9 @@ impl Folded {
             .enumerate()
             .map(|(k, &t)| (offset_from_transit(t, times[0], period), k))
             .collect();
-        order.sort_by(|a, b| a.0.total_cmp(&b.0));
+        // By phase, then by point: the order a stable sort gives, from the
+        // faster unstable sort.
+        order.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
         let phase = order
             .iter()
             .map(|o| o.0)
@@ -206,6 +210,7 @@ impl Folded {
         let orbit = Orbit::new(&totals[0], &totals[n], objective);
         // The best run's score, first point and one past its last.
         let mut best: Option<(f64, usize, usize)> = None;
+        let mut bounds: Option<Bounds> = None;
         let (mut first_end, mut last_end) = (1, 1);
         for i in 0..n {
             let before = previous(i);
@@ -223,14 +228,14 @@ impl Folded {
                 continue; // i and the point before it cannot be told apart
             }
             // A run of every point leaves none out of transit.
-            for j in first_end..=last_end.min(i + n - 1) {
-                if phase[j - 1] >= phase[j] {
-                    continue;
-                }
-                let score = orbit.statistic(&totals[i], &totals[j], &totals[i + n])?;
-                if score > best.map_or(0.0, |b| b.0) {
-                    best = Some((score, i, j));
-                }
+            let ends = first_end..=last_end.min(i + n - 1);
+            if ends.clone().count() < LONG_RANGE {
+                self.runs(&orbit, i, ends, &mut best)?;
+            } else {
+                // Many ends (dense data, a range of durations): skip the
+                // blocks of ends that cannot beat the best run so far.
+                let bounds = bounds.get_or_insert_with(|| Bounds::new(totals, n, &orbit));
+                bounds.search(self, &orbit, i, ends, &mut best)?;
             }
         }
         let Some((_, i, j)) = best else {
@@ -248,4 +253,172 @@ impl Folded {
         let edge = if low < high { 0.5 * (low + high) } else { low };
         Ok(Some((edge + 0.5 * d, d, fit)))
     }
+}
+
+impl Folded {
+    /// Scores the runs from `i` to each of `ends`, in order, keeping the
+    /// first of the highest in `best`.
+    fn runs(
+        &self,
+        orbit: &Orbit,
+        i: usize,
+        ends: RangeInclusive<usize>,
+        best: &mut Option<(f64, usize, usize)>,
+    ) -> Result<(), BlsError> {
+        let (phase, totals) = (&self.phase, &self.totals);
+        let n = phase.len() / 2;
+        for j in ends {
+            if phase[j - 1] >= phase[j] {
+                continue;
+            }
+            let score = orbit.statistic(&totals[i], &totals[j], &totals[i + n])?;
+            if score > best.map_or(0.0, |b| b.0) {
+                *best = Some((score, i, j));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Below this many possible ends for one first point, every run is scored.
+const LONG_RANGE: usize = 64;
+/// Ends to a block, at each level.
+const BLOCK: usize = 32;
+
+/// Upper bounds on the score of the runs from one first point to a block of
+/// ends, so that blocks that cannot beat the best run so far are skipped and
+/// the result is the same as scoring every run.
+///
+/// With `F` and `V` the running totals of centred flux and weight, and `S`
+/// and `W` the orbit's, a run `i..j` has `u = (F_j - F_i) - S (V_j - V_i) /
+/// W = g_j - g_i`, with `g = F - (S / W) V`, and its score is `u^2 / D`,
+/// `D = W_in (W - W_in) / W`, when `u < 0` (times `W / (2 W_out)` for
+/// astropy's likelihood). Over a block of ends, `u >= min g - g_i` and
+/// `W_in` lies between its values at the block's first and last end; `D`
+/// is concave in `W_in`, so its least is at one of the two. The bound adds
+/// margins far above the rounding of `g`, `W_in` and the statistic, so it
+/// is never below a score the statistic computes.
+struct Bounds {
+    g: Vec<f64>,
+    weight: Vec<f64>,
+    /// `mins[level][k]`: the least `g` over ends `k BLOCK^(level+1) ..`.
+    mins: Vec<Vec<f64>>,
+    /// Margin on `u`, and on `W_in`.
+    margin_u: f64,
+    margin_w: f64,
+    whole: f64,
+    likelihood: bool,
+}
+
+impl Bounds {
+    fn new(totals: &[Total], n: usize, orbit: &Orbit) -> Self {
+        let whole = orbit.weight();
+        let ratio = orbit.flux() / whole;
+        let ends = &totals[..2 * n];
+        let weight: Vec<f64> = ends.iter().map(|t| t.weight.value()).collect();
+        let flux: Vec<f64> = ends.iter().map(|t| t.flux.value()).collect();
+        let g: Vec<f64> = flux
+            .iter()
+            .zip(&weight)
+            .map(|(f, v)| f - ratio * v)
+            .collect();
+        let largest_flux = flux.iter().fold(0.0_f64, |a, f| a.max(f.abs()));
+        let largest_weight = weight.last().copied().unwrap_or(0.0);
+        let mut mins = vec![block_mins(&g)];
+        while mins.last().is_some_and(|m| m.len() > BLOCK) {
+            let next = block_mins(mins.last().expect("a level"));
+            mins.push(next);
+        }
+        Self {
+            g,
+            weight,
+            mins,
+            margin_u: 64.0
+                * f64::EPSILON
+                * (largest_flux + ratio.abs() * largest_weight + orbit.flux().abs()),
+            margin_w: 64.0 * f64::EPSILON * largest_weight,
+            whole,
+            likelihood: orbit.likelihood(),
+        }
+    }
+
+    /// The runs from `i` to each of `ends`, as [`Folded::runs`] scores them,
+    /// skipping blocks whose bound is at most the best score so far.
+    fn search(
+        &self,
+        folded: &Folded,
+        orbit: &Orbit,
+        i: usize,
+        ends: RangeInclusive<usize>,
+        best: &mut Option<(f64, usize, usize)>,
+    ) -> Result<(), BlsError> {
+        let top = self.mins.len() - 1;
+        let size = BLOCK.pow(u32::try_from(top + 1).expect("few levels"));
+        for k in ends.start() / size..=ends.end() / size {
+            self.visit(folded, orbit, i, &ends, top, k, best)?;
+        }
+        Ok(())
+    }
+
+    #[expect(clippy::too_many_arguments, reason = "the search's state")]
+    fn visit(
+        &self,
+        folded: &Folded,
+        orbit: &Orbit,
+        i: usize,
+        ends: &RangeInclusive<usize>,
+        level: usize,
+        k: usize,
+        best: &mut Option<(f64, usize, usize)>,
+    ) -> Result<(), BlsError> {
+        let size = BLOCK.pow(u32::try_from(level + 1).expect("few levels"));
+        let low = (*ends.start()).max(k * size);
+        let high = (*ends.end()).min((k + 1) * size - 1);
+        if low > high {
+            return Ok(());
+        }
+        let bound = self.bound(i, self.mins[level][k], low, high);
+        if bound <= best.map_or(0.0, |b| b.0) {
+            return Ok(());
+        }
+        if level == 0 {
+            return folded.runs(orbit, i, low..=high, best);
+        }
+        for child in k * BLOCK..((k + 1) * BLOCK).min(self.mins[level - 1].len()) {
+            self.visit(folded, orbit, i, ends, level - 1, child, best)?;
+        }
+        Ok(())
+    }
+
+    /// An upper bound on the score of the runs from `i` to ends `low..=high`,
+    /// `least` the least `g` there. Infinite (never skipped) when the
+    /// weight in the box could reach zero or the whole orbit, and NaN on
+    /// overflow, which is never skipped either.
+    fn bound(&self, i: usize, least: f64, low: usize, high: usize) -> f64 {
+        let fall = self.g[i] - least + self.margin_u;
+        if fall <= 0.0 {
+            return 0.0;
+        }
+        let w = self.whole;
+        let shortest = (self.weight[low] - self.weight[i]) - self.margin_w;
+        let longest = (self.weight[high] - self.weight[i]) + self.margin_w;
+        if shortest <= 0.0 || longest >= w {
+            return f64::INFINITY;
+        }
+        let d = |x: f64| x * ((w - x) / w);
+        let least_d = d(shortest).min(d(longest)) * (1.0 - 64.0 * f64::EPSILON);
+        let mut bound = fall * (fall / least_d);
+        if self.likelihood {
+            bound *= 0.5 * w / (w - longest);
+        }
+        bound * (1.0 + 64.0 * f64::EPSILON)
+    }
+}
+
+/// The least of each block of `BLOCK` values.
+fn block_mins(values: &[f64]) -> Vec<f64> {
+    values
+        .chunks(BLOCK)
+        .map(|c| c.iter().copied().fold(f64::INFINITY, f64::min))
+        .collect()
 }

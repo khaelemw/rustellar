@@ -51,6 +51,21 @@ impl Orbit {
         }
     }
 
+    /// The orbit's summed weight `W`.
+    pub(crate) fn weight(&self) -> f64 {
+        self.weight
+    }
+
+    /// The orbit's summed centred flux `S`.
+    pub(crate) fn flux(&self) -> f64 {
+        self.flux
+    }
+
+    /// Whether boxes are ranked by astropy's likelihood.
+    pub(crate) fn likelihood(&self) -> bool {
+        self.likelihood
+    }
+
     /// The box's score if it has a dip, else zero, with one division (this is
     /// the inner loop of the search): its `delta_chi2`, or for
     /// [`Objective::AstropyLikelihood`] its likelihood,
@@ -99,5 +114,65 @@ impl Orbit {
             return Err(BlsError::OutOfRange);
         }
         Ok(if u < 0.0 { score } else { 0.0 })
+    }
+
+    /// [`statistic`](Self::statistic) of every box `length` long starting at
+    /// `0..scores.len()`, into `scores`, with the same arithmetic box for box,
+    /// so each score is the same to the last bit; with no branches in the
+    /// loop, so the compiler can run several boxes at once. `totals` runs
+    /// twice round the orbit.
+    pub(crate) fn statistics(
+        &self,
+        totals: &[Total],
+        length: usize,
+        scores: &mut [f64],
+    ) -> Result<(), BlsError> {
+        if self.likelihood {
+            self.statistics_for::<true>(totals, length, scores)
+        } else {
+            self.statistics_for::<false>(totals, length, scores)
+        }
+    }
+
+    fn statistics_for<const LIKELIHOOD: bool>(
+        &self,
+        totals: &[Total],
+        length: usize,
+        scores: &mut [f64],
+    ) -> Result<(), BlsError> {
+        let m = scores.len();
+        let half = 0.5 * self.weight;
+        let mut bad = false;
+        let boxes = totals[..m]
+            .iter()
+            .zip(&totals[length..length + m])
+            .zip(&totals[m..2 * m]);
+        for (score, ((first, end), wrap)) in scores.iter_mut().zip(boxes) {
+            let weight_in = between(first.weight, end.weight);
+            let rest = between(end.weight, wrap.weight);
+            let weight_out = if weight_in <= half {
+                self.weight - weight_in
+            } else {
+                rest
+            };
+            let empty = weight_in == 0.0 || weight_out == 0.0;
+            let u = between(first.flux, end.flux) - self.flux * (weight_in * self.inverse_weight);
+            let delta_chi2 = u * (u / (weight_in * (weight_out * self.inverse_weight)));
+            let value = if LIKELIHOOD {
+                delta_chi2 * (half / weight_out)
+            } else {
+                delta_chi2
+            };
+            bad |= !empty & !value.is_finite();
+            *score = if empty | (u >= 0.0) | u.is_nan() {
+                0.0
+            } else {
+                value
+            };
+        }
+        if bad {
+            return Err(BlsError::OutOfRange);
+        }
+        Ok(())
     }
 }

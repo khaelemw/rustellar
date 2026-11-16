@@ -87,23 +87,22 @@ pub(crate) fn refine(
 ) -> Result<Vec<Refined>, BlsError> {
     let near = |peak: usize| peak.saturating_sub(reach)..(peak + reach + 1).min(periods.len());
 
-    // Step 1: each fold, and its best box over the durations.
+    // Step 1: each fold's best box over the durations. The folds are not
+    // kept: step 2 folds again, so at most one fold a thread is held (a fold
+    // is about 70 bytes a point).
     let jobs: Vec<usize> = peaks.iter().flat_map(|&peak| near(peak)).collect();
     let folds = map(&jobs, threads, &|&period| {
         let folded = Folded::new(times, weighted, periods[period]);
         let grid = folded.best_of(weighted, durations, objective)?;
-        Ok((
-            folded,
-            grid.map(|(duration, _, fit)| (duration, objective.of(&fit))),
-        ))
+        Ok(grid.map(|(duration, _, fit)| (duration, objective.of(&fit))))
     })
     .into_iter()
-    .collect::<Result<Vec<(Folded, Option<(usize, f64)>)>, BlsError>>()?;
+    .collect::<Result<Vec<Option<(usize, f64)>>, BlsError>>()?;
 
     // Step 2: at each period near a peak, every duration between the
     // neighbours on the grid of that peak's best duration (and shorter than
-    // the period). A job is the peak, the period and its fold, and the range.
-    let mut jobs: Vec<(usize, usize, usize, f64, f64)> = Vec::new();
+    // the period). A job is the peak, the period and the range.
+    let mut jobs: Vec<(usize, usize, f64, f64)> = Vec::new();
     let mut end = 0;
     for &peak in peaks {
         let near = near(peak);
@@ -111,7 +110,7 @@ pub(crate) fn refine(
         end = here.end;
         // The best duration on the grid, over the periods near the peak.
         let mut grid: Option<(usize, f64)> = None;
-        for &(_, best) in &folds[here.clone()] {
+        for &best in &folds[here.clone()] {
             if let Some((duration, score)) = best {
                 if grid.is_none_or(|g| score > g.1) {
                     grid = Some((duration, score));
@@ -128,7 +127,7 @@ pub(crate) fn refine(
             .filter(|&x| x < d)
             .reduce(f64::max)
             .unwrap_or(d);
-        for (period, fold) in near.zip(here) {
+        for period in near {
             let p = periods[period];
             if d >= p {
                 continue;
@@ -139,12 +138,11 @@ pub(crate) fn refine(
                 .filter(|&x| x > d && x < p)
                 .reduce(f64::min)
                 .unwrap_or(d);
-            jobs.push((peak, period, fold, below, above));
+            jobs.push((peak, period, below, above));
         }
     }
-    let boxes = map(&jobs, threads, &|&(peak, period, fold, below, above)| {
-        let found = folds[fold]
-            .0
+    let boxes = map(&jobs, threads, &|&(peak, period, below, above)| {
+        let found = Folded::new(times, weighted, periods[period])
             .best_between(weighted, below, above, objective)?;
         Ok(found.map(|(centre, duration, fit)| Refined {
             peak,
