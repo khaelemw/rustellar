@@ -1,0 +1,12 @@
+[package]
+name = "rustellar-detrend"
+description = "Detrending light curves in pure Rust: a time-windowed sliding biweight (Hippke et al. 2019) solved to full precision"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "exoplanet", "detrending", "light-curve"]
+categories = ["science", "algorithms"]
+
+[dependencies]
+rustellar-core.workspace = true

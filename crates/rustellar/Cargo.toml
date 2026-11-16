@@ -12,13 +12,15 @@ categories = ["science", "algorithms"]
 # build compiles only what it uses. rustellar-core is always included.
 [features]
 default = []
-full = ["bls", "model"]
+full = ["bls", "detrend", "model"]
 bls = ["dep:rustellar-bls"]
+detrend = ["dep:rustellar-detrend"]
 model = ["dep:rustellar-model"]
 
 [dependencies]
 rustellar-bls = { workspace = true, optional = true }
 rustellar-core.workspace = true
+rustellar-detrend = { workspace = true, optional = true }
 rustellar-model = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]

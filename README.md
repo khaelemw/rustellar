@@ -21,7 +21,7 @@ rustellar = { version = "0.0", features = ["model"] }
 | [`rustellar-model`](crates/rustellar-model) | `model` | Transit light curves (Mandel & Agol 2002), exposure averaging | done |
 | `rustellar-fit` | `fit` | Least-squares transit fit | planned |
 | [`rustellar-bls`](crates/rustellar-bls) | `bls` | Box least squares transit search | in progress |
-| `rustellar-detrend` | `detrend` | Detrending filters (biweight and others) | planned |
+| [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) | in progress |
 | `rustellar-mcmc` | `mcmc` | Affine-invariant ensemble sampler | planned |
 | `rustellar-ls` | `ls` | Lomb-Scargle periodogram | planned |
 | `rustellar-tls` | `tls` | Transit least squares | planned |

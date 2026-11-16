@@ -8,6 +8,7 @@
 //! | Feature | Module | What it does |
 //! |---|---|---|
 //! | `bls` | [`bls`] | Box least squares transit search (in development) |
+//! | `detrend` | [`detrend`] | Detrending: a sliding biweight to full precision (in development) |
 //! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
 //! | `full` | | Every tool |
 //!
@@ -53,6 +54,11 @@ pub use rustellar_core::{
 #[cfg(feature = "bls")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bls")))]
 pub use rustellar_bls as bls;
+
+/// Detrending light curves, from [`rustellar-detrend`](rustellar_detrend).
+#[cfg(feature = "detrend")]
+#[cfg_attr(docsrs, doc(cfg(feature = "detrend")))]
+pub use rustellar_detrend as detrend;
 
 /// Transit light curves, from [`rustellar-model`](rustellar_model).
 #[cfg(feature = "model")]
