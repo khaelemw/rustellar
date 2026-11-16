@@ -1,6 +1,7 @@
 // search_into with a result of the right size allocates the same few buffers
-// whatever the number of periods: the bins and running totals once per
-// thread, sized for the longest period, and nothing per period. The only
+// whatever the number of periods: the bins, running totals, scores and
+// bounds once per thread, sized for the longest period, and nothing per
+// period. The only
 // test in its file, so no other test allocates while it counts.
 
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -70,8 +71,9 @@ fn allocations_do_not_grow_with_the_periods() {
         };
         let (a, b) = (count(&few), count(&many));
         assert_eq!(a, b, "{threads} threads");
-        // The durations, and per thread the bins and totals (and the
-        // threads' own bookkeeping).
-        assert!(b <= 3 + 12 * threads, "{threads} threads: {b}");
+        // The durations and the split into chunks, and per thread its ten
+        // buffers and the thread's own bookkeeping (more when the test
+        // harness captures its output).
+        assert!(b <= 6 + 16 * threads, "{threads} threads: {b}");
     }
 }

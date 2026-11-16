@@ -66,7 +66,6 @@ fn equals_the_exact_search_at_each_period() {
         .iter()
         .map(|&p| {
             best_binned(
-                &times,
                 &weighted,
                 p,
                 &durations,
@@ -344,7 +343,6 @@ fn injected() -> Vec<Errors> {
                 .iter()
                 .map(|&p| {
                     best_binned(
-                        &times,
                         &weighted,
                         p,
                         &durations,

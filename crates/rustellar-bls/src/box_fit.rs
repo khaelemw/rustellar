@@ -208,6 +208,7 @@ pub(crate) struct Weighted {
     pub(crate) mean: f64,
     pub(crate) weights: Vec<f64>,
     pub(crate) centred: Vec<f64>,
+    pub(crate) elapsed: Vec<(f64, f64)>,
 }
 
 impl Weighted {
@@ -235,10 +236,13 @@ impl Weighted {
         if !(mean.is_finite() && centred.iter().all(|x| x.is_finite())) {
             return Err(BlsError::OutOfRange);
         }
+        let t0 = lc.time()[0].as_btjd();
+        let elapsed = lc.time().iter().map(|t| elapsed(t.as_btjd(), t0)).collect();
         Ok(Self {
             mean,
             weights,
             centred,
+            elapsed,
         })
     }
 }
@@ -350,19 +354,119 @@ impl BoxFit {
 /// Beyond that, or for periods near the ends of the range, the product's
 /// error comes from a fused multiply-add.
 pub(crate) fn offset_from_transit(t: f64, t0: f64, p: f64) -> f64 {
+    let (s, e) = elapsed(t, t0);
+    offset_after(s, e, p)
+}
+
+/// `t - t0` rounded, and its rounding error, exactly (Knuth's two-sum).
+pub(crate) fn elapsed(t: f64, t0: f64) -> (f64, f64) {
     let s = t - t0;
     let s_back = s - t;
-    let e = (t - (s - s_back)) - (t0 + s_back);
-    let n = nearest(s / p);
-    let (hi, lo) = if n.abs() < SPLIT_LIMIT && (PERIOD_LOW..PERIOD_HIGH).contains(&p.abs()) {
+    (s, (t - (s - s_back)) - (t0 + s_back))
+}
+
+/// [`offset_from_transit`] from [`elapsed`]'s two parts.
+pub(crate) fn offset_after(s: f64, e: f64, p: f64) -> f64 {
+    AtPeriod::new(p).offset_after(s, e)
+}
+
+/// One period's constants for [`offset_after`], computed once for many
+/// points, with its division replaced by a multiplication wherever that
+/// gives the same whole number of orbits: the results are the same, to the
+/// bit.
+///
+/// `q = s (1 / p)` rounds twice, so it is within `3u |s / p|` of `s / p`
+/// (`u = 2^-53`), as is the rounded quotient. The nearest whole number of
+/// the two can differ only if a half lies between them, so within `3u
+/// |q|` (or a little more) of `q`. Where the nearest half is further than
+/// [`MARGIN`]` |q|`, `q`'s whole number is the quotient's; otherwise it
+/// divides.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct AtPeriod {
+    p: f64,
+    inverse: f64,
+    /// `p`'s Veltkamp halves, used if `splits`: if `p` splits without
+    /// underflow or overflow.
+    p_hi: f64,
+    p_lo: f64,
+    splits: bool,
+}
+
+/// 8 machine epsilons (16 `u`): far above the 3 `u` the multiplication can
+/// differ by.
+pub(crate) const MARGIN: f64 = 8.0 * f64::EPSILON;
+
+/// 2^52: from here up every double is whole.
+const TWO_52: f64 = 4_503_599_627_370_496.0;
+
+impl AtPeriod {
+    pub(crate) fn new(p: f64) -> Self {
         let c = SPLITTER * p;
         let p_hi = c - (c - p);
-        (n * p_hi, n * (p - p_hi))
-    } else {
-        let hi = n * p;
-        (hi, n.mul_add(p, -hi))
-    };
-    ((s - hi) - lo) + e
+        Self {
+            p,
+            inverse: 1.0 / p,
+            p_hi,
+            p_lo: p - p_hi,
+            splits: (PERIOD_LOW..PERIOD_HIGH).contains(&p.abs()),
+        }
+    }
+
+    /// `nearest(s / p)` from `n = nearest(q)`, `q = s / p` by
+    /// multiplication: `n` itself where the nearest half is further than
+    /// the margin. `q - n` is exact (Sterbenz, or `n` is zero), and so is
+    /// `0.5` less its size from 0.25 up.
+    fn checked(self, s: f64, q: f64, n: f64) -> f64 {
+        if 0.5 - (q - n).abs() > MARGIN * q.abs() {
+            n
+        } else {
+            nearest(s / self.p)
+        }
+    }
+
+    /// [`offset_after`] at this period.
+    pub(crate) fn offset_after(self, s: f64, e: f64) -> f64 {
+        let q = s * self.inverse;
+        self.offset_with(s, e, self.checked(s, q, nearest(q)))
+    }
+
+    /// [`offset_after`] for `s` not below zero (times after the first),
+    /// the same to the bit: `nearest` needs no sign then.
+    pub(crate) fn offset_after_start(self, s: f64, e: f64) -> f64 {
+        debug_assert!(s >= 0.0, "a time before the first");
+        let q = s * self.inverse;
+        let n = if q < TWO_52 { (q + TWO_52) - TWO_52 } else { q };
+        self.offset_with(s, e, self.checked(s, q, n))
+    }
+
+    /// Whether [`offset_after_start_short`](Self::offset_after_start_short)
+    /// gives [`offset_after_start`](Self::offset_after_start)'s bits for
+    /// every `s` from 0 to `last`: `p` splits, and the whole number of orbits
+    /// is below 2^25, so `nearest` needs no range check and `n p` splits
+    /// exactly.
+    pub(crate) fn short_up_to(self, last: f64) -> bool {
+        self.splits && last * self.inverse < 33_554_432.0
+    }
+
+    /// [`offset_after_start`](Self::offset_after_start) with no range
+    /// checks, where [`short_up_to`](Self::short_up_to) holds for `s`.
+    pub(crate) fn offset_after_start_short(self, s: f64, e: f64) -> f64 {
+        let q = s * self.inverse;
+        let n = self.checked(s, q, (q + TWO_52) - TWO_52);
+        ((s - n * self.p_hi) - n * self.p_lo) + e
+    }
+
+    /// `s + e - n p`: `s - hi` is exact (Sterbenz, or `hi` is zero), and
+    /// only the last two additions round.
+    fn offset_with(self, s: f64, e: f64, n: f64) -> f64 {
+        let (hi, lo) = if self.splits && n.abs() < SPLIT_LIMIT {
+            (n * self.p_hi, n * self.p_lo)
+        } else {
+            let hi = n * self.p;
+            (hi, n.mul_add(self.p, -hi))
+        };
+        ((s - hi) - lo) + e
+    }
 }
 
 /// 2^27 + 1: Veltkamp's splitter for doubles.

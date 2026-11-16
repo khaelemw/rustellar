@@ -48,7 +48,9 @@ fn every_box_as_one_box(
     let mut empty = 0;
     for length in 0..m {
         let mut scores = vec![f64::NAN; m];
-        orbit.statistics(&totals, length, &mut scores).unwrap();
+        orbit
+            .statistics(&totals, length, &totals[m..], &mut scores)
+            .unwrap();
         for (k, score) in scores.iter().enumerate() {
             let one = orbit
                 .statistic(&totals[k], &totals[k + length], &totals[k + m])
@@ -77,7 +79,7 @@ fn overflow_in_either(
     let orbit = Orbit::new(&totals[0], &totals[2], objective);
     let mut scores = [0.0; 2];
     assert_eq!(
-        orbit.statistics(&totals, 1, &mut scores),
+        orbit.statistics(&totals, 1, &totals[2..], &mut scores),
         Err(BlsError::OutOfRange)
     );
     assert_eq!(

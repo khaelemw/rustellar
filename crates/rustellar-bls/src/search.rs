@@ -294,6 +294,10 @@ impl BlsResult {
     }
 }
 
+/// A bin's cost in the binned search, in points: the totals and a score at
+/// each of a dozen durations, against binning one point (measured).
+const COST_A_BIN: f64 = 8.0;
+
 /// The longest of `periods`, in days.
 fn longest(periods: &[TimeDelta]) -> f64 {
     periods.iter().map(|p| p.as_days()).fold(0.0, f64::max)
@@ -463,13 +467,41 @@ impl Bls {
         result.boxes.resize(n, None);
         result.peaks.clear();
 
-        // Contiguous chunks of periods, one a thread. The first error in
-        // period order: each chunk stops at its first.
-        let chunk = n.div_ceil(options.threads.get().min(n));
-        let chunks = periods
-            .chunks(chunk)
-            .zip(result.power.chunks_mut(chunk))
-            .zip(result.boxes.chunks_mut(chunk));
+        // Contiguous chunks of periods, one a thread, of about equal cost:
+        // a period costs a pass over the points and a few over its bins
+        // (`COST_A_BIN` points' worth each), so a chunk of the longest
+        // periods holds fewer. The first error in period order: each chunk
+        // stops at its first.
+        let threads = options.threads.get().min(n);
+        let points = self.times.len() as f64;
+        let cost: Vec<f64> = periods
+            .iter()
+            .map(|p| points + COST_A_BIN * bin_count(p.as_days(), &durations, oversample))
+            .collect();
+        let total: f64 = cost.iter().sum();
+        let mut ends = Vec::with_capacity(threads);
+        let mut sum = 0.0;
+        for (k, c) in cost.iter().enumerate() {
+            sum += c;
+            // The chunk ends where its share is reached, the last at n.
+            if sum >= total * (ends.len() + 1) as f64 / threads as f64 && ends.len() + 1 < threads {
+                ends.push(k + 1);
+            }
+        }
+        ends.push(n);
+        let mut chunks = Vec::with_capacity(threads);
+        let (mut rest, mut power, mut boxes) =
+            (periods, &mut result.power[..], &mut result.boxes[..]);
+        let mut from = 0;
+        for &end in &ends {
+            let (p, p_rest) = rest.split_at(end - from);
+            let (w, w_rest) = power.split_at_mut(end - from);
+            let (b, b_rest) = boxes.split_at_mut(end - from);
+            chunks.push(((p, w), b));
+            (rest, power, boxes) = (p_rest, w_rest, b_rest);
+            from = end;
+        }
+        let chunks = chunks.into_iter().filter(|((p, _), _)| !p.is_empty());
         on_threads(chunks, &|((periods, power), boxes)| {
             self.binned_chunk(
                 periods,
@@ -525,11 +557,10 @@ impl Bls {
     ) -> Result<(), BlsError> {
         // Room for this chunk's longest period, so no period grows it.
         let most = bin_count(longest(periods), durations, oversample) as usize;
-        let mut scratch = Scratch::with_capacity(most);
+        let mut scratch = Scratch::with_capacity(most, durations.len());
         for ((&period, power), slot) in periods.iter().zip(power).zip(boxes) {
             let days = period.as_days();
             let found = best_binned(
-                &self.times,
                 &self.weighted,
                 days,
                 durations,

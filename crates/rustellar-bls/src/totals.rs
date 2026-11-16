@@ -117,20 +117,21 @@ impl Orbit {
     }
 
     /// [`statistic`](Self::statistic) of every box `length` long starting at
-    /// `0..scores.len()`, into `scores`, with the same arithmetic box for box,
-    /// so each score is the same to the last bit; with no branches in the
-    /// loop, so the compiler can run several boxes at once. `totals` runs
-    /// twice round the orbit.
+    /// `0..scores.len()` in `totals`, into `scores`, with the same arithmetic
+    /// box for box, so each score is the same to the last bit; with no
+    /// branches in the loop, so the compiler can run several boxes at once.
+    /// `wraps` are the totals one orbit on from each start.
     pub(crate) fn statistics(
         &self,
         totals: &[Total],
         length: usize,
+        wraps: &[Total],
         scores: &mut [f64],
     ) -> Result<(), BlsError> {
         if self.likelihood {
-            self.statistics_for::<true>(totals, length, scores)
+            self.statistics_for::<true>(totals, length, wraps, scores)
         } else {
-            self.statistics_for::<false>(totals, length, scores)
+            self.statistics_for::<false>(totals, length, wraps, scores)
         }
     }
 
@@ -138,6 +139,7 @@ impl Orbit {
         &self,
         totals: &[Total],
         length: usize,
+        wraps: &[Total],
         scores: &mut [f64],
     ) -> Result<(), BlsError> {
         let m = scores.len();
@@ -146,7 +148,7 @@ impl Orbit {
         let boxes = totals[..m]
             .iter()
             .zip(&totals[length..length + m])
-            .zip(&totals[m..2 * m]);
+            .zip(&wraps[..m]);
         for (score, ((first, end), wrap)) in scores.iter_mut().zip(boxes) {
             let weight_in = between(first.weight, end.weight);
             let rest = between(end.weight, wrap.weight);

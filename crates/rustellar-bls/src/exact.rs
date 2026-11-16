@@ -25,7 +25,7 @@ use rustellar_core::{LightCurve, TimeDelta};
 
 use crate::{
     BlsError, BoxFit, Objective, TransitBox,
-    box_fit::{Weighted, offset_from_transit},
+    box_fit::{AtPeriod, Weighted},
     totals::{Orbit, Total, box_sums},
 };
 
@@ -116,14 +116,34 @@ impl Folded {
     /// `times` in BTJD, with weights `weighted`, folded at `period` days.
     pub(crate) fn new(times: &[f64], weighted: &Weighted, period: f64) -> Self {
         let n = times.len();
-        let mut order: Vec<(f64, usize)> = times
-            .iter()
-            .enumerate()
-            .map(|(k, &t)| (offset_from_transit(t, times[0], period), k))
-            .collect();
-        // By phase, then by point: the order a stable sort gives, from the
-        // faster unstable sort.
-        order.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        // Each time's offset from the first, from its exact elapsed time.
+        let at = AtPeriod::new(period);
+        let elapsed = &weighted.elapsed;
+        let last = elapsed.last().map_or(0.0, |&(s, _)| s);
+        let mut order: Vec<(f64, usize)> = if at.short_up_to(last) {
+            elapsed
+                .iter()
+                .enumerate()
+                .map(|(k, &(s, e))| (at.offset_after_start_short(s, e), k))
+                .collect()
+        } else {
+            elapsed
+                .iter()
+                .enumerate()
+                .map(|(k, &(s, e))| (at.offset_after_start(s, e), k))
+                .collect()
+        };
+        // By phase, then by point (the order a stable sort by phase gives).
+        // In time order the phases are already sorted within each orbit, and
+        // the stable sort merges those runs: faster over a few hundred
+        // orbits or fewer, slower than the unstable sort over more. Either
+        // gives the same order, the keys being all different.
+        let by_phase = |a: &(f64, usize), b: &(f64, usize)| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1));
+        if times[n - 1] - times[0] < ORBITS_TO_MERGE * period {
+            order.sort_by(by_phase);
+        } else {
+            order.sort_unstable_by(by_phase);
+        }
         let phase = order
             .iter()
             .map(|o| o.0)
@@ -279,6 +299,10 @@ impl Folded {
         Ok(())
     }
 }
+
+/// Below this many orbits in the data, a fold's phases are sorted by merging
+/// the runs of each orbit.
+const ORBITS_TO_MERGE: f64 = 256.0;
 
 /// Below this many possible ends for one first point, every run is scored.
 const LONG_RANGE: usize = 64;

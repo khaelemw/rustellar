@@ -7,7 +7,7 @@ use rstest::rstest;
 
 use crate::{
     BoxFit, Objective, TransitBox,
-    box_fit::{Weighted, offset_from_transit},
+    box_fit::{AtPeriod, Weighted, offset_from_transit},
     exact::Folded,
 };
 
@@ -66,7 +66,8 @@ fn every_duration_too_long() {
 // point, so the search skips blocks of ends by their bound. It must find the
 // run that scoring every run finds. One point has almost no weight, so with
 // the shortest duration short enough the blocks of runs from it alone have
-// infinite bounds, and there are enough ends for two levels of blocks.
+// infinite bounds, and there are enough ends for two levels of blocks. At
+// 0.1 days the 30 days hold 300 orbits, so the fold sorts the other way.
 fn dense(seed: u64, depth: f64) -> LightCurve {
     let mut state = seed;
     let mut uniform = move || {
@@ -151,18 +152,53 @@ fn every_run(
 fn skipping_blocks_finds_the_best_run(
     #[values(1, 2, 3)] seed: u64,
     #[values(0.0, 1e-3)] depth: f64,
-    #[values(1e-4, 0.02)] shortest: f64,
+    #[values((1e-4, 0.4, 3.0), (0.02, 0.4, 3.0), (1e-4, 0.03, 0.1))] durations_period: (
+        f64,
+        f64,
+        f64,
+    ),
     #[values(Objective::DeltaChi2, Objective::Snr, Objective::AstropyLikelihood)]
     objective: Objective,
 ) {
+    let (shortest, longest, period) = durations_period;
     let lc = dense(seed, depth);
     let weighted = Weighted::new(&lc).unwrap();
-    let folded = Folded::new(&btjd(&lc), &weighted, 3.0);
+    let folded = Folded::new(&btjd(&lc), &weighted, period);
     let (_, _, fit) = folded
-        .best_between(&weighted, shortest, 0.4, objective)
+        .best_between(&weighted, shortest, longest, objective)
         .unwrap()
         .unwrap();
-    let (n_in, score) = every_run(&lc, 3.0, shortest, 0.4, objective);
+    let (n_in, score) = every_run(&lc, period, shortest, longest, objective);
     assert_eq!(fit.n_in, n_in);
     assert!((objective.of(&fit) - score).abs() <= 1e-9 * score);
+}
+
+// A period so short that the 30 days hold 10^8 orbits, past the 2^25 below
+// which the fold takes its shorter path: the longer one must find the same
+// run as scoring every run, folded by division.
+#[test]
+fn a_fold_of_many_orbits_finds_the_best_run() {
+    let (shortest, longest, period) = (1e-9, 4e-8, 3e-7);
+    let lc = dense(4, 0.0);
+    let times = btjd(&lc);
+    let last = times[times.len() - 1] - times[0];
+    assert!(!AtPeriod::new(period).short_up_to(last));
+    let weighted = Weighted::new(&lc).unwrap();
+    let folded = Folded::new(&times, &weighted, period);
+    for objective in [
+        Objective::DeltaChi2,
+        Objective::Snr,
+        Objective::AstropyLikelihood,
+    ] {
+        let (_, _, fit) = folded
+            .best_between(&weighted, shortest, longest, objective)
+            .unwrap()
+            .unwrap();
+        let (n_in, score) = every_run(&lc, period, shortest, longest, objective);
+        assert_eq!(fit.n_in, n_in, "{objective:?}");
+        assert!(
+            (objective.of(&fit) - score).abs() <= 1e-9 * score,
+            "{objective:?}"
+        );
+    }
 }

@@ -8,8 +8,9 @@ use rustellar_core::{Epoch, LightCurve, TimeDelta};
 use super::recipe::{Random, Recipe, check_samples};
 use crate::{
     BlsError, Objective, TransitBox,
-    binned::{BinnedBox, Scratch, best_binned},
-    box_fit::Weighted,
+    binned::{BinnedBox, Bounds, Scratch, WINDOW, best_binned, bin_count},
+    box_fit::{AtPeriod, Weighted},
+    totals::{Orbit, Total},
 };
 
 // ==========================
@@ -28,9 +29,7 @@ fn rows(csv: &str) -> impl Iterator<Item = Vec<&str>> {
 }
 
 fn binned(lc: &LightCurve, period: f64, durations: &[f64], oversample: usize) -> Option<BinnedBox> {
-    let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
     best_binned(
-        &times,
         &Weighted::new(lc).unwrap(),
         period,
         durations,
@@ -224,10 +223,8 @@ fn a_box_of_every_bin_is_skipped() {
 fn statistics_that_overflow() {
     let lc =
         LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
-    let times = [0.0, 1.0, 2.0];
     assert_eq!(
         best_binned(
-            &times,
             &Weighted::new(&lc).unwrap(),
             10.0,
             &[0.5],
@@ -521,10 +518,8 @@ fn a_box_with_most_of_the_weight() {
 #[test]
 fn best_box_whose_fit_overflows() {
     let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![0.0, 1e5], vec![1e-150, 1.0]).unwrap();
-    let times = [0.0, 1.0];
     assert_eq!(
         best_binned(
-            &times,
             &Weighted::new(&lc).unwrap(),
             10.0,
             &[0.5],
@@ -542,4 +537,238 @@ fn best_box_whose_fit_overflows() {
         ),
         Err(BlsError::OutOfRange)
     );
+}
+
+// ==========================
+// Skipping blocks of boxes
+// ==========================
+
+// Running totals twice round over `m` bins with weights in 0.5..2 (a fifth
+// of the bins empty), centred fluxes of either sign, and a dip.
+fn random_totals(m: usize, seed: u64) -> Vec<Total> {
+    let mut random = Random(seed);
+    let bins: Vec<(f64, f64)> = (0..m)
+        .map(|k| {
+            if random.unit() < 0.2 {
+                return (0.0, 0.0);
+            }
+            let w = 0.5 + 1.5 * random.unit();
+            let dip = if (k as f64 / m as f64 - 0.3).abs() < 0.05 {
+                -3.0
+            } else {
+                0.0
+            };
+            (w, w * (random.unit() - 0.5 + dip))
+        })
+        .collect();
+    let mut total = Total::default();
+    let mut totals = vec![total];
+    for &(w, f) in bins.iter().chain(&bins) {
+        total.weight.add(w);
+        total.flux.add(f);
+        totals.push(total);
+    }
+    totals
+}
+
+// The bound of every block, at every length and block size, is never below
+// the score of a box in it; zero, finite and infinite bounds all happen.
+#[test]
+fn a_bound_is_never_below_a_score() {
+    let mut seen = [0; 3];
+    for objective in [
+        Objective::DeltaChi2,
+        Objective::Snr,
+        Objective::AstropyLikelihood,
+    ] {
+        for seed in 0..4 {
+            let m = 160;
+            let totals = random_totals(m, seed);
+            let orbit = Orbit::new(&totals[0], &totals[m], objective);
+            let mut bounds = Bounds::default();
+            bounds.prepare(&totals, &orbit);
+            for length in [1, 2, 5, 31, 32, 33, 64, 100, 159] {
+                for size in [1, 7, 32] {
+                    for from in (0..m).step_by(size) {
+                        let to = (from + size).min(m);
+                        let bound = bounds.bound(from, to, length);
+                        seen[usize::from(bound > 0.0) + usize::from(bound.is_infinite())] += 1;
+                        for start in from..to {
+                            let score = orbit
+                                .statistic(
+                                    &totals[start],
+                                    &totals[start + length],
+                                    &totals[start + m],
+                                )
+                                .unwrap();
+                            assert!(
+                                score <= bound,
+                                "{objective:?} {seed}: {score} above {bound} ({length}, {from}..{to})"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        seen.iter().all(|&n| n > 0),
+        "zero, finite and infinite: {seen:?}"
+    );
+}
+
+// The best box by brute force: the points binned as the search bins them,
+// every box scored on its own, the first of the highest over the durations
+// and then the starts.
+fn brute_force(
+    lc: &LightCurve,
+    period: f64,
+    durations: &[f64],
+    objective: Objective,
+) -> Option<(usize, usize, usize)> {
+    let weighted = Weighted::new(lc).unwrap();
+    let m = (bin_count(period, durations, 10) as usize).max(1);
+    let bin = period / m as f64;
+    let at = AtPeriod::new(period);
+    let mut bins = vec![(0.0, 0.0); m];
+    let points = weighted
+        .elapsed
+        .iter()
+        .zip(&weighted.weights)
+        .zip(&weighted.centred);
+    for ((&(s, e), &w), &c) in points {
+        let mut phase = at.offset_after_start(s, e);
+        if phase < 0.0 {
+            phase += period;
+        }
+        let j = ((phase / bin) as u32 as usize).min(m - 1);
+        bins[j].0 += w;
+        bins[j].1 += c;
+    }
+    let mut total = Total::default();
+    let mut totals = vec![total];
+    for &(w, f) in bins.iter().chain(&bins) {
+        total.weight.add(w);
+        total.flux.add(f);
+        totals.push(total);
+    }
+    let orbit = Orbit::new(&totals[0], &totals[m], objective);
+    let mut best: Option<(f64, usize, usize, usize)> = None;
+    for (duration, &d) in durations.iter().enumerate() {
+        let length = (d / bin).round() as usize;
+        if length >= m {
+            continue;
+        }
+        for start in 0..m {
+            let score = orbit
+                .statistic(&totals[start], &totals[start + length], &totals[start + m])
+                .unwrap();
+            if score > best.map_or(0.0, |b| b.0) {
+                best = Some((score, start, length, duration));
+            }
+        }
+    }
+    best.map(|(_, start, length, duration)| (start, length, duration))
+}
+
+// Skipping blocks finds the brute force's box, with one window of bins and
+// with many, on a light curve with gaps, a transit and outliers.
+#[test]
+fn skipping_finds_the_brute_forces_box() {
+    let mut random = Random(91);
+    let mut time = Vec::new();
+    for segment in 0..4 {
+        let start = 1300.0 + 31.0 * f64::from(segment);
+        for k in 0..1500 {
+            time.push(start + f64::from(k) * 0.0139);
+        }
+    }
+    let flux: Vec<f64> = time
+        .iter()
+        .map(|t| {
+            let dip = if ((t - 1301.3) % 7.37) < 0.15 {
+                2e-3
+            } else {
+                0.0
+            };
+            let outlier = if random.unit() < 0.002 { 5e-3 } else { 0.0 };
+            1.0 - dip + outlier + 1e-3 * (random.unit() - 0.5)
+        })
+        .collect();
+    let error: Vec<f64> = time
+        .iter()
+        .map(|_| 1e-3 * (0.8 + 0.4 * random.unit()))
+        .collect();
+    let lc = LightCurve::from_btjd(time, flux, error).unwrap();
+    let durations = [0.01, 0.04, 0.08, 0.15, 0.3];
+    let mut windows = [0, 0];
+    for objective in [
+        Objective::DeltaChi2,
+        Objective::Snr,
+        Objective::AstropyLikelihood,
+    ] {
+        for period in [0.7, 3.1, 7.37, 29.0, 61.0] {
+            let m = bin_count(period, &durations, 10) as usize;
+            windows[usize::from(m > WINDOW)] += 1;
+            let ours = best_binned(
+                &Weighted::new(&lc).unwrap(),
+                period,
+                &durations,
+                10,
+                objective,
+                &mut Scratch::default(),
+            )
+            .unwrap()
+            .map(|b| (b.start, b.bins, b.duration));
+            assert_eq!(
+                ours,
+                brute_force(&lc, period, &durations, objective),
+                "{objective:?} at {period}"
+            );
+        }
+    }
+    assert!(
+        windows.iter().all(|&n| n > 0),
+        "one window and many: {windows:?}"
+    );
+}
+
+// A period so short that the light curve holds 5 x 10^7 orbits, past the
+// 2^25 below which the bins are filled by the shorter path: the longer one
+// finds the brute force's box too.
+#[test]
+fn bins_of_many_orbits_find_the_brute_forces_box() {
+    let mut random = Random(17);
+    let time: Vec<f64> = (0..2000).map(|k| 1300.0 + 0.05 * f64::from(k)).collect();
+    let flux: Vec<f64> = time
+        .iter()
+        .map(|_| 1.0 + 1e-3 * (random.unit() - 0.5))
+        .collect();
+    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 2000]).unwrap();
+    let (period, durations) = (2e-6, [2e-7, 5e-7]);
+    let weighted = Weighted::new(&lc).unwrap();
+    let last = weighted.elapsed.last().unwrap().0;
+    assert!(!AtPeriod::new(period).short_up_to(last));
+    for objective in [
+        Objective::DeltaChi2,
+        Objective::Snr,
+        Objective::AstropyLikelihood,
+    ] {
+        let ours = best_binned(
+            &weighted,
+            period,
+            &durations,
+            10,
+            objective,
+            &mut Scratch::default(),
+        )
+        .unwrap()
+        .map(|b| (b.start, b.bins, b.duration));
+        assert!(ours.is_some(), "{objective:?}");
+        assert_eq!(
+            ours,
+            brute_force(&lc, period, &durations, objective),
+            "{objective:?}"
+        );
+    }
 }
