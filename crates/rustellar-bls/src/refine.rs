@@ -116,7 +116,7 @@ pub(crate) fn refine(
     // Step 2: at each period near a peak, every duration between the
     // neighbours on the grid of that peak's best duration (and shorter than
     // the period). A job is the peak, the period and the range.
-    let mut jobs: Vec<(usize, usize, f64, f64)> = Vec::new();
+    let mut jobs: Vec<(usize, usize, f64, f64, f64)> = Vec::new();
     let mut end = 0;
     for &peak in peaks {
         let near = near(peak);
@@ -131,9 +131,13 @@ pub(crate) fn refine(
                 }
             }
         }
-        let Some((duration, _)) = grid else {
+        let Some((duration, score)) = grid else {
             continue;
         };
+        // At the period of that box, every duration in the range below holds
+        // its run too, so the peak's best here scores at least as much: only
+        // a box beating it can be the peak's best.
+        let beat = objective.beat(score);
         let d = durations[duration];
         let below = durations
             .iter()
@@ -152,12 +156,12 @@ pub(crate) fn refine(
                 .filter(|&x| x > d && x < p)
                 .reduce(f64::min)
                 .unwrap_or(d);
-            jobs.push((peak, period, below, above));
+            jobs.push((peak, period, below, above, beat));
         }
     }
-    let boxes = map(&jobs, threads, &|&(peak, period, below, above)| {
+    let boxes = map(&jobs, threads, &|&(peak, period, below, above, beat)| {
         let found = Folded::new(times, weighted, periods[period])
-            .best_between(weighted, below, above, objective)?;
+            .best_between(weighted, below, above, objective, beat)?;
         Ok(found.map(|(centre, duration, fit)| Refined {
             peak,
             period,
@@ -172,7 +176,7 @@ pub(crate) fn refine(
     // Each peak's best, the first of equal ones, with its duration range. A
     // peak's jobs are together.
     let mut refined: Vec<(Refined, f64, f64)> = Vec::with_capacity(peaks.len());
-    for (found, &(_, _, below, above)) in boxes.into_iter().zip(&jobs) {
+    for (found, &(_, _, below, above, _)) in boxes.into_iter().zip(&jobs) {
         let Some(found) = found? else {
             continue;
         };
@@ -225,8 +229,10 @@ pub(crate) fn refine(
             break;
         }
         let boxes = map(&jobs, threads, &|&(k, p)| {
-            let (_, below, above) = refined[k];
-            Folded::new(times, weighted, p).best_between(weighted, below, above, objective)
+            // Only a box beating the best so far is kept.
+            let (best, below, above) = refined[k];
+            let beat = objective.beat(objective.of(&best.fit));
+            Folded::new(times, weighted, p).best_between(weighted, below, above, objective, beat)
         });
         for (found, &(k, p)) in boxes.into_iter().zip(&jobs) {
             let Some((centre, duration, fit)) = found? else {

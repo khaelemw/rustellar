@@ -178,7 +178,9 @@ impl Folded {
             if d >= self.period {
                 continue;
             }
-            if let Some((centre, fit)) = self.best(weighted, d, objective)? {
+            // Only a box beating the best so far can change the result.
+            let beat = best.map_or(0.0, |b| objective.beat(objective.of(&b.2)));
+            if let Some((centre, _, fit)) = self.best_between(weighted, d, d, objective, beat)? {
                 if best.is_none_or(|b| objective.of(&fit) > objective.of(&b.2)) {
                     best = Some((k, centre, fit));
                 }
@@ -196,7 +198,7 @@ impl Folded {
         objective: Objective,
     ) -> Result<Option<(f64, BoxFit)>, BlsError> {
         Ok(self
-            .best_between(weighted, d, d, objective)?
+            .best_between(weighted, d, d, objective, 0.0)?
             .map(|(centre, _, fit)| (centre, fit)))
     }
 
@@ -211,12 +213,18 @@ impl Folded {
     /// that range gives the same fit, so each edge is put halfway between
     /// the last point in and the first point out, the duration kept within
     /// the range, and the box centred in the times that hold the run.
+    ///
+    /// Only runs whose statistic is above `beat` count (0 for every run with
+    /// a dip): none if none is. A caller that keeps a box only if it beats
+    /// one it has passes [`Objective::beat`] of that box's score, and blocks
+    /// of runs that cannot reach it are skipped.
     pub(crate) fn best_between(
         &self,
         weighted: &Weighted,
         shortest: f64,
         longest: f64,
         objective: Objective,
+        beat: f64,
     ) -> Result<Option<(f64, f64, BoxFit)>, BlsError> {
         let (p, phase, totals) = (self.period, &self.phase, &self.totals);
         let n = phase.len() / 2;
@@ -228,8 +236,9 @@ impl Folded {
             }
         };
         let orbit = Orbit::new(&totals[0], &totals[n], objective);
-        // The best run's score, first point and one past its last.
-        let mut best: Option<(f64, usize, usize)> = None;
+        // The best run's score, first point and one past its last (0 until
+        // a run beats `beat`: every run ends past its first point).
+        let mut best = (beat, 0, 0);
         let mut bounds: Option<Bounds> = None;
         let (mut first_end, mut last_end) = (1, 1);
         for i in 0..n {
@@ -258,9 +267,10 @@ impl Folded {
                 bounds.search(self, &orbit, i, ends, &mut best)?;
             }
         }
-        let Some((_, i, j)) = best else {
+        let (_, i, j) = best;
+        if j == 0 {
             return Ok(None);
-        };
+        }
         let [inside, outside] = box_sums(&totals[i], &totals[j], &totals[i + n]);
         let fit = BoxFit::from_sums(weighted.mean, inside, outside, j - i)?;
         // Edges halfway between the points either side, the duration kept
@@ -283,7 +293,7 @@ impl Folded {
         orbit: &Orbit,
         i: usize,
         ends: RangeInclusive<usize>,
-        best: &mut Option<(f64, usize, usize)>,
+        best: &mut (f64, usize, usize),
     ) -> Result<(), BlsError> {
         let (phase, totals) = (&self.phase, &self.totals);
         let n = phase.len() / 2;
@@ -292,8 +302,8 @@ impl Folded {
                 continue;
             }
             let score = orbit.statistic(&totals[i], &totals[j], &totals[i + n])?;
-            if score > best.map_or(0.0, |b| b.0) {
-                *best = Some((score, i, j));
+            if score > best.0 {
+                *best = (score, i, j);
             }
         }
         Ok(())
@@ -374,7 +384,7 @@ impl Bounds {
         orbit: &Orbit,
         i: usize,
         ends: RangeInclusive<usize>,
-        best: &mut Option<(f64, usize, usize)>,
+        best: &mut (f64, usize, usize),
     ) -> Result<(), BlsError> {
         let top = self.mins.len() - 1;
         let size = BLOCK.pow(u32::try_from(top + 1).expect("few levels"));
@@ -393,7 +403,7 @@ impl Bounds {
         ends: &RangeInclusive<usize>,
         level: usize,
         k: usize,
-        best: &mut Option<(f64, usize, usize)>,
+        best: &mut (f64, usize, usize),
     ) -> Result<(), BlsError> {
         let size = BLOCK.pow(u32::try_from(level + 1).expect("few levels"));
         let low = (*ends.start()).max(k * size);
@@ -402,7 +412,7 @@ impl Bounds {
             return Ok(());
         }
         let bound = self.bound(i, self.mins[level][k], low, high);
-        if bound <= best.map_or(0.0, |b| b.0) {
+        if bound <= best.0 {
             return Ok(());
         }
         if level == 0 {

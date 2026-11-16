@@ -165,7 +165,7 @@ fn skipping_blocks_finds_the_best_run(
     let weighted = Weighted::new(&lc).unwrap();
     let folded = Folded::new(&btjd(&lc), &weighted, period);
     let (_, _, fit) = folded
-        .best_between(&weighted, shortest, longest, objective)
+        .best_between(&weighted, shortest, longest, objective, 0.0)
         .unwrap()
         .unwrap();
     let (n_in, score) = every_run(&lc, period, shortest, longest, objective);
@@ -191,7 +191,7 @@ fn a_fold_of_many_orbits_finds_the_best_run() {
         Objective::AstropyLikelihood,
     ] {
         let (_, _, fit) = folded
-            .best_between(&weighted, shortest, longest, objective)
+            .best_between(&weighted, shortest, longest, objective, 0.0)
             .unwrap()
             .unwrap();
         let (n_in, score) = every_run(&lc, period, shortest, longest, objective);
@@ -201,4 +201,31 @@ fn a_fold_of_many_orbits_finds_the_best_run() {
             "{objective:?}"
         );
     }
+}
+
+// A bar just below the best run's score finds the same run; one at or above
+// it finds none, on dense data where blocks of runs are skipped by their
+// bounds, for every objective.
+#[rstest]
+fn a_bar_to_beat_keeps_the_best_run(
+    #[values(1, 2)] seed: u64,
+    #[values((1e-4, 0.4, 3.0), (1e-4, 0.03, 0.1))] durations_period: (f64, f64, f64),
+    #[values(Objective::DeltaChi2, Objective::Snr, Objective::AstropyLikelihood)]
+    objective: Objective,
+) {
+    let (shortest, longest, period) = durations_period;
+    let lc = dense(seed, 1e-3);
+    let weighted = Weighted::new(&lc).unwrap();
+    let folded = Folded::new(&btjd(&lc), &weighted, period);
+    let search = |beat| {
+        folded
+            .best_between(&weighted, shortest, longest, objective, beat)
+            .unwrap()
+    };
+    let best = search(0.0).unwrap();
+    let score = objective.of(&best.2);
+    assert_eq!(search(objective.beat(score)), Some(best));
+    // The statistic itself, a little above: nothing beats it.
+    let statistic = objective.beat(score) / (1.0 - 1e-6);
+    assert_eq!(search(statistic * (1.0 + 1e-9)), None);
 }

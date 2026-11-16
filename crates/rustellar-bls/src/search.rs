@@ -77,7 +77,24 @@ impl Objective {
             Self::AstropyLikelihood => fit.likelihood,
         }
     }
+
+    /// A score of the exact search's statistic that no box beating `score`
+    /// (of this objective) is at or below: the statistic of a box with that
+    /// score (its `delta_chi2`, the snr's square, or the likelihood), less a
+    /// millionth. The statistic and a fit's objective come from the same
+    /// compensated sums and differ by a few roundings, about 1e-15 of
+    /// themselves, so the millionth is many orders of magnitude to spare.
+    pub(crate) fn beat(self, score: f64) -> f64 {
+        let statistic = match self {
+            Self::Snr => score * score.max(0.0),
+            Self::DeltaChi2 | Self::AstropyLikelihood => score,
+        };
+        (statistic * (1.0 - BEAT_MARGIN)).max(0.0)
+    }
 }
+
+/// See [`Objective::beat`].
+const BEAT_MARGIN: f64 = 1e-6;
 
 /// How to run a search.
 ///
