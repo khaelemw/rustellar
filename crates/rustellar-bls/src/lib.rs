@@ -21,8 +21,8 @@
 //!   the grid's ([`BlsResult`], [`Peak`]), set up by [`SearchOptions`] and
 //!   maximising an [`Objective`];
 //! - with the `cuda` feature, the same search with its binned step and its
-//!   refinement on an NVIDIA GPU, `CudaBls`: the same peaks, refined boxes
-//!   and best box, to the bit.
+//!   refinement on an NVIDIA GPU where there is one ([`Device`]): the same
+//!   peaks, refined boxes and best box, to the bit.
 //!
 //! Its accuracy against astropy, transitleastsquares and exact arithmetic,
 //! and its speed, are in the README.
@@ -49,13 +49,11 @@ mod tests;
 
 pub use autoperiod::AutoPeriod;
 pub use box_fit::{BoxFit, TransitBox};
-#[cfg(feature = "cuda")]
-pub use cuda::{CudaBls, CudaError};
 pub use error::BlsError;
 pub use exact::BestBox;
 pub use grid::{Durations, Periods};
 pub use ofir::OfirPeriod;
-pub use search::{Bls, BlsResult, Objective, Peak, SearchOptions};
+pub use search::{Bls, BlsResult, Device, Objective, Peak, SearchOptions};
 
 // The README's example, compiled and run as a doctest.
 #[cfg(doctest)]

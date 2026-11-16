@@ -3,7 +3,12 @@
 // (or no CUDA driver), each test prints why and passes.
 
 use super::recipe::Survey;
-use crate::{Bls, CudaBls, CudaError, Objective, exact::Folded, refine::Folds};
+use crate::{
+    Bls, Objective,
+    cuda::{CudaError, Gpu},
+    exact::Folded,
+    refine::Folds,
+};
 
 // ==========================
 // Helper Functions
@@ -33,14 +38,14 @@ fn curve(seed: u64, points: u32, cadence: f64) -> Bls {
 }
 
 // The GPU for `bls`, or why there is none.
-fn gpu(bls: &Bls) -> Option<CudaBls> {
-    match CudaBls::new(bls, 0) {
+fn gpu(bls: &Bls) -> Option<Gpu> {
+    match Gpu::new(bls, 0) {
         Ok(gpu) => Some(gpu),
         Err(CudaError::Device(why)) => {
             println!("skipped: no GPU ({why})");
             None
         }
-        Err(error) => panic!("{error}"),
+        Err(error) => panic!("{error:?}"),
     }
 }
 

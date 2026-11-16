@@ -8,7 +8,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use rustellar_bls::{Bls, BlsResult, Durations, Periods, SearchOptions};
+use rustellar_bls::{Bls, BlsResult, Device, Durations, Periods, SearchOptions};
 use rustellar_core::LightCurve;
 
 struct Counting;
@@ -58,6 +58,7 @@ fn allocations_do_not_grow_with_the_periods() {
     let (few, many) = (grid(50), grid(2000));
     for threads in [1, 4] {
         let options = SearchOptions::default()
+            .with_device(Device::Cpu)
             .with_refine_peaks(0)
             .with_threads(NonZeroUsize::new(threads).unwrap());
         let mut result = BlsResult::default();

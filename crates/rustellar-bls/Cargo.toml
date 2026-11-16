@@ -45,8 +45,8 @@ exclude = [
 ]
 
 [features]
-# The binned step on an NVIDIA GPU (`CudaBls`): needs the CUDA driver and
-# NVRTC at run time.
+# The search on an NVIDIA GPU where there is one (`Device`): needs the CUDA
+# driver and NVRTC at run time, or searches on the CPU.
 cuda = ["dep:cudarc"]
 
 [dependencies]

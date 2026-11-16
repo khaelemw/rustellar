@@ -352,3 +352,24 @@ fn refinement_that_overflows(#[values(1, 3)] n: usize) {
     assert!(bls.search(&p, &d, &threads(n).with_refine_peaks(0)).is_ok());
     assert_eq!(bls.search(&p, &d, &threads(n)), Err(BlsError::OutOfRange));
 }
+
+// Without the `cuda` feature: the default searches on the CPU, and asking
+// for a GPU is an error.
+#[cfg(not(feature = "cuda"))]
+#[test]
+fn without_the_cuda_feature_the_search_is_on_the_cpu() {
+    use rustellar_bls::Device;
+
+    let time: Vec<f64> = (0..400).map(|i| 0.05 * f64::from(i)).collect();
+    let lc = LightCurve::from_btjd(time, vec![1.0; 400], vec![1e-3; 400]).unwrap();
+    let bls = Bls::new(&lc).unwrap();
+    let periods = Periods::from_days(&[1.5, 2.0, 2.5]).unwrap();
+    let durations = Durations::from_days(&[0.1]).unwrap();
+    let options = SearchOptions::default();
+    let auto = bls.search(&periods, &durations, &options).unwrap();
+    assert_eq!(auto.device(), Device::Cpu);
+    assert_eq!(
+        bls.search(&periods, &durations, &options.with_device(Device::Gpu(0))),
+        Err(BlsError::GpuUnavailable)
+    );
+}

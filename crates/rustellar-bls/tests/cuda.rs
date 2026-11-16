@@ -12,7 +12,7 @@ use std::num::NonZeroUsize;
 
 use recipe::Survey;
 use rustellar_bls::{
-    Bls, BlsResult, CudaBls, CudaError, Durations, Objective, OfirPeriod, Periods, SearchOptions,
+    Bls, BlsError, BlsResult, Device, Durations, Objective, OfirPeriod, Periods, SearchOptions,
 };
 use rustellar_core::{LightCurve, TimeDelta};
 
@@ -75,18 +75,6 @@ fn ofir(lc: &LightCurve, longest: Option<f64>) -> Periods {
     .unwrap()
 }
 
-// The GPU for `bls`, or why there is none.
-fn gpu(bls: &Bls) -> Option<CudaBls> {
-    match CudaBls::new(bls, 0) {
-        Ok(gpu) => Some(gpu),
-        Err(CudaError::Device(why)) => {
-            println!("skipped: no GPU ({why})");
-            None
-        }
-        Err(error) => panic!("{error}"),
-    }
-}
-
 // The same peaks and best box to the bit; at every period the same box
 // within a rounding, or (where two boxes are that close) another as high.
 fn same_search(cpu: &BlsResult, gpu: &BlsResult, what: &str) {
@@ -122,9 +110,6 @@ fn same_search(cpu: &BlsResult, gpu: &BlsResult, what: &str) {
 
 fn compare(lc: &LightCurve, periods: &Periods, what: &str) {
     let bls = Bls::new(lc).unwrap();
-    let Some(gpu) = gpu(&bls) else {
-        return;
-    };
     for objective in [
         Objective::DeltaChi2,
         Objective::Snr,
@@ -135,8 +120,20 @@ fn compare(lc: &LightCurve, periods: &Periods, what: &str) {
                 .with_objective(objective)
                 .with_refine_peaks(refine)
                 .with_threads(NonZeroUsize::new(8).unwrap());
-            let cpu = bls.search(periods, &durations(), &options).unwrap();
-            let on_gpu = gpu.search(periods, &durations(), &options).unwrap();
+            let cpu = bls
+                .search(periods, &durations(), &options.with_device(Device::Cpu))
+                .unwrap();
+            assert_eq!(cpu.device(), Device::Cpu);
+            let on_gpu =
+                match bls.search(periods, &durations(), &options.with_device(Device::Gpu(0))) {
+                    Ok(found) => found,
+                    Err(BlsError::GpuUnavailable) => {
+                        println!("skipped: no GPU");
+                        return;
+                    }
+                    Err(error) => panic!("{error}"),
+                };
+            assert_eq!(on_gpu.device(), Device::Gpu(0));
             same_search(
                 &cpu,
                 &on_gpu,
@@ -191,13 +188,27 @@ fn kepler_years_are_the_cpus_search() {
 }
 
 // Asking for a GPU there is not, as on a machine with none or with no CUDA
-// driver, is an error to fall back on the CPU from, never a panic.
+// driver, is an error, never a panic; the default searches on the CPU
+// instead, with the same peaks.
 #[test]
-fn a_missing_gpu_is_an_error() {
+fn a_missing_gpu_is_an_error_or_the_cpu() {
     let lc = sectors(82, 1);
     let bls = Bls::new(&lc).unwrap();
-    match CudaBls::new(&bls, 999) {
-        Err(CudaError::Device(why)) => println!("no GPU 999: {why}"),
-        other => panic!("{other:?}"),
-    }
+    let periods = ofir(&lc, Some(5.0));
+    let options = SearchOptions::default();
+    assert_eq!(
+        bls.search(
+            &periods,
+            &durations(),
+            &options.with_device(Device::Gpu(999))
+        ),
+        Err(BlsError::GpuUnavailable)
+    );
+    let cpu = bls
+        .search(&periods, &durations(), &options.with_device(Device::Cpu))
+        .unwrap();
+    let auto = bls.search(&periods, &durations(), &options).unwrap();
+    println!("the default ran on {:?}", auto.device());
+    assert!(matches!(auto.device(), Device::Cpu | Device::Gpu(0)));
+    assert_eq!(auto.peaks(), cpu.peaks());
 }

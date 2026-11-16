@@ -67,6 +67,11 @@ pub enum BlsError {
     /// hold to full precision, or a sum or statistic built from the weights
     /// overflows.
     OutOfRange,
+    /// The GPU asked for with [`Device::Gpu`](crate::Device::Gpu) cannot be
+    /// used: there is no such GPU, the CUDA driver or NVRTC library is
+    /// missing, the `cuda` feature is off, or the GPU failed during the
+    /// search.
+    GpuUnavailable,
 }
 
 impl fmt::Display for BlsError {
@@ -98,6 +103,10 @@ impl fmt::Display for BlsError {
             Self::NoPointsOutOfTransit => {
                 write!(f, "the box holds every point, leaving none out of transit")
             }
+            Self::GpuUnavailable => write!(
+                f,
+                "the GPU asked for cannot be used (no such GPU, no CUDA driver, or the cuda feature is off)"
+            ),
             Self::OutOfRange => write!(
                 f,
                 "the weights 1 / flux_err^2, or sums built from them, are out of range for an f64"

@@ -1,9 +1,9 @@
 //! The search with its binned step and its refinement of the peaks on an
-//! NVIDIA GPU: [`CudaBls`].
+//! NVIDIA GPU: [`Gpu`], chosen by [`Device`](crate::Device).
 
 use std::{
     fmt,
-    sync::{Arc, Mutex, mpsc},
+    sync::{Arc, Mutex, OnceLock, PoisonError, mpsc},
     thread,
 };
 
@@ -29,7 +29,8 @@ use crate::{
     totals::Total,
 };
 
-/// The kernels' source, compiled by NVRTC when a [`CudaBls`] is made: the
+/// The kernels' source, compiled by NVRTC when the first [`Gpu`] is made on a
+/// GPU: the
 /// binned step's, and the folds' for refining the peaks.
 const SOURCE: &str = concat!(
     include_str!("cuda/binned.cu"),
@@ -52,9 +53,8 @@ const NARROWEST_BIN: f64 = 1.0 / 16384.0;
 const LATEST: f64 = 4_194_304.0;
 
 /// An error from a search on the GPU.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum CudaError {
+#[derive(Debug)]
+pub(crate) enum CudaError {
     /// The search's own error, as [`Bls::search`] gives.
     Search(BlsError),
     /// No GPU, its driver failed, or the kernel did not compile: the
@@ -62,27 +62,76 @@ pub enum CudaError {
     Device(String),
 }
 
-impl fmt::Display for CudaError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Search(error) => error.fmt(f),
-            Self::Device(message) => write!(f, "CUDA: {message}"),
-        }
-    }
-}
-
-impl std::error::Error for CudaError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::Search(error) => Some(error),
-            Self::Device(_) => None,
-        }
-    }
-}
-
 impl From<BlsError> for CudaError {
     fn from(error: BlsError) -> Self {
         Self::Search(error)
+    }
+}
+
+/// The GPUs a [`Bls`] has set up, by index; `None` for one that cannot be.
+pub(crate) type GpuCache = Arc<Mutex<Vec<(usize, Option<Arc<Gpu>>)>>>;
+
+/// The kernels loaded on each GPU, by index, once a program: the driver
+/// translates them for the GPU as they load, which takes longer than a
+/// small search.
+static KERNELS: Mutex<Vec<(usize, Result<Kernels, String>)>> = Mutex::new(Vec::new());
+
+/// A GPU's context and kernels.
+#[derive(Clone)]
+struct Kernels {
+    context: Arc<CudaContext>,
+    binned: CudaFunction,
+    refine: RefineKernels,
+    /// The most bins a tile of the binned step can hold.
+    most_bins: usize,
+}
+
+impl Kernels {
+    /// GPU `device`'s, loaded at the first call.
+    fn on(device: usize) -> Result<Self, CudaError> {
+        let mut loaded = KERNELS.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some((_, kernels)) = loaded.iter().find(|(at, _)| *at == device) {
+            return kernels.clone().map_err(CudaError::Device);
+        }
+        let kernels = Self::load(device).map_err(|error| match error {
+            CudaError::Device(why) => why,
+            CudaError::Search(error) => error.to_string(),
+        });
+        loaded.push((device, kernels.clone()));
+        kernels.map_err(CudaError::Device)
+    }
+
+    fn load(device: usize) -> Result<Self, CudaError> {
+        let context = CudaContext::new(device).map_err(self::device)?;
+        let options = CompileOptions {
+            options: vec!["--fmad=false".into(), format!("-DTHREADS={THREADS}")],
+            ..CompileOptions::default()
+        };
+        let ptx = compile_ptx_with_opts(SOURCE, options).map_err(self::device)?;
+        let module = context.load_module(ptx).map_err(self::device)?;
+        let binned = module.load_function("binned").map_err(self::device)?;
+        let refine = RefineKernels::new(&module).map_err(self::device)?;
+        let shared = context
+            .attribute(
+                CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN,
+            )
+            .map_err(self::device)?;
+        let fixed = binned
+            .get_attribute(CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES)
+            .map_err(self::device)?;
+        let dynamic = (shared - fixed).max(0);
+        binned
+            .set_attribute(
+                CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
+                dynamic,
+            )
+            .map_err(self::device)?;
+        Ok(Self {
+            context,
+            binned,
+            refine,
+            most_bins: (dynamic as usize / 16).saturating_sub(1),
+        })
     }
 }
 
@@ -92,59 +141,11 @@ fn device(error: impl fmt::Display) -> CudaError {
 
 /// A light curve ready to search with the binned step and the refinement of
 /// the peaks on an NVIDIA GPU: the compiled kernels and the points, on the
-/// GPU, made once.
-///
-/// The results are [`Bls::search`]'s, with the binned step's power and
-/// boxes known to within a rounding error of the sums at most periods:
-///
-/// - The GPU finds each period's best box from the same bins as the CPU
-///   (every point is put in the bin the CPU puts it in), with the bins'
-///   sums held exactly in 64-bit fixed point. The box is then built on the
-///   CPU from the points it holds: its middle is the CPU's to the bit, and
-///   its fit's sums are over the same points, added in another order.
-/// - At every period whose power could be among the highest peaks or the
-///   highest power, and the periods next to them, the binned step is run on
-///   the CPU, so the peaks and [`BlsResult::best`] are [`Bls::search`]'s
-///   to the bit.
-/// - The peaks are refined on the GPU, a batch of folds at once: each fold
-///   is made with the CPU's arithmetic in the CPU's order, and every run of
-///   points scored as the CPU scores it, so each refined box is the CPU's
-///   to the bit. A fold the GPU does not take (more than 2^25 orbits, or a
-///   score that could overflow) is refined on the CPU.
-///
-/// The power elsewhere differs from the CPU's by about 1e-14 of itself
-/// (4e-14 at most, measured on 1 and 13 TESS sectors and 4 years of Kepler),
-/// and where two boxes score within that of each other the other may be
-/// reported. Periods the GPU does not take (bins narrower than 2^-14 days,
-/// more than 2^25 orbits, or a box longer than its shared memory holds) are
-/// searched on the CPU.
-///
-/// # Examples
-///
-/// ```no_run
-/// use rustellar_bls::{Bls, CudaBls, Durations, Periods, SearchOptions};
-/// use rustellar_core::LightCurve;
-///
-/// let time: Vec<f64> = (0..960).map(|i| f64::from(i) / 48.0).collect();
-/// let flux = time
-///     .iter()
-///     .map(|t| if (t % 3.0 - 1.0).abs() < 0.075 { 0.995 } else { 1.0 })
-///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 960])?;
-///
-/// let gpu = CudaBls::new(&Bls::new(&lc)?, 0)?;
-/// let periods: Vec<f64> = (0..200).map(|k| 2.0 + 0.01 * f64::from(k)).collect();
-/// let result = gpu.search(
-///     &Periods::from_days(&periods)?,
-///     &Durations::from_days(&[0.1, 0.15, 0.2])?,
-///     &SearchOptions::default(),
-/// )?;
-/// let best = result.best().expect("there is a dip");
-/// assert!((best.transit.period().as_days() - 3.0).abs() < 0.006);
-/// # Ok::<(), Box<dyn std::error::Error>>(())
-/// ```
-pub struct CudaBls {
-    bls: Bls,
+/// GPU, made once. See [`Device`](crate::Device) for how its results
+/// compare with the CPU's.
+pub(crate) struct Gpu {
+    /// The GPU's index.
+    index: usize,
     /// Running totals over the points, for the boxes built on the CPU.
     points: Vec<Total>,
     stream: Arc<CudaStream>,
@@ -163,9 +164,9 @@ pub struct CudaBls {
     pub(crate) folds: GpuFolds,
 }
 
-impl fmt::Debug for CudaBls {
+impl fmt::Debug for Gpu {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CudaBls")
+        f.debug_struct("Gpu")
             .field("points", &self.points.len().saturating_sub(1))
             .field("most_bins", &self.most_bins)
             .finish_non_exhaustive()
@@ -242,7 +243,7 @@ struct Job {
     work: f64,
 }
 
-impl CudaBls {
+impl Gpu {
     /// The kernel compiled for GPU `device` (0 for the first) and `bls`'s
     /// points copied to it.
     ///
@@ -252,12 +253,14 @@ impl CudaBls {
     /// NVRTC library is not installed or cannot be loaded, or the kernel
     /// does not compile: never a panic, so a program can search on the CPU
     /// instead.
-    pub fn new(bls: &Bls, device: usize) -> Result<Self, CudaError> {
-        // cudarc panics where a library is missing, so look for both first.
+    pub(crate) fn new(bls: &Bls, device: usize) -> Result<Self, CudaError> {
+        // cudarc panics where a library is missing, so look for both first,
+        // once a program: loading them takes longer than a small search.
+        static PRESENT: OnceLock<bool> = OnceLock::new();
         // SAFETY: this only tries to load the libraries, as cudarc does.
-        let present = unsafe {
+        let present = *PRESENT.get_or_init(|| unsafe {
             cudarc::driver::sys::is_culib_present() && cudarc::nvrtc::sys::is_culib_present()
-        };
+        });
         if !present {
             return Err(CudaError::Device(
                 "the CUDA driver or the NVRTC library is not installed".into(),
@@ -274,34 +277,14 @@ impl CudaBls {
         })
     }
 
-    /// [`CudaBls::new`], the libraries present.
+    /// [`Gpu::new`], the libraries present.
     fn on(bls: &Bls, device: usize) -> Result<Self, CudaError> {
-        let context = CudaContext::new(device).map_err(self::device)?;
-        let options = CompileOptions {
-            options: vec!["--fmad=false".into(), format!("-DTHREADS={THREADS}")],
-            ..CompileOptions::default()
-        };
-        let ptx = compile_ptx_with_opts(SOURCE, options).map_err(self::device)?;
-        let module = context.load_module(ptx).map_err(self::device)?;
-        let function = module.load_function("binned").map_err(self::device)?;
-        let kernels = RefineKernels::new(&module).map_err(self::device)?;
-        let shared = context
-            .attribute(
-                CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN,
-            )
-            .map_err(self::device)?;
-        let fixed = function
-            .get_attribute(CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES)
-            .map_err(self::device)?;
-        let dynamic = (shared - fixed).max(0);
-        function
-            .set_attribute(
-                CUfunction_attribute_enum::CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES,
-                dynamic,
-            )
-            .map_err(self::device)?;
-        let most_bins = (dynamic as usize / 16).saturating_sub(1);
-
+        let Kernels {
+            context,
+            binned: function,
+            refine: kernels,
+            most_bins,
+        } = Kernels::on(device)?;
         let weighted = &bls.weighted;
         let (s, e): (Vec<f64>, Vec<f64>) = weighted.elapsed.iter().copied().unzip();
         let last = s.last().copied().unwrap_or(0.0);
@@ -320,9 +303,12 @@ impl CudaBls {
             whole(&weighted.centred, quanta[1]),
         );
         let totals = [weights.iter().sum(), fluxes.iter().sum()];
-        let stream = context.default_stream();
-        Ok(Self {
-            bls: bls.clone(),
+        // Streams of its own, so searches of other light curves run beside
+        // its.
+        let stream = context.new_stream().map_err(self::device)?;
+        let folds = context.new_stream().map_err(self::device)?;
+        let gpu = Self {
+            index: device,
             points: point_totals(weighted),
             most_bins,
             fits: last < LATEST,
@@ -337,14 +323,14 @@ impl CudaBls {
             totals,
             function,
             folds: GpuFolds {
-                stream: context.new_stream().map_err(self::device)?,
                 kernels,
                 points: [
-                    stream.clone_htod(&s).map_err(self::device)?,
-                    stream.clone_htod(&e).map_err(self::device)?,
-                    stream.clone_htod(&weighted.weights).map_err(self::device)?,
-                    stream.clone_htod(&weighted.centred).map_err(self::device)?,
+                    folds.clone_htod(&s).map_err(self::device)?,
+                    folds.clone_htod(&e).map_err(self::device)?,
+                    folds.clone_htod(&weighted.weights).map_err(self::device)?,
+                    folds.clone_htod(&weighted.centred).map_err(self::device)?,
                 ],
+                stream: folds,
                 n: s.len(),
                 last,
                 mean: weighted.mean,
@@ -356,33 +342,22 @@ impl CudaBls {
                 lock: Mutex::new(()),
             },
             stream,
-        })
+        };
+        // Every copy made before the first search.
+        gpu.stream.synchronize().map_err(self::device)?;
+        gpu.folds.stream.synchronize().map_err(self::device)?;
+        Ok(gpu)
     }
 
-    /// As [`Bls::search`], with the binned step on the GPU.
+    /// As [`Bls::search_into`], on the GPU.
     ///
     /// # Errors
     ///
     /// [`CudaError::Search`] for [`Bls::search`]'s errors, and
     /// [`CudaError::Device`] if the GPU fails.
-    pub fn search(
+    pub(crate) fn search_into(
         &self,
-        periods: &Periods,
-        durations: &Durations,
-        options: &SearchOptions,
-    ) -> Result<BlsResult, CudaError> {
-        let mut result = BlsResult::default();
-        self.search_into(periods, durations, options, &mut result)?;
-        Ok(result)
-    }
-
-    /// As [`Bls::search_into`], with the binned step on the GPU.
-    ///
-    /// # Errors
-    ///
-    /// As [`CudaBls::search`].
-    pub fn search_into(
-        &self,
+        bls: &Bls,
         periods: &Periods,
         durations: &Durations,
         options: &SearchOptions,
@@ -395,8 +370,8 @@ impl CudaBls {
         let periods = periods.as_slice();
         let days: Vec<f64> = periods.iter().map(|p| p.as_days()).collect();
         let n = days.len();
-        let points = self.bls.weighted.elapsed.len() as f64;
-        let last = self.bls.weighted.elapsed.last().map_or(0.0, |&(s, _)| s);
+        let points = bls.weighted.elapsed.len() as f64;
+        let last = bls.weighted.elapsed.last().map_or(0.0, |&(s, _)| s);
 
         // Each period's bins and lengths; those the GPU does not take are
         // searched on the CPU, and so known exactly.
@@ -456,7 +431,6 @@ impl CudaBls {
             }
         }
 
-        // The GPU's best box at each of its periods, built on the CPU.
         // The GPU's best box at each of its periods, a launch at a time on a
         // thread of its own, each launch's built on the CPU from its points
         // while the GPU runs the next.
@@ -465,7 +439,7 @@ impl CudaBls {
                 return Ok(Some(None));
             }
             box_at(
-                &self.bls.weighted,
+                &bls.weighted,
                 &self.points,
                 days[job.period],
                 &durations,
@@ -494,7 +468,7 @@ impl CudaBls {
         let mut put = |period: usize, found: Option<BinnedBox>| {
             if let Some(found) = found {
                 power[period] = objective.of(&found.fit);
-                boxes[period] = Some(self.bls.best_box(
+                boxes[period] = Some(bls.best_box(
                     periods[period],
                     found.bin * found.bins as f64,
                     found.centre,
@@ -514,8 +488,9 @@ impl CudaBls {
             }
         }
         let cpu: Vec<usize> = (0..n).filter(|&k| known[k]).collect();
-        let exact =
-            |todo: &[usize]| self.exact_at(todo, &days, &durations, oversample, objective, threads);
+        let exact = |todo: &[usize]| {
+            Self::exact_at(bls, todo, &days, &durations, oversample, objective, threads)
+        };
         for (&period, outcome) in cpu.iter().zip(exact(&cpu)) {
             match outcome {
                 Ok(found) => put(period, found),
@@ -538,7 +513,7 @@ impl CudaBls {
                 boxes[period] = None;
                 if let Some(found) = found {
                     power[period] = objective.of(&found.fit);
-                    boxes[period] = Some(self.bls.best_box(
+                    boxes[period] = Some(bls.best_box(
                         periods[period],
                         found.bin * found.bins as f64,
                         found.centre,
@@ -548,15 +523,15 @@ impl CudaBls {
             }
             Ok(())
         })?;
-        Ok(self
-            .bls
-            .finish(periods, &durations, options, result, Some(&self.folds))?)
+        bls.finish(periods, &durations, options, result, Some(&self.folds))?;
+        result.gpu = Some(self.index);
+        Ok(())
     }
 
     /// The CPU's binned search at each of `todo`, on up to `threads`
     /// threads.
     fn exact_at(
-        &self,
+        bls: &Bls,
         todo: &[usize],
         days: &[f64],
         durations: &[f64],
@@ -579,7 +554,7 @@ impl CudaBls {
                 .iter()
                 .map(|&k| {
                     best_binned(
-                        &self.bls.weighted,
+                        &bls.weighted,
                         days[k],
                         durations,
                         oversample,
@@ -702,6 +677,7 @@ pub(crate) struct GpuFolds {
 }
 
 /// The kernels of `cuda/refine.cu`.
+#[derive(Clone)]
 struct RefineKernels {
     fold_keys: CudaFunction,
     bitonic_step: CudaFunction,

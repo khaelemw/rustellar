@@ -126,10 +126,18 @@ Kepler).
 ### On a GPU
 
 With the `cuda` feature (Rust 1.88 or later, an NVIDIA driver and the CUDA
-NVRTC library at run time), `CudaBls` runs the binned step and the
-refinement of the peaks on the GPU. Its peaks, refined boxes and best box
-are `Bls::search`'s to the bit; the power elsewhere agrees to 1e-12 of
-itself.
+NVRTC library at run time), `Bls::search` runs the binned step and the
+refinement of the peaks on the GPU. The peaks, refined boxes and best box
+are the CPU's to the bit; the power elsewhere agrees to 1e-12 of itself.
+`SearchOptions::device` chooses where a search runs:
+
+- `Device::Auto` (the default): the first GPU where the feature is on and a
+  GPU can be used, otherwise the CPU, with no error. A GPU that fails during
+  a search leaves it to the CPU.
+- `Device::Cpu`: the CPU, for power the same to the bit on every machine.
+- `Device::Gpu(index)`: that GPU, or `BlsError::GpuUnavailable`.
+
+`BlsResult::device` says where a search ran.
 
 - Binned step: every point is put in the same bin as on the CPU, and the
   bins' sums are exact 64-bit fixed point, so their order does not matter.
@@ -140,15 +148,27 @@ itself.
   of points is scored as the CPU scores it. The CPU builds each best box
   from its run.
 
-Where there is no GPU or CUDA driver, `CudaBls::new` returns an error (never
-a panic), so a program can search on the CPU instead. Seconds per search on
-an RTX 3060 Ti beside the same 16-thread CPU, after a 0.25-second set-up:
+No GPU or CUDA driver is never a panic. The kernels are compiled once a
+program (a quarter of a second), and each light curve's points are copied
+to the GPU at its first search there (tens of milliseconds). Seconds per
+search on an RTX 3060 Ti beside the same 16-thread CPU:
 
 | | GPU, refine 0 | GPU, refine 5 | 16 threads, refine 0 | 16 threads, refine 5 |
 |---|--:|--:|--:|--:|
 | 1 sector, Ofir | 0.012 | 0.046 | 0.047 | 0.115 |
 | 13 sectors, Ofir | 0.94 | 1.35 | 8.3 | 9.3 |
 | Kepler, Ofir | 1.82 | 1.95 | 12.8 | 13.0 |
+
+Searching many light curves at once, each on one thread from 16 threads
+(a new `Bls` each, refine 5, six durations), the GPU shared between them;
+seconds a light curve:
+
+| Light curve | Points | Periods | GPU | CPU |
+|---|--:|--:|--:|--:|
+| 30-minute sector | 1,162 | 2,438 | 0.005 | 0.010 |
+| Two 30-minute sectors | 2,339 | 5,510 | 0.011 | 0.031 |
+| Kepler quarter, half kept | 2,049 | 9,046 | 0.016 | 0.061 |
+| 2-minute sector | 18,000 | 2,353 | 0.026 | 0.075 |
 
 ## Limits
 
