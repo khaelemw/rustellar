@@ -14,3 +14,9 @@ license = "MIT OR Apache-2.0"
 rustellar-bls = { path = "crates/rustellar-bls", version = "0.0.0" }
 rustellar-core = { path = "crates/rustellar-core", version = "0.0.0" }
 rustellar-model = { path = "crates/rustellar-model", version = "0.0.0" }
+
+# The search's tests run thousands of searches (injection-recovery against
+# astropy and transitleastsquares), so its debug builds are optimised.
+# Overflow checks and debug assertions stay on.
+[profile.dev.package.rustellar-bls]
+opt-level = 2
