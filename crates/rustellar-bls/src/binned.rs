@@ -52,6 +52,9 @@ pub(crate) struct BinnedBox {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Scratch {
     bins: Vec<Bin>,
+    /// Each bin's lowest and highest phase, kept only when the orbits hold
+    /// few points each (see [`LAZY_POINTS`]).
+    ranges: Vec<(f64, f64)>,
     /// A window's running totals from its first start, and one orbit on.
     near: Vec<Total>,
     far: Vec<Total>,
@@ -72,6 +75,7 @@ impl Scratch {
         let near = window + bins + 1;
         Self {
             bins: Vec::with_capacity(bins),
+            ranges: Vec::with_capacity(bins),
             near: Vec::with_capacity(near),
             far: Vec::with_capacity(window),
             scores: Vec::with_capacity(window),
@@ -104,6 +108,7 @@ pub(crate) fn best_binned(
 
     let Scratch {
         bins,
+        ranges,
         near,
         far,
         scores,
@@ -115,14 +120,22 @@ pub(crate) fn best_binned(
     bins.resize(m, Bin::default());
     let at = AtPeriod::new(period);
     let last = weighted.elapsed.last().map_or(0.0, |&(s, _)| s);
-    if at.short_up_to(last) {
-        fill(bins, weighted, period, bin, |s, e| {
-            at.offset_after_start_short(s, e)
-        });
-    } else {
-        fill(bins, weighted, period, bin, |s, e| {
+    let short = at.short_up_to(last);
+    // Few points an orbit, each bin keeps its phase range as it fills. (So
+    // does the longer path, which takes more than 2^25 orbits, or a period
+    // so long that every point is in one bin.)
+    let eager = !short || (last / period + 1.0) * LAZY_POINTS > weighted.elapsed.len() as f64;
+    ranges.clear();
+    if eager {
+        ranges.resize(m, (f64::INFINITY, f64::NEG_INFINITY));
+    }
+    let offset = |s, e| at.offset_after_start_short(s, e);
+    match (short, eager) {
+        (true, true) => fill::<true>(bins, ranges, weighted, period, bin, offset),
+        (true, false) => fill::<false>(bins, ranges, weighted, period, bin, offset),
+        _ => fill::<true>(bins, ranges, weighted, period, bin, |s, e| {
             at.offset_after_start(s, e)
-        });
+        }),
     }
 
     // The running totals over the bins, twice round the orbit, `totals[k]`
@@ -243,21 +256,53 @@ pub(crate) fn best_binned(
     };
     let n_in = (start..start + length).map(|k| bins[k % m].count).sum();
     let [inside, outside] = box_sums(&first, &end, &wrap);
+    let fit = BoxFit::from_sums(weighted.mean, inside, outside, n_in)?;
+
+    // The fit is finite, so there are points in the box and out of it: the
+    // box's first and last bins with points, and the nearest outside it
+    // either way round, all exist. Indices start one orbit on, so the bins
+    // before the box are not below 0.
+    let full = |j: &usize| bins[j % m].count > 0;
+    let from = start + m;
+    let edges = [
+        (from..from + length).find(full),
+        (from..from + length).rev().find(full),
+        (from + length..from + m).find(full),
+        (from + length - m..from).rev().find(full),
+    ]
+    .map(|j| j.expect("points in and out of transit"));
+    let phases = if eager {
+        let [first, last, next, previous] = edges.map(|j| ranges[j % m]);
+        [first.0, last.1, next.0, previous.1]
+    } else {
+        phases(&edges, weighted, period, bin, m, offset)
+    };
     Ok(Some(BinnedBox {
-        fit: BoxFit::from_sums(weighted.mean, inside, outside, n_in)?,
+        fit,
         bin,
         start,
         bins: length,
         duration,
-        centre: centre(bins, start, length, bin, period),
+        centre: centre(&edges, &phases, length as f64 * bin, period, m),
     }))
 }
 
-/// Each point into its bin, its phase from `offset`: the bins' sums,
-/// counts and phase ranges.
-#[inline(always)]
-fn fill(
+/// Fewer points an orbit than this, and the fill keeps every bin's phase
+/// range; more, and the four bins' that the centre needs are found
+/// afterwards by [`phases`]. Keeping them costs about half a nanosecond a
+/// point; finding them, about four searches of the elapsed times an orbit,
+/// a hundred nanoseconds (measured on 13 TESS sectors and four years of
+/// Kepler: the two are equal near 220 points an orbit).
+const LAZY_POINTS: f64 = 256.0;
+
+/// Each point into its bin, its phase from `offset`: the bins' sums and
+/// counts, and with `RANGES` their phase ranges.
+// Not inlined: each of its forms is then compiled on its own (inlined into
+// the search, they ran 10 to 30% slower).
+#[inline(never)]
+fn fill<const RANGES: bool>(
     bins: &mut [Bin],
+    ranges: &mut [(f64, f64)],
     weighted: &Weighted,
     period: f64,
     bin: f64,
@@ -270,20 +315,104 @@ fn fill(
         .zip(&weighted.weights)
         .zip(&weighted.centred);
     for ((&(s, e), &weight), &centred) in points {
-        let mut phase = offset(s, e);
-        if phase < 0.0 {
-            phase += period;
-        }
-        // A phase that rounds up to m bins belongs in the last. (Through
-        // `u32`, whose conversion is shorter: there are at most a million.)
-        let slot = &mut bins[((phase / bin) as u32 as usize).min(last)];
+        let (k, phase) = bin_of(offset(s, e), period, bin, last);
+        let slot = &mut bins[k];
         slot.weight += weight;
         slot.flux += centred;
         slot.count += 1;
-        // Plain comparisons: a phase is never NaN.
-        slot.low = if phase < slot.low { phase } else { slot.low };
-        slot.high = if phase > slot.high { phase } else { slot.high };
+        if RANGES {
+            // Plain comparisons: a phase is never NaN.
+            let (low, high) = &mut ranges[k];
+            *low = if phase < *low { phase } else { *low };
+            *high = if phase > *high { phase } else { *high };
+        }
     }
+}
+
+/// A point's bin and its phase in the orbit, from its offset after the
+/// first point's phase. The same arithmetic for the fill and for
+/// [`phases`], so both put every point in the same bin.
+#[inline(always)]
+fn bin_of(offset: f64, period: f64, bin: f64, last: usize) -> (usize, f64) {
+    let phase = if offset < 0.0 {
+        offset + period
+    } else {
+        offset
+    };
+    // A phase that rounds up to m bins belongs in the last. (Through `u32`,
+    // whose conversion is shorter: there are at most a million.)
+    (((phase / bin) as u32 as usize).min(last), phase)
+}
+
+/// The phases the centre needs, of the four bins with points around the
+/// best box's edges, `[first, last, next, previous]` (indices run on round
+/// the orbit from `start + m`): the box's first and last, and the nearest
+/// outside it after and before. The lowest phase in `first` and `next`, the
+/// highest in `last` and `previous`.
+///
+/// Bin `j` holds the points about `(j - m) b .. (j - m + 1) b` after the
+/// start of an orbit, off by a few roundings of the times and the orbits. So
+/// in each orbit only the points in that range, widened by those roundings
+/// either way, are looked at, found from the elapsed times' cells; each is
+/// put in its bin by [`bin_of`] with the fill's `offset`, so it is in the bin
+/// the fill put it in, and only the four bins' points count. A point looked
+/// at twice changes nothing: the phases are a least and a greatest. Used
+/// only with at least [`LAZY_POINTS`] points an orbit, so the orbits are few.
+// Not inlined: it runs once a period, and inlined it changes how the fill's
+// loop is compiled.
+#[inline(never)]
+fn phases(
+    edges: &[usize; 4],
+    weighted: &Weighted,
+    period: f64,
+    bin: f64,
+    m: usize,
+    offset: impl Fn(f64, f64) -> f64,
+) -> [f64; 4] {
+    let elapsed = &weighted.elapsed;
+    let last_time = elapsed.last().map_or(0.0, |&(s, _)| s);
+    let margin = 64.0 * f64::EPSILON * (last_time + 4.0 * period);
+    let ranges = edges.map(|j| {
+        (
+            (j as f64 - m as f64) * bin - margin,
+            (j as f64 + 1.0 - m as f64) * bin + margin,
+        )
+    });
+    // Every orbit in which one of the ranges meets the times.
+    let (low, high) = (ranges[3].0, ranges[2].1);
+    let orbits =
+        (-high / period).floor() as i64 - 1..=((last_time - low) / period).ceil() as i64 + 1;
+    let targets = edges.map(|j| j % m);
+    let mut phases = [
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    let mut look = |&(s, e): &(f64, f64)| {
+        let (k, phase) = bin_of(offset(s, e), period, bin, m - 1);
+        // Plain comparisons: a phase is never NaN.
+        for (edge, (&target, kept)) in targets.iter().zip(&mut phases).enumerate() {
+            let better = if edge % 2 == 0 {
+                phase < *kept
+            } else {
+                phase > *kept
+            };
+            if k == target && better {
+                *kept = phase;
+            }
+        }
+    };
+    for orbit in orbits {
+        let at = orbit as f64 * period;
+        for &(from, to) in &ranges {
+            elapsed[weighted.cells.first_from(elapsed, at + from)..]
+                .iter()
+                .take_while(|&&(s, _)| s < at + to)
+                .for_each(&mut look);
+        }
+    }
+    phases
 }
 
 /// The middle of the range of times at which a box `length` bins long holds
@@ -298,29 +427,10 @@ fn fill(
 /// empty: `previous` and `last - D` are below the bins' left edge, and
 /// `first` and `next - D` not below it. A box with a dip holds some points and
 /// leaves some out, so all four exist.
-fn centre(bins: &[Bin], start: usize, length: usize, bin: f64, period: f64) -> f64 {
-    let m = bins.len();
-    let span = length as f64 * bin;
-    // Bin `j` of the bins continued round the orbit both ways, and how far
-    // round, in days.
-    let at = |j: usize| (&bins[j % m], (j / m) as f64 * period);
-    let full = |j: &usize| at(*j).0.count > 0;
-    let low = |j: usize| at(j).0.low + at(j).1;
-    let high = |j: usize| at(j).0.high + at(j).1;
-    // Indices start one orbit on, so the bins before the box are not below 0.
-    let start = start + m;
-    let inside = start..start + length;
-    let first = low(inside.clone().find(full).expect("a point in transit"));
-    let last = high(inside.rev().find(full).expect("a point in transit"));
-    let next = low((start + length..start + m)
-        .find(full)
-        .expect("a point out of transit"));
-    let previous = high(
-        (start + length - m..start)
-            .rev()
-            .find(full)
-            .expect("a point out of transit"),
-    );
+fn centre(edges: &[usize; 4], phases: &[f64; 4], span: f64, period: f64, m: usize) -> f64 {
+    // Each phase continued round the orbit to its bin's index, in days.
+    let [first, last, next, previous] =
+        [0, 1, 2, 3].map(|k| phases[k] + (edges[k] / m) as f64 * period);
     let lower = previous.max(last - span);
     let upper = first.min(next - span);
     0.5 * (lower + upper) + 0.5 * span - period
@@ -440,25 +550,11 @@ pub(crate) fn bin_count(period: f64, durations: &[f64], oversample: usize) -> f6
 }
 
 /// One bin's plain sums of the weights and centred fluxes, and its number of
-/// points.
-#[derive(Debug, Clone, Copy)]
+/// points. (24 bytes: at 16, filling bins about twenty apart, as Kepler's
+/// long cadence does at the shortest durations, ran 70% slower.)
+#[derive(Debug, Clone, Copy, Default)]
 struct Bin {
     weight: f64,
     flux: f64,
     count: usize,
-    /// The lowest and highest phase in the bin.
-    low: f64,
-    high: f64,
-}
-
-impl Default for Bin {
-    fn default() -> Self {
-        Self {
-            weight: 0.0,
-            flux: 0.0,
-            count: 0,
-            low: f64::INFINITY,
-            high: f64::NEG_INFINITY,
-        }
-    }
 }

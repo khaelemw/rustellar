@@ -3,7 +3,7 @@
 
 use rstest::rstest;
 
-use crate::box_fit::{AtPeriod, nearest, offset_from_transit};
+use crate::box_fit::{AtPeriod, Cells, nearest, offset_from_transit};
 
 // 2^-1000 and 2^950.
 const TINY: f64 = 9.332_636_185_032_189e-302;
@@ -164,5 +164,64 @@ fn multiplication_gives_the_division_bits_at_the_ends(#[case] s: f64, #[case] p:
         let s = s + k * s * f64::EPSILON;
         every_path(s, 0.0, p);
         every_path(s, 1e-20, p);
+    }
+}
+
+// The cells find the first point not below any time, as a binary search of
+// them all does: with gaps, runs of equal elapsed times, times at and next
+// to the cells' edges and every point's own time, before the first and past
+// the last, and with no cells at all.
+#[rstest]
+#[case::gaps(&[0.0, 0.1, 0.2, 5.0, 5.05, 5.1, 9.0, 20.0, 20.5, 21.0, 21.5, 22.0, 30.0])]
+#[case::equal_times(&[0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 3.0])]
+#[case::one_point(&[0.0])]
+#[case::all_at_the_first(&[0.0, 0.0, 0.0, 0.0, 0.0])]
+#[case::two_points(&[0.0, 1e-9])]
+fn cells_find_the_first_point_from_a_time(#[case] times: &[f64]) {
+    let mut state = 4;
+    let mut elapsed: Vec<(f64, f64)> = times.iter().map(|&s| (s, 0.0)).collect();
+    // And a long irregular run.
+    if times.len() > 10 {
+        let mut s = 31.0;
+        for _ in 0..2000 {
+            s += 0.02 * uniform(&mut state);
+            elapsed.push((s, 0.0));
+        }
+    }
+    let cells = Cells::new(&elapsed);
+    let last = elapsed[elapsed.len() - 1].0;
+    let mut xs = vec![-1.0, 0.0, -0.0, f64::MIN_POSITIVE, last, last * 2.0 + 1.0];
+    for &(s, _) in &elapsed {
+        xs.extend(neighbours(s));
+    }
+    for k in 0..=elapsed.len() {
+        // Cell edges as `Cells` makes them, when there are cells.
+        let width = last / (elapsed.len() / 4).max(1) as f64;
+        let edge = k as f64 * width;
+        xs.extend(neighbours(edge));
+    }
+    for _ in 0..1000 {
+        xs.push((last + 1.0) * uniform(&mut state));
+    }
+    for x in xs {
+        assert_eq!(
+            cells.first_from(&elapsed, x),
+            elapsed.partition_point(|&(s, _)| s < x),
+            "{x}"
+        );
+    }
+}
+
+// The doubles either side of `x`, by their bits (`next_up` needs a newer
+// Rust than the crate's oldest); `x` itself unless it is positive and finite.
+fn neighbours(x: f64) -> [f64; 3] {
+    if x > 0.0 && x.is_finite() {
+        [
+            x,
+            f64::from_bits(x.to_bits() + 1),
+            f64::from_bits(x.to_bits() - 1),
+        ]
+    } else {
+        [x; 3]
     }
 }

@@ -772,3 +772,115 @@ fn bins_of_many_orbits_find_the_brute_forces_box() {
         );
     }
 }
+
+// ==========================================
+// The best box's points, found lazily
+// ==========================================
+
+// The best box's number of points and centre as the search computed them
+// when every bin kept its count and phase range: every point into its bin,
+// then the box's first and last points and its neighbours outside.
+fn eager(weighted: &Weighted, period: f64, m: usize, b: &BinnedBox) -> (usize, f64) {
+    let bin = period / m as f64;
+    let at = AtPeriod::new(period);
+    let mut bins = vec![(0_usize, f64::INFINITY, f64::NEG_INFINITY); m];
+    for &(s, e) in &weighted.elapsed {
+        let mut phase = at.offset_after_start(s, e);
+        if phase < 0.0 {
+            phase += period;
+        }
+        let slot = &mut bins[((phase / bin) as u32 as usize).min(m - 1)];
+        slot.0 += 1;
+        slot.1 = slot.1.min(phase);
+        slot.2 = slot.2.max(phase);
+    }
+    let n_in = (b.start..b.start + b.bins).map(|k| bins[k % m].0).sum();
+    let span = b.bins as f64 * bin;
+    let round = |j: usize| (j / m) as f64 * period;
+    let full = |j: &usize| bins[j % m].0 > 0;
+    let low = |j: usize| bins[j % m].1 + round(j);
+    let high = |j: usize| bins[j % m].2 + round(j);
+    let start = b.start + m;
+    let inside = start..start + b.bins;
+    let first = low(inside.clone().find(full).unwrap());
+    let last = high(inside.rev().find(full).unwrap());
+    let next = low((start + b.bins..start + m).find(full).unwrap());
+    let previous = high((start + b.bins - m..start).rev().find(full).unwrap());
+    let lower = previous.max(last - span);
+    let upper = first.min(next - span);
+    (n_in, 0.5 * (lower + upper) + 0.5 * span - period)
+}
+
+// Light curves with gaps or at random times, a dip at the first point (so
+// the best box runs past the orbit's end) or elsewhere; periods with one
+// window of bins and with many, and with more orbits than the shorter fold
+// allows: the count and centre are the eager ones to the bit.
+#[test]
+fn the_best_boxs_points_are_the_eager_ones() {
+    let mut random = Random(5);
+    let gappy: Vec<f64> = (0..4)
+        .flat_map(|g| (0..1500).map(move |k| 1300.0 + 31.0 * f64::from(g) + 0.0139 * f64::from(k)))
+        .collect();
+    let mut scattered: Vec<f64> = (0..3000).map(|_| 1300.0 + 120.0 * random.unit()).collect();
+    scattered.sort_by(f64::total_cmp);
+    let (mut wraps, mut windows) = (0, [0, 0]);
+    for time in [gappy, scattered] {
+        for period in [0.37, 3.1, 7.37, 29.0, 61.0, 2e-6] {
+            for (fractions, dip_at) in [
+                ([0.002, 0.02, 0.06], 0.0),
+                ([0.002, 0.02, 0.06], 0.4),
+                ([0.01, 0.03, 0.08], 0.0),
+                ([0.01, 0.03, 0.08], 0.4),
+            ] {
+                let durations = fractions.map(|f| f * period);
+                let flux: Vec<f64> = time
+                    .iter()
+                    .map(|&t| {
+                        let phase = (t - time[0] - dip_at * period).rem_euclid(period) / period;
+                        let dip = if phase.min(1.0 - phase) < 0.01 {
+                            3e-3
+                        } else {
+                            0.0
+                        };
+                        1.0 - dip + 1e-3 * (random.unit() - 0.5)
+                    })
+                    .collect();
+                let error = vec![1e-3; time.len()];
+                let lc = LightCurve::from_btjd(time.clone(), flux, error).unwrap();
+                let weighted = Weighted::new(&lc).unwrap();
+                let m = bin_count(period, &durations, 10) as usize;
+                windows[usize::from(m > WINDOW)] += 1;
+                for objective in [
+                    Objective::DeltaChi2,
+                    Objective::Snr,
+                    Objective::AstropyLikelihood,
+                ] {
+                    let b = best_binned(
+                        &weighted,
+                        period,
+                        &durations,
+                        10,
+                        objective,
+                        &mut Scratch::default(),
+                    )
+                    .unwrap()
+                    .unwrap();
+                    wraps += usize::from(b.start + b.bins > m);
+                    let (n_in, centre) = eager(&weighted, period, m, &b);
+                    assert_eq!(b.fit.n_in, n_in, "{period} {dip_at} {objective:?}");
+                    assert_eq!(
+                        b.centre.to_bits(),
+                        centre.to_bits(),
+                        "{period} {dip_at} {objective:?}: {} against {centre}",
+                        b.centre
+                    );
+                }
+            }
+        }
+    }
+    assert!(wraps > 0, "a box past the orbit's end");
+    assert!(
+        windows.iter().all(|&n| n > 0),
+        "one window and many: {windows:?}"
+    );
+}

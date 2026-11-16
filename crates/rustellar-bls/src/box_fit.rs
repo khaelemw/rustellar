@@ -209,6 +209,7 @@ pub(crate) struct Weighted {
     pub(crate) weights: Vec<f64>,
     pub(crate) centred: Vec<f64>,
     pub(crate) elapsed: Vec<(f64, f64)>,
+    pub(crate) cells: Cells,
 }
 
 impl Weighted {
@@ -237,13 +238,75 @@ impl Weighted {
             return Err(BlsError::OutOfRange);
         }
         let t0 = lc.time()[0].as_btjd();
-        let elapsed = lc.time().iter().map(|t| elapsed(t.as_btjd(), t0)).collect();
+        let elapsed: Vec<(f64, f64)> = lc.time().iter().map(|t| elapsed(t.as_btjd(), t0)).collect();
         Ok(Self {
             mean,
             weights,
             centred,
+            cells: Cells::new(&elapsed),
             elapsed,
         })
+    }
+}
+
+/// Where the elapsed times fall, to find the first point of a range of
+/// times without a search of them all: `starts[g]` is the first point whose
+/// elapsed time is not below `g width`, with about four points a cell.
+#[derive(Debug, Clone)]
+pub(crate) struct Cells {
+    width: f64,
+    starts: Vec<usize>,
+}
+
+impl Cells {
+    pub(crate) fn new(elapsed: &[(f64, f64)]) -> Self {
+        let last = elapsed.last().map_or(0.0, |&(s, _)| s);
+        let cells = (elapsed.len() / 4).max(1);
+        let width = last / cells as f64;
+        // One point, or all at the first time: no cells, every search is a
+        // binary search.
+        if width <= 0.0 {
+            return Self {
+                width,
+                starts: Vec::new(),
+            };
+        }
+        let mut starts = Vec::with_capacity(cells + 2);
+        let mut i = 0;
+        for g in 0..cells + 2 {
+            let edge = g as f64 * width;
+            while elapsed.get(i).is_some_and(|&(s, _)| s < edge) {
+                i += 1;
+            }
+            starts.push(i);
+        }
+        Self { width, starts }
+    }
+
+    /// The first point whose elapsed time is not below `x`.
+    pub(crate) fn first_from(&self, elapsed: &[(f64, f64)], x: f64) -> usize {
+        // Every elapsed time is at least 0 (the first is 0): none is below.
+        if x <= 0.0 {
+            return 0;
+        }
+        if self.starts.is_empty() {
+            return elapsed.partition_point(|&(s, _)| s < x);
+        }
+        // The cell with `g width <= x < (g + 1) width`, by the same products
+        // that made `starts`, or the last if `x` is past them all; then the
+        // point is in it, and found by a short binary search.
+        let edge = |g: usize| g as f64 * self.width;
+        let top = self.starts.len() - 1;
+        let mut g = ((x / self.width) as usize).min(top);
+        while g > 0 && x < edge(g) {
+            g -= 1;
+        }
+        while g < top && x >= edge(g + 1) {
+            g += 1;
+        }
+        let from = self.starts[g];
+        let to = self.starts.get(g + 1).copied().unwrap_or(elapsed.len());
+        from + elapsed[from..to].partition_point(|&(s, _)| s < x)
     }
 }
 
