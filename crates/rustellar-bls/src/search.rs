@@ -258,10 +258,10 @@ pub struct Peak {
 /// See [`Bls::search`].
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct BlsResult {
-    objective: Objective,
-    power: Vec<f64>,
-    boxes: Vec<Option<BestBox>>,
-    peaks: Vec<Peak>,
+    pub(crate) objective: Objective,
+    pub(crate) power: Vec<f64>,
+    pub(crate) boxes: Vec<Option<BestBox>>,
+    pub(crate) peaks: Vec<Peak>,
 }
 
 impl BlsResult {
@@ -331,6 +331,34 @@ fn first_best<'a>(
     })
 }
 
+/// The checks every search makes, `result` emptied for `periods`, and the
+/// durations in days.
+pub(crate) fn prepare(
+    periods: &Periods,
+    durations: &Durations,
+    options: &SearchOptions,
+    result: &mut BlsResult,
+) -> Result<Vec<f64>, BlsError> {
+    check_durations_fit(periods, durations)?;
+    let durations: Vec<f64> = durations.as_slice().iter().map(|d| d.as_days()).collect();
+    if bin_count(
+        longest(periods.as_slice()),
+        &durations,
+        options.oversample.get(),
+    ) > MAX_BINS
+    {
+        return Err(BlsError::TooManyBins);
+    }
+    let n = periods.as_slice().len();
+    result.objective = options.objective;
+    result.power.clear();
+    result.power.resize(n, 0.0);
+    result.boxes.clear();
+    result.boxes.resize(n, None);
+    result.peaks.clear();
+    Ok(durations)
+}
+
 /// A light curve ready to search: its times and weights, computed once.
 ///
 /// # Examples
@@ -362,9 +390,9 @@ fn first_best<'a>(
 /// ```
 #[derive(Debug, Clone)]
 pub struct Bls {
-    first: Epoch,
-    times: Vec<f64>,
-    weighted: Weighted,
+    pub(crate) first: Epoch,
+    pub(crate) times: Vec<f64>,
+    pub(crate) weighted: Weighted,
 }
 
 impl Bls {
@@ -468,21 +496,10 @@ impl Bls {
         options: &SearchOptions,
         result: &mut BlsResult,
     ) -> Result<(), BlsError> {
-        check_durations_fit(periods, durations)?;
-        let durations: Vec<f64> = durations.as_slice().iter().map(|d| d.as_days()).collect();
+        let durations = prepare(periods, durations, options, result)?;
         let oversample = options.oversample.get();
-        if bin_count(longest(periods.as_slice()), &durations, oversample) > MAX_BINS {
-            return Err(BlsError::TooManyBins);
-        }
-
         let periods = periods.as_slice();
         let n = periods.len();
-        result.objective = options.objective;
-        result.power.clear();
-        result.power.resize(n, 0.0);
-        result.boxes.clear();
-        result.boxes.resize(n, None);
-        result.peaks.clear();
 
         // Contiguous chunks of periods, one a thread, of about equal cost:
         // a period costs a pass over the points and a few over its bins
@@ -531,7 +548,17 @@ impl Bls {
         })
         .into_iter()
         .collect::<Result<(), BlsError>>()?;
+        self.finish(periods, &durations, options, result)
+    }
 
+    /// The highest peaks of `result`'s power refined, into its peaks.
+    pub(crate) fn finish(
+        &self,
+        periods: &[TimeDelta],
+        durations: &[f64],
+        options: &SearchOptions,
+        result: &mut BlsResult,
+    ) -> Result<(), BlsError> {
         let top = peaks(&result.power, options.refine_peaks);
         if top.is_empty() {
             return Ok(());
@@ -541,7 +568,7 @@ impl Bls {
             &self.times,
             &self.weighted,
             &days,
-            &durations,
+            durations,
             &top,
             options.refine_reach,
             options.objective,
@@ -600,7 +627,13 @@ impl Bls {
 
     /// The box of `period` and `duration` days centred `centre` days after
     /// the first time, moved by whole periods to within one period after it.
-    fn best_box(&self, period: TimeDelta, duration: f64, centre: f64, fit: BoxFit) -> BestBox {
+    pub(crate) fn best_box(
+        &self,
+        period: TimeDelta,
+        duration: f64,
+        centre: f64,
+        fit: BoxFit,
+    ) -> BestBox {
         let centre = centre.rem_euclid(period.as_days());
         BestBox {
             transit: TransitBox::new(

@@ -131,6 +131,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "460fbee9c2c2f33933d720630a6a0bac33ba7053db5344fac858d4b8952d77d5"
 
 [[package]]
+name = "cudarc"
+version = "0.19.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7359bf1de037ddada72729c3acec9b040f3468400c6e9e740b01ba0cd2e89562"
+dependencies = [
+ "libloading",
+]
+
+[[package]]
 name = "either"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -218,6 +227,16 @@ name = "itoa"
 version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bd1574e617a9a6c1f8f8181bd7e841e1f20e4277607ef28945765188d6284d4"
+
+[[package]]
+name = "libloading"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1832accd5a4ca2795ace4d05d15c4039be15b62d3b950eff99746a990e3cc10"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
 
 [[package]]
 name = "memchr"
@@ -360,6 +379,7 @@ name = "rustellar-bls"
 version = "0.0.0"
 dependencies = [
  "criterion",
+ "cudarc",
  "rstest",
  "rustellar-core",
  "rustellar-model",

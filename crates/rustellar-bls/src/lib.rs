@@ -19,7 +19,10 @@
 //!   on all cores, with the highest peaks searched again exactly over every
 //!   mid-transit time, a continuous range of durations and periods between
 //!   the grid's ([`BlsResult`], [`Peak`]), set up by [`SearchOptions`] and
-//!   maximising an [`Objective`].
+//!   maximising an [`Objective`];
+//! - with the `cuda` feature, the same search with its binned step on an
+//!   NVIDIA GPU, `CudaBls`: the same peaks, refined boxes and best box, to
+//!   the bit.
 //!
 //! Its accuracy against astropy, transitleastsquares and exact arithmetic,
 //! and its speed, are in the README.
@@ -27,6 +30,8 @@
 mod autoperiod;
 mod binned;
 mod box_fit;
+#[cfg(feature = "cuda")]
+mod cuda;
 mod error;
 mod exact;
 mod grid;
@@ -35,6 +40,8 @@ mod parallel;
 mod refine;
 mod search;
 mod sums;
+#[cfg(any(feature = "cuda", test))]
+mod top;
 mod totals;
 
 #[cfg(test)]
@@ -42,6 +49,8 @@ mod tests;
 
 pub use autoperiod::AutoPeriod;
 pub use box_fit::{BoxFit, TransitBox};
+#[cfg(feature = "cuda")]
+pub use cuda::{CudaBls, CudaError};
 pub use error::BlsError;
 pub use exact::BestBox;
 pub use grid::{Durations, Periods};

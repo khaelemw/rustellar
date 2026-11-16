@@ -44,8 +44,14 @@ exclude = [
     "tests/survey.rs",
 ]
 
+[features]
+# The binned step on an NVIDIA GPU (`CudaBls`): needs the CUDA driver and
+# NVRTC at run time.
+cuda = ["dep:cudarc"]
+
 [dependencies]
 rustellar-core.workspace = true
+cudarc = { version = "0.19.10", optional = true, default-features = false, features = ["std", "driver", "nvrtc", "dynamic-loading", "cuda-version-from-build-system", "fallback-latest"] }
 
 [dev-dependencies]
 rstest = "0.28.0"

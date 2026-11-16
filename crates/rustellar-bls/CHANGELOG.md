@@ -28,3 +28,8 @@ All notable changes to this crate are recorded here. The format follows
   `Peak::grid_objective`). Runs on all cores with the same results, to the
   bit, on any number; `search_into` reuses a result's memory.
 - `BlsError::TooManyBins`.
+- `CudaBls` and `CudaError` (feature `cuda`, Rust 1.88): the search with its
+  binned step on an NVIDIA GPU. Every point goes in the CPU's bin, the bins'
+  sums are exact 64-bit fixed point, each period's box is built on the CPU
+  from its points, and every period that could decide the peaks or the best
+  box is searched on the CPU, so those are `Bls::search`'s to the bit.

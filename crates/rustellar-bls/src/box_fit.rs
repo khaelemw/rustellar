@@ -511,6 +511,13 @@ impl AtPeriod {
         self.splits && last * self.inverse < 33_554_432.0
     }
 
+    /// `p`'s Veltkamp halves, `p_hi + p_lo = p`, which
+    /// [`offset_after_start_short`](Self::offset_after_start_short) uses.
+    #[cfg(feature = "cuda")]
+    pub(crate) fn halves(self) -> (f64, f64) {
+        (self.p_hi, self.p_lo)
+    }
+
     /// [`offset_after_start`](Self::offset_after_start) with no range
     /// checks, where [`short_up_to`](Self::short_up_to) holds for `s`.
     pub(crate) fn offset_after_start_short(self, s: f64, e: f64) -> f64 {

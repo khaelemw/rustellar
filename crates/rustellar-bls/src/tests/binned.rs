@@ -5,10 +5,10 @@
 
 use rustellar_core::{Epoch, LightCurve, TimeDelta};
 
-use super::recipe::{Random, Recipe, check_samples};
+use super::recipe::{Random, Recipe, Survey, check_samples};
 use crate::{
     BlsError, Objective, TransitBox,
-    binned::{BinnedBox, Bounds, Scratch, WINDOW, best_binned, bin_count},
+    binned::{BinnedBox, Bounds, Scratch, WINDOW, best_binned, bin_count, box_at, point_totals},
     box_fit::{AtPeriod, Weighted},
     totals::{Orbit, Total},
 };
@@ -883,4 +883,89 @@ fn the_best_boxs_points_are_the_eager_ones() {
         windows.iter().all(|&n| n > 0),
         "one window and many: {windows:?}"
     );
+}
+
+// A box built from the points it holds, at the binned search's own start
+// and duration: the binned search's box, its points and middle to the bit
+// and its fit to rounding. At other starts and durations: the points and
+// middle of filling every bin.
+#[test]
+fn a_box_from_its_points_is_the_binned_box() {
+    let dense = Survey {
+        seed: 11,
+        segments: vec![(1325.0, 6000), (1335.0, 6000)],
+        cadence: 2.0 / 1440.0,
+        noise: 1e-3,
+        keep: 1.0,
+        period: 1.3,
+        tc: 1325.4,
+        duration: 0.08,
+        depth: 2e-3,
+    }
+    .light_curve();
+    let sparse = Survey {
+        seed: 12,
+        segments: (0..6)
+            .map(|q| (1325.0 + 90.0 * f64::from(q), 700))
+            .collect(),
+        cadence: 0.0204,
+        noise: 3e-4,
+        keep: 0.9,
+        period: 23.3,
+        tc: 1331.0,
+        duration: 0.25,
+        depth: 1e-3,
+    }
+    .light_curve();
+    let durations = [0.02, 0.06, 0.12, 0.25];
+    let mut random = Random(9);
+    let mut others = 0;
+    for lc in [dense, sparse] {
+        let weighted = Weighted::new(&lc).unwrap();
+        let points = point_totals(&weighted);
+        let span = weighted.elapsed.last().unwrap().0;
+        for k in 0..120 {
+            let period = 0.6 * (span / 1.2).powf(f64::from(k) / 119.0);
+            let m = bin_count(period, &durations, 10) as usize;
+            let b = best_binned(
+                &weighted,
+                period,
+                &durations,
+                10,
+                Objective::DeltaChi2,
+                &mut Scratch::default(),
+            )
+            .unwrap()
+            .unwrap();
+            let c = box_at(
+                &weighted, &points, period, &durations, 10, b.duration, b.start,
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(
+                (c.start, c.bins, c.duration, c.fit.n_in, c.centre.to_bits()),
+                (b.start, b.bins, b.duration, b.fit.n_in, b.centre.to_bits()),
+                "{period}"
+            );
+            let close = |x: f64, y: f64| (x - y).abs() <= 1e-12 * y.abs();
+            assert!(close(c.fit.delta_chi2, b.fit.delta_chi2), "{period}");
+            assert!(close(c.fit.depth, b.fit.depth), "{period}");
+            assert!(close(c.fit.weight_in, b.fit.weight_in), "{period}");
+
+            let duration = (random.unit() * 4.0) as usize;
+            let start = (random.unit() * m as f64) as usize;
+            if let Some(c) =
+                box_at(&weighted, &points, period, &durations, 10, duration, start).unwrap()
+            {
+                let (n_in, centre) = eager(&weighted, period, m, &c);
+                assert_eq!(
+                    (c.fit.n_in, c.centre.to_bits()),
+                    (n_in, centre.to_bits()),
+                    "{period} {start} {duration}"
+                );
+                others += 1;
+            }
+        }
+    }
+    assert!(others > 200, "{others} other boxes");
 }

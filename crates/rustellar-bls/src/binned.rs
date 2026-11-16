@@ -333,7 +333,7 @@ fn fill<const RANGES: bool>(
 /// first point's phase. The same arithmetic for the fill and for
 /// [`phases`], so both put every point in the same bin.
 #[inline(always)]
-fn bin_of(offset: f64, period: f64, bin: f64, last: usize) -> (usize, f64) {
+pub(crate) fn bin_of(offset: f64, period: f64, bin: f64, last: usize) -> (usize, f64) {
     let phase = if offset < 0.0 {
         offset + period
     } else {
@@ -427,13 +427,167 @@ fn phases(
 /// empty: `previous` and `last - D` are below the bins' left edge, and
 /// `first` and `next - D` not below it. A box with a dip holds some points and
 /// leaves some out, so all four exist.
-fn centre(edges: &[usize; 4], phases: &[f64; 4], span: f64, period: f64, m: usize) -> f64 {
+pub(crate) fn centre(
+    edges: &[usize; 4],
+    phases: &[f64; 4],
+    span: f64,
+    period: f64,
+    m: usize,
+) -> f64 {
     // Each phase continued round the orbit to its bin's index, in days.
     let [first, last, next, previous] =
         [0, 1, 2, 3].map(|k| phases[k] + (edges[k] / m) as f64 * period);
     let lower = previous.max(last - span);
     let upper = first.min(next - span);
     0.5 * (lower + upper) + 0.5 * span - period
+}
+
+/// Running totals over the points in time order, `totals[i]` over the first
+/// `i`: the sums of any run of points are the difference of two, for
+/// [`box_at`].
+#[cfg(any(feature = "cuda", test))]
+pub(crate) fn point_totals(weighted: &Weighted) -> Vec<Total> {
+    let mut total = Total::default();
+    let mut totals = Vec::with_capacity(weighted.weights.len() + 1);
+    totals.push(total);
+    for (&weight, &centred) in weighted.weights.iter().zip(&weighted.centred) {
+        total.weight.add(weight);
+        total.flux.add(centred);
+        totals.push(total);
+    }
+    totals
+}
+
+/// The box of [`best_binned`]'s bins at `period` that starts at bin `start`
+/// and is the `duration`th duration long, built from the points it holds
+/// rather than from every bin: in each orbit its points, and those between
+/// it and the next orbit's, are a run of points in time order, whose ends
+/// are found near the box's edges. `points` are [`point_totals`].
+///
+/// The box holds the points `best_binned` would put in its bins, and its
+/// middle is the same to the bit; its fit's sums are over the same points,
+/// added in another order. `None` where this is not done: off the short
+/// path, with fewer than 8 bins, or a box holding no point or every point.
+#[cfg(any(feature = "cuda", test))]
+pub(crate) fn box_at(
+    weighted: &Weighted,
+    points: &[Total],
+    period: f64,
+    durations: &[f64],
+    oversample: usize,
+    duration: usize,
+    start: usize,
+) -> Result<Option<BinnedBox>, BlsError> {
+    let m = (bin_count(period, durations, oversample) as usize).max(1);
+    let bin = period / m as f64;
+    let length = (durations[duration] / bin).round() as usize;
+    let elapsed = &weighted.elapsed;
+    let n = elapsed.len();
+    let last = elapsed.last().map_or(0.0, |&(s, _)| s);
+    let at = AtPeriod::new(period);
+    if m < 8 || start >= m || length == 0 || length >= m || !at.short_up_to(last) {
+        return Ok(None);
+    }
+    let bin_at = |i: usize| {
+        let (s, e) = elapsed[i];
+        bin_of(at.offset_after_start_short(s, e), period, bin, m - 1)
+    };
+    // Points further than this from a time are on its side whatever the
+    // roundings of their phases ([`phases`]' margin).
+    let margin = 64.0 * f64::EPSILON * (last + 4.0 * period);
+    // The first point at or past bin `edge` (counted on round the orbits)
+    // in orbit `orbit`. Only points within the margin of the edge's time
+    // are put in their bins, and theirs are next to it, so less than half
+    // an orbit on from it is past it.
+    let first_at = |orbit: i64, edge: usize| {
+        let x = orbit as f64 * period + edge as f64 * bin;
+        let mut i = weighted.cells.first_from(elapsed, x - margin);
+        while i < n && elapsed[i].0 < x + margin && (bin_at(i).0 + m - edge % m) % m >= m / 2 {
+            i += 1;
+        }
+        i
+    };
+
+    // Every orbit whose box or the gap after it holds a point: from before
+    // the first time (a box ends less than two orbits on from the start of
+    // its orbit) to past the last.
+    let orbits = -3..=(last / period).ceil() as i64 + 1;
+    use crate::sums::{Sum, between};
+    let (mut inside, mut outside) = ([Sum::default(); 2], [Sum::default(); 2]);
+    let add = |sums: &mut [Sum; 2], from: usize, to: usize| {
+        sums[0].add(between(points[from].weight, points[to].weight));
+        sums[1].add(between(points[from].flux, points[to].flux));
+    };
+    let mut n_in = 0;
+    // Each edge bin (counted from `start`) and its phase: the box's first
+    // and last bins with points, and the nearest with points after it and
+    // before it.
+    let mut first: Option<(usize, f64)> = None;
+    let mut last_in: Option<(usize, f64)> = None;
+    let mut next: Option<(usize, f64)> = None;
+    let mut previous: Option<(usize, f64)> = None;
+    let from_start = |i: usize| {
+        let (k, phase) = bin_at(i);
+        ((k + m - start) % m, phase)
+    };
+    let lowest = |kept: &mut Option<(usize, f64)>, found: (usize, f64)| {
+        if kept.is_none_or(|k| found.0 < k.0 || (found.0 == k.0 && found.1 < k.1)) {
+            *kept = Some(found);
+        }
+    };
+    let highest = |kept: &mut Option<(usize, f64)>, found: (usize, f64)| {
+        if kept.is_none_or(|k| found.0 > k.0 || (found.0 == k.0 && found.1 > k.1)) {
+            *kept = Some(found);
+        }
+    };
+    let mut after = 0;
+    for orbit in orbits {
+        let (begin, end) = (first_at(orbit, start), first_at(orbit, start + length));
+        // The gap before this box, after the last.
+        if after < begin {
+            add(&mut outside, after, begin);
+            lowest(&mut next, from_start(after));
+            highest(&mut previous, from_start(begin - 1));
+        }
+        if begin < end {
+            add(&mut inside, begin, end);
+            n_in += end - begin;
+            lowest(&mut first, from_start(begin));
+            highest(&mut last_in, from_start(end - 1));
+        }
+        after = end;
+    }
+    if after < n {
+        add(&mut outside, after, n);
+        lowest(&mut next, from_start(after));
+        highest(&mut previous, from_start(n - 1));
+    }
+    let (Some(first), Some(last_in), Some(next), Some(previous)) = (first, last_in, next, previous)
+    else {
+        return Ok(None);
+    };
+    let fit = BoxFit::from_sums(
+        weighted.mean,
+        inside.map(Sum::value),
+        outside.map(Sum::value),
+        n_in,
+    )?;
+    let from = start + m;
+    let edges = [
+        from + first.0,
+        from + last_in.0,
+        from + next.0,
+        from + previous.0 - m,
+    ];
+    let phases = [first.1, last_in.1, next.1, previous.1];
+    Ok(Some(BinnedBox {
+        fit,
+        bin,
+        start,
+        bins: length,
+        duration,
+        centre: centre(&edges, &phases, length as f64 * bin, period, m),
+    }))
 }
 
 /// How many starts are scored at every duration before the next: their
