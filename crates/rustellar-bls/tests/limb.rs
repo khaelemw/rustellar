@@ -387,8 +387,9 @@ fn limb_darkened_injection_recovery() {
             // As many detected and recovered at the same false-alarm rate,
             // within the one case of slack. The cases only one of the two
             // recovers sit at either threshold, but for one: at three times
-            // the period on the ground-based nights, where the box holds the
-            // same transits as at the period itself, the two indistinguishable.
+            // the period on the ground-based nights, where the box holds
+            // nearly the same points as at the period itself and fits better
+            // by one part in a million.
             assert!(
                 o.recovered + 1 >= a.recovered,
                 "recovers as many as astropy"
