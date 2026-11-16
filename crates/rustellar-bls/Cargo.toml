@@ -17,6 +17,9 @@ exclude = [
     "tests/reference/exact_points.csv",
     "tests/reference/example_3_points.csv",
     "tests/reference/in_transit.csv",
+    "tests/reference/limb_cases.csv",
+    "tests/reference/limb_families.csv",
+    "tests/reference/limb_tls.csv",
     "tests/reference/ofir_cases.csv",
     "tests/reference/ofir_grids.csv",
     "tests/reference/precision_boxes.csv",
@@ -36,6 +39,7 @@ exclude = [
     "tests/recovery.rs",
     "tests/box_fit.rs",
     "tests/exact.rs",
+    "tests/limb.rs",
     "tests/search.rs",
     "tests/survey.rs",
 ]
@@ -45,3 +49,4 @@ rustellar-core.workspace = true
 
 [dev-dependencies]
 rstest = "0.28.0"
+rustellar-model.workspace = true
