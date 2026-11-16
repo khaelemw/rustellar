@@ -12,7 +12,7 @@ use crate::{
     box_fit::Weighted,
     grid::check_durations_fit,
     parallel::on_threads,
-    refine::{peaks, refine},
+    refine::{Folds, peaks, refine_with},
 };
 
 /// The most phase bins a search may use at one period: each takes about 90
@@ -548,23 +548,25 @@ impl Bls {
         })
         .into_iter()
         .collect::<Result<(), BlsError>>()?;
-        self.finish(periods, &durations, options, result)
+        self.finish(periods, &durations, options, result, None)
     }
 
-    /// The highest peaks of `result`'s power refined, into its peaks.
+    /// The highest peaks of `result`'s power refined, into its peaks, the
+    /// folds searched by `folds` where it takes them.
     pub(crate) fn finish(
         &self,
         periods: &[TimeDelta],
         durations: &[f64],
         options: &SearchOptions,
         result: &mut BlsResult,
+        folds: Option<&dyn Folds>,
     ) -> Result<(), BlsError> {
         let top = peaks(&result.power, options.refine_peaks);
         if top.is_empty() {
             return Ok(());
         }
         let days: Vec<f64> = periods.iter().map(|p| p.as_days()).collect();
-        let refined = refine(
+        let refined = refine_with(
             &self.times,
             &self.weighted,
             &days,
@@ -573,6 +575,7 @@ impl Bls {
             options.refine_reach,
             options.objective,
             options.threads.get(),
+            folds,
         )?;
         result.peaks.extend(refined.into_iter().map(|r| Peak {
             peak_index: r.peak,

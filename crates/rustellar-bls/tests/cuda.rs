@@ -162,9 +162,42 @@ fn three_sectors_are_the_cpus_search() {
     compare(&lc, &ofir(&lc, None), "3 sectors");
 }
 
+// Few points: the folds' sort all in shared memory (under 2048 points), and
+// with one step between (2048 to 4096).
+#[test]
+fn small_curves_are_the_cpus_search() {
+    for (seed, points) in [(80, 700), (81, 3000)] {
+        let lc = Survey {
+            seed,
+            segments: vec![(1325.0, points)],
+            cadence: 0.01,
+            noise: 1e-3,
+            keep: 0.9,
+            period: 2.3,
+            tc: 1325.7,
+            duration: 0.1,
+            depth: 2e-3,
+        }
+        .light_curve();
+        compare(&lc, &ofir(&lc, None), &format!("{points} points"));
+    }
+}
+
 // Long periods, whose bins go a tile at a time.
 #[test]
 fn kepler_years_are_the_cpus_search() {
     let lc = kepler(6);
     compare(&lc, &ofir(&lc, Some(150.0)), "Kepler 6 quarters");
+}
+
+// Asking for a GPU there is not, as on a machine with none or with no CUDA
+// driver, is an error to fall back on the CPU from, never a panic.
+#[test]
+fn a_missing_gpu_is_an_error() {
+    let lc = sectors(82, 1);
+    let bls = Bls::new(&lc).unwrap();
+    match CudaBls::new(&bls, 999) {
+        Err(CudaError::Device(why)) => println!("no GPU 999: {why}"),
+        other => panic!("{other:?}"),
+    }
 }

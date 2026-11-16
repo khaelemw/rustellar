@@ -20,9 +20,9 @@
 //!   mid-transit time, a continuous range of durations and periods between
 //!   the grid's ([`BlsResult`], [`Peak`]), set up by [`SearchOptions`] and
 //!   maximising an [`Objective`];
-//! - with the `cuda` feature, the same search with its binned step on an
-//!   NVIDIA GPU, `CudaBls`: the same peaks, refined boxes and best box, to
-//!   the bit.
+//! - with the `cuda` feature, the same search with its binned step and its
+//!   refinement on an NVIDIA GPU, `CudaBls`: the same peaks, refined boxes
+//!   and best box, to the bit.
 //!
 //! Its accuracy against astropy, transitleastsquares and exact arithmetic,
 //! and its speed, are in the README.

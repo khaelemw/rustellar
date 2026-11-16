@@ -28,6 +28,30 @@
 
 use crate::{BlsError, BoxFit, Objective, box_fit::Weighted, exact::Folded, parallel::map};
 
+/// A fold's best box over the durations: which duration, its middle and its
+/// fit, as [`Folded::best_of`] gives it.
+pub(crate) type BestOf = Result<Option<(usize, f64, BoxFit)>, BlsError>;
+/// A fold's best box over a range of durations: its middle, its duration
+/// and its fit, as [`Folded::best_between`] gives it.
+pub(crate) type BestBetween = Result<Option<(f64, f64, BoxFit)>, BlsError>;
+
+/// Another way to search folds, many at once, to the same results as
+/// [`Folded`]'s own searches; `None` where a fold is to be searched on the
+/// CPU.
+pub(crate) trait Folds: Sync {
+    /// At each period, [`Folded::best_of`] over the durations.
+    fn best_of(
+        &self,
+        periods: &[f64],
+        durations: &[f64],
+        objective: Objective,
+    ) -> Vec<Option<BestOf>>;
+
+    /// For each `[period, shortest, longest, beat]`,
+    /// [`Folded::best_between`].
+    fn best_between(&self, jobs: &[[f64; 4]], objective: Objective) -> Vec<Option<BestBetween>>;
+}
+
 /// A peak of the binned power, refined by the exact search.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Refined {
@@ -88,6 +112,7 @@ pub(crate) fn peaks(power: &[f64], count: usize) -> Vec<usize> {
 /// In each step every period near every peak is a job of its own, spread
 /// over `threads` threads; the outcomes are taken in order, so the result is
 /// the same on any number.
+#[cfg(test)]
 #[expect(clippy::too_many_arguments, reason = "the search's settings")]
 pub(crate) fn refine(
     times: &[f64],
@@ -99,19 +124,70 @@ pub(crate) fn refine(
     objective: Objective,
     threads: usize,
 ) -> Result<Vec<Refined>, BlsError> {
+    refine_with(
+        times, weighted, periods, durations, peaks, reach, objective, threads, None,
+    )
+}
+
+/// As [`refine`], the folds searched by `folds` where it takes them (to the
+/// same result).
+#[expect(clippy::too_many_arguments, reason = "the search's settings")]
+pub(crate) fn refine_with(
+    times: &[f64],
+    weighted: &Weighted,
+    periods: &[f64],
+    durations: &[f64],
+    peaks: &[usize],
+    reach: usize,
+    objective: Objective,
+    threads: usize,
+    folds: Option<&dyn Folds>,
+) -> Result<Vec<Refined>, BlsError> {
+    // Each fold's search by `folds`, or else on the CPU.
+    let best_of = |at: &[f64]| -> Vec<BestOf> {
+        let mut found = folds.map_or_else(
+            || (0..at.len()).map(|_| None).collect(),
+            |f| f.best_of(at, durations, objective),
+        );
+        let todo: Vec<usize> = (0..at.len()).filter(|&k| found[k].is_none()).collect();
+        let searched = map(&todo, threads, &|&k| {
+            Folded::new(times, weighted, at[k]).best_of(weighted, durations, objective)
+        });
+        for (k, result) in todo.into_iter().zip(searched) {
+            found[k] = Some(result);
+        }
+        found.into_iter().map(|f| f.expect("searched")).collect()
+    };
+    let best_between = |jobs: &[[f64; 4]]| -> Vec<BestBetween> {
+        let mut found = folds.map_or_else(
+            || (0..jobs.len()).map(|_| None).collect(),
+            |f| f.best_between(jobs, objective),
+        );
+        let todo: Vec<usize> = (0..jobs.len()).filter(|&k| found[k].is_none()).collect();
+        let searched = map(&todo, threads, &|&k| {
+            let [p, shortest, longest, beat] = jobs[k];
+            Folded::new(times, weighted, p)
+                .best_between(weighted, shortest, longest, objective, beat)
+        });
+        for (k, result) in todo.into_iter().zip(searched) {
+            found[k] = Some(result);
+        }
+        found.into_iter().map(|f| f.expect("searched")).collect()
+    };
     let near = |peak: usize| peak.saturating_sub(reach)..(peak + reach + 1).min(periods.len());
 
     // Step 1: each fold's best box over the durations. The folds are not
     // kept: step 2 folds again, so at most one fold a thread is held (a fold
     // is about 70 bytes a point).
-    let jobs: Vec<usize> = peaks.iter().flat_map(|&peak| near(peak)).collect();
-    let folds = map(&jobs, threads, &|&period| {
-        let folded = Folded::new(times, weighted, periods[period]);
-        let grid = folded.best_of(weighted, durations, objective)?;
-        Ok(grid.map(|(duration, _, fit)| (duration, objective.of(&fit))))
-    })
-    .into_iter()
-    .collect::<Result<Vec<Option<(usize, f64)>>, BlsError>>()?;
+    let jobs: Vec<f64> = peaks
+        .iter()
+        .flat_map(|&peak| near(peak))
+        .map(|period| periods[period])
+        .collect();
+    let folds = best_of(&jobs)
+        .into_iter()
+        .map(|grid| Ok(grid?.map(|(duration, _, fit)| (duration, objective.of(&fit)))))
+        .collect::<Result<Vec<Option<(usize, f64)>>, BlsError>>()?;
 
     // Step 2: at each period near a peak, every duration between the
     // neighbours on the grid of that peak's best duration (and shorter than
@@ -159,24 +235,30 @@ pub(crate) fn refine(
             jobs.push((peak, period, below, above, beat));
         }
     }
-    let boxes = map(&jobs, threads, &|&(peak, period, below, above, beat)| {
-        let found = Folded::new(times, weighted, periods[period])
-            .best_between(weighted, below, above, objective, beat)?;
-        Ok(found.map(|(centre, duration, fit)| Refined {
-            peak,
-            period,
-            days: periods[period],
-            duration,
-            centre,
-            fit,
-            grid: objective.of(&fit),
-        }))
-    });
+    let searches: Vec<[f64; 4]> = jobs
+        .iter()
+        .map(|&(_, period, below, above, beat)| [periods[period], below, above, beat])
+        .collect();
+    let boxes =
+        best_between(&searches)
+            .into_iter()
+            .zip(&jobs)
+            .map(|(found, &(peak, period, _, _, _))| {
+                Ok(found?.map(|(centre, duration, fit)| Refined {
+                    peak,
+                    period,
+                    days: periods[period],
+                    duration,
+                    centre,
+                    fit,
+                    grid: objective.of(&fit),
+                }))
+            });
 
     // Each peak's best, the first of equal ones, with its duration range. A
     // peak's jobs are together.
     let mut refined: Vec<(Refined, f64, f64)> = Vec::with_capacity(peaks.len());
-    for (found, &(_, _, below, above, _)) in boxes.into_iter().zip(&jobs) {
+    for (found, &(_, _, below, above, _)) in boxes.zip(&jobs) {
         let Some(found) = found? else {
             continue;
         };
@@ -228,12 +310,15 @@ pub(crate) fn refine(
         if jobs.is_empty() {
             break;
         }
-        let boxes = map(&jobs, threads, &|&(k, p)| {
-            // Only a box beating the best so far is kept.
-            let (best, below, above) = refined[k];
-            let beat = objective.beat(objective.of(&best.fit));
-            Folded::new(times, weighted, p).best_between(weighted, below, above, objective, beat)
-        });
+        // Only a box beating the best so far is kept.
+        let searches: Vec<[f64; 4]> = jobs
+            .iter()
+            .map(|&(k, p)| {
+                let (best, below, above) = refined[k];
+                [p, below, above, objective.beat(objective.of(&best.fit))]
+            })
+            .collect();
+        let boxes = best_between(&searches);
         for (found, &(k, p)) in boxes.into_iter().zip(&jobs) {
             let Some((centre, duration, fit)) = found? else {
                 continue;

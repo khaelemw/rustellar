@@ -271,17 +271,56 @@ impl Folded {
         if j == 0 {
             return Ok(None);
         }
-        let [inside, outside] = box_sums(&totals[i], &totals[j], &totals[i + n]);
-        let fit = BoxFit::from_sums(weighted.mean, inside, outside, j - i)?;
+        let run = Run {
+            points: j - i,
+            phases: [previous(i), phase[i], phase[j - 1], phase[j]],
+            totals: [totals[0], totals[n], totals[i], totals[j], totals[i + n]],
+        };
+        run.best_box(weighted.mean, shortest, longest).map(Some)
+    }
+}
+
+/// What a run's box needs of its fold, wherever the fold was made: the
+/// number of points in it, the phases of the point before it, its first,
+/// its last and the point after it, and the running totals at the start, one
+/// orbit on, at its first point, one past its last, and its first one orbit
+/// on.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Run {
+    pub(crate) points: usize,
+    pub(crate) phases: [f64; 4],
+    pub(crate) totals: [Total; 5],
+}
+
+impl Run {
+    /// The run's score, as the search computes it.
+    #[cfg(feature = "cuda")]
+    pub(crate) fn score(&self, objective: Objective) -> Result<f64, BlsError> {
+        let [start, orbit, first, end, wrap] = &self.totals;
+        Orbit::new(start, orbit, objective).statistic(first, end, wrap)
+    }
+
+    /// The box of a duration from `shortest` to `longest` days holding the
+    /// run, of fluxes whose weighted mean is `mean`: its middle, in days
+    /// from the first time, its duration, and its fit.
+    pub(crate) fn best_box(
+        &self,
+        mean: f64,
+        shortest: f64,
+        longest: f64,
+    ) -> Result<(f64, f64, BoxFit), BlsError> {
+        let [_, _, first, end, wrap] = &self.totals;
+        let [inside, outside] = box_sums(first, end, wrap);
+        let fit = BoxFit::from_sums(mean, inside, outside, self.points)?;
         // Edges halfway between the points either side, the duration kept
         // in range, and the left edges that give this run, and their middle.
-        let before = previous(i);
-        let halfway = 0.5 * (phase[j - 1] + phase[j]) - 0.5 * (before + phase[i]);
+        let [before, first, last, after] = self.phases;
+        let halfway = 0.5 * (last + after) - 0.5 * (before + first);
         let d = halfway.clamp(shortest, longest);
-        let low = before.max(phase[j - 1] - d);
-        let high = phase[i].min(phase[j] - d);
+        let low = before.max(last - d);
+        let high = first.min(after - d);
         let edge = if low < high { 0.5 * (low + high) } else { low };
-        Ok(Some((edge + 0.5 * d, d, fit)))
+        Ok((edge + 0.5 * d, d, fit))
     }
 }
 

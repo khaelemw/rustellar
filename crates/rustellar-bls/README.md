@@ -126,23 +126,29 @@ Kepler).
 ### On a GPU
 
 With the `cuda` feature (Rust 1.88 or later, an NVIDIA driver and the CUDA
-NVRTC library at run time), `CudaBls` runs the binned step on the GPU and
-everything else on the CPU. Its peaks, refined boxes and best box are
-`Bls::search`'s to the bit; the power elsewhere agrees to 1e-12 of itself.
-Every point is put in the same bin as on the CPU, the bins' sums are exact
-64-bit fixed point (so their order does not matter), and every period whose
-power could change the peaks or the best box is searched again on the CPU.
-Seconds per search on an RTX 3060 Ti beside the same 16-thread CPU, after a
-0.2-second set-up:
+NVRTC library at run time), `CudaBls` runs the binned step and the
+refinement of the peaks on the GPU. Its peaks, refined boxes and best box
+are `Bls::search`'s to the bit; the power elsewhere agrees to 1e-12 of
+itself.
+
+- Binned step: every point is put in the same bin as on the CPU, and the
+  bins' sums are exact 64-bit fixed point, so their order does not matter.
+  Every period whose power could change the peaks or the best box is
+  searched again on the CPU.
+- Refinement: each fold is made on the GPU with the CPU's arithmetic, in the
+  CPU's order (the compensated sums one point after another), and every run
+  of points is scored as the CPU scores it. The CPU builds each best box
+  from its run.
+
+Where there is no GPU or CUDA driver, `CudaBls::new` returns an error (never
+a panic), so a program can search on the CPU instead. Seconds per search on
+an RTX 3060 Ti beside the same 16-thread CPU, after a 0.25-second set-up:
 
 | | GPU, refine 0 | GPU, refine 5 | 16 threads, refine 0 | 16 threads, refine 5 |
 |---|--:|--:|--:|--:|
-| 1 sector, Ofir | 0.013 | 0.083 | 0.047 | 0.115 |
-| 13 sectors, Ofir | 1.01 | 2.49 | 8.3 | 9.3 |
-| Kepler, Ofir | 1.90 | 2.13 | 12.8 | 13.0 |
-
-Refining the peaks is on the CPU, and is most of the thirteen sectors' time
-with it.
+| 1 sector, Ofir | 0.012 | 0.046 | 0.047 | 0.115 |
+| 13 sectors, Ofir | 0.94 | 1.35 | 8.3 | 9.3 |
+| Kepler, Ofir | 1.82 | 1.95 | 12.8 | 13.0 |
 
 ## Limits
 

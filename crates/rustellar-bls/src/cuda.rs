@@ -1,31 +1,40 @@
-//! The search with its binned step on an NVIDIA GPU: [`CudaBls`].
+//! The search with its binned step and its refinement of the peaks on an
+//! NVIDIA GPU: [`CudaBls`].
 
 use std::{
     fmt,
-    sync::{Arc, mpsc},
+    sync::{Arc, Mutex, mpsc},
     thread,
 };
 
 use cudarc::{
     driver::{
-        CudaContext, CudaFunction, CudaSlice, CudaStream, LaunchConfig, PushKernelArg,
+        CudaContext, CudaFunction, CudaModule, CudaSlice, CudaStream, DriverError, LaunchConfig,
+        PushKernelArg,
         sys::{CUdevice_attribute_enum, CUfunction_attribute_enum},
     },
     nvrtc::{CompileOptions, compile_ptx_with_opts},
 };
 
 use crate::{
-    Bls, BlsError, BlsResult, Durations, Objective, Periods, SearchOptions,
+    Bls, BlsError, BlsResult, BoxFit, Durations, Objective, Periods, SearchOptions,
     binned::{BinnedBox, Scratch, best_binned, bin_count, box_at, point_totals},
     box_fit::AtPeriod,
+    exact::Run,
     parallel::on_threads,
+    refine::{BestBetween, BestOf, Folds},
     search::prepare,
+    sums::Sum,
     top::make_top_exact,
     totals::Total,
 };
 
-/// The kernel's source, compiled by NVRTC when a [`CudaBls`] is made.
-const SOURCE: &str = include_str!("cuda/binned.cu");
+/// The kernels' source, compiled by NVRTC when a [`CudaBls`] is made: the
+/// binned step's, and the folds' for refining the peaks.
+const SOURCE: &str = concat!(
+    include_str!("cuda/binned.cu"),
+    include_str!("cuda/refine.cu")
+);
 /// Threads a block, one block a period.
 const THREADS: u32 = 256;
 /// Bins of a tile, unless the longest box needs more.
@@ -81,8 +90,9 @@ fn device(error: impl fmt::Display) -> CudaError {
     CudaError::Device(error.to_string())
 }
 
-/// A light curve ready to search with the binned step on an NVIDIA GPU: the
-/// compiled kernel and the points, on the GPU, made once.
+/// A light curve ready to search with the binned step and the refinement of
+/// the peaks on an NVIDIA GPU: the compiled kernels and the points, on the
+/// GPU, made once.
 ///
 /// The results are [`Bls::search`]'s, with the binned step's power and
 /// boxes known to within a rounding error of the sums at most periods:
@@ -94,8 +104,13 @@ fn device(error: impl fmt::Display) -> CudaError {
 ///   its fit's sums are over the same points, added in another order.
 /// - At every period whose power could be among the highest peaks or the
 ///   highest power, and the periods next to them, the binned step is run on
-///   the CPU, so the peaks, their refinement and [`BlsResult::best`] are
-///   [`Bls::search`]'s to the bit.
+///   the CPU, so the peaks and [`BlsResult::best`] are [`Bls::search`]'s
+///   to the bit.
+/// - The peaks are refined on the GPU, a batch of folds at once: each fold
+///   is made with the CPU's arithmetic in the CPU's order, and every run of
+///   points scored as the CPU scores it, so each refined box is the CPU's
+///   to the bit. A fold the GPU does not take (more than 2^25 orbits, or a
+///   score that could overflow) is refined on the CPU.
 ///
 /// The power elsewhere differs from the CPU's by about 1e-14 of itself
 /// (4e-14 at most, measured on 1 and 13 TESS sectors and 4 years of Kepler),
@@ -144,6 +159,8 @@ pub struct CudaBls {
     fluxes: CudaSlice<i64>,
     quanta: [f64; 2],
     totals: [i64; 2],
+    /// The folds, for refining the peaks.
+    pub(crate) folds: GpuFolds,
 }
 
 impl fmt::Debug for CudaBls {
@@ -232,8 +249,33 @@ impl CudaBls {
     /// # Errors
     ///
     /// [`CudaError::Device`] if there is no such GPU, the CUDA driver or
-    /// NVRTC library cannot be loaded, or the kernel does not compile.
+    /// NVRTC library is not installed or cannot be loaded, or the kernel
+    /// does not compile: never a panic, so a program can search on the CPU
+    /// instead.
     pub fn new(bls: &Bls, device: usize) -> Result<Self, CudaError> {
+        // cudarc panics where a library is missing, so look for both first.
+        // SAFETY: this only tries to load the libraries, as cudarc does.
+        let present = unsafe {
+            cudarc::driver::sys::is_culib_present() && cudarc::nvrtc::sys::is_culib_present()
+        };
+        if !present {
+            return Err(CudaError::Device(
+                "the CUDA driver or the NVRTC library is not installed".into(),
+            ));
+        }
+        // A driver too old for a function cudarc calls panics too.
+        std::panic::catch_unwind(|| Self::on(bls, device)).unwrap_or_else(|panic| {
+            let why = panic
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| panic.downcast_ref::<&str>().copied())
+                .unwrap_or("the CUDA library failed");
+            Err(CudaError::Device(why.to_owned()))
+        })
+    }
+
+    /// [`CudaBls::new`], the libraries present.
+    fn on(bls: &Bls, device: usize) -> Result<Self, CudaError> {
         let context = CudaContext::new(device).map_err(self::device)?;
         let options = CompileOptions {
             options: vec!["--fmad=false".into(), format!("-DTHREADS={THREADS}")],
@@ -242,6 +284,7 @@ impl CudaBls {
         let ptx = compile_ptx_with_opts(SOURCE, options).map_err(self::device)?;
         let module = context.load_module(ptx).map_err(self::device)?;
         let function = module.load_function("binned").map_err(self::device)?;
+        let kernels = RefineKernels::new(&module).map_err(self::device)?;
         let shared = context
             .attribute(
                 CUdevice_attribute_enum::CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN,
@@ -293,6 +336,25 @@ impl CudaBls {
             quanta,
             totals,
             function,
+            folds: GpuFolds {
+                stream: context.new_stream().map_err(self::device)?,
+                kernels,
+                points: [
+                    stream.clone_htod(&s).map_err(self::device)?,
+                    stream.clone_htod(&e).map_err(self::device)?,
+                    stream.clone_htod(&weighted.weights).map_err(self::device)?,
+                    stream.clone_htod(&weighted.centred).map_err(self::device)?,
+                ],
+                n: s.len(),
+                last,
+                mean: weighted.mean,
+                least_weight: weighted
+                    .weights
+                    .iter()
+                    .copied()
+                    .fold(f64::INFINITY, f64::min),
+                lock: Mutex::new(()),
+            },
             stream,
         })
     }
@@ -486,7 +548,9 @@ impl CudaBls {
             }
             Ok(())
         })?;
-        Ok(self.bls.finish(periods, &durations, options, result)?)
+        Ok(self
+            .bls
+            .finish(periods, &durations, options, result, Some(&self.folds))?)
     }
 
     /// The CPU's binned search at each of `todo`, on up to `threads`
@@ -616,5 +680,490 @@ impl CudaBls {
             from = to;
         }
         Ok(())
+    }
+}
+
+/// Refining the peaks with the folds made and searched on the GPU, a batch
+/// of them at once (see `cuda/refine.cu`); the CPU builds each best box
+/// from its run.
+pub(crate) struct GpuFolds {
+    stream: Arc<CudaStream>,
+    kernels: RefineKernels,
+    /// The points' elapsed times (two parts), weights and centred fluxes.
+    points: [CudaSlice<f64>; 4],
+    n: usize,
+    /// The last elapsed time.
+    last: f64,
+    /// The fluxes' weighted mean, and the least weight of a point.
+    mean: f64,
+    least_weight: f64,
+    /// One batch at a time.
+    lock: Mutex<()>,
+}
+
+/// The kernels of `cuda/refine.cu`.
+struct RefineKernels {
+    fold_keys: CudaFunction,
+    bitonic_step: CudaFunction,
+    bitonic_local: CudaFunction,
+    fold_phases: CudaFunction,
+    fold_gather: CudaFunction,
+    fold_sums: CudaFunction,
+    fold_errors: CudaFunction,
+    fold_compensations: CudaFunction,
+    fold_orbit: CudaFunction,
+    run_values: CudaFunction,
+    run_mins: CudaFunction,
+    runs: CudaFunction,
+    run_finish: CudaFunction,
+}
+
+impl RefineKernels {
+    fn new(module: &Arc<CudaModule>) -> Result<Self, DriverError> {
+        let load = |name: &str| module.load_function(name);
+        Ok(Self {
+            fold_keys: load("fold_keys")?,
+            bitonic_step: load("bitonic_step")?,
+            bitonic_local: load("bitonic_local")?,
+            fold_phases: load("fold_phases")?,
+            fold_gather: load("fold_gather")?,
+            fold_sums: load("fold_sums")?,
+            fold_errors: load("fold_errors")?,
+            fold_compensations: load("fold_compensations")?,
+            fold_orbit: load("fold_orbit")?,
+            run_values: load("run_values")?,
+            run_mins: load("run_mins")?,
+            runs: load("runs")?,
+            run_finish: load("run_finish")?,
+        })
+    }
+}
+
+/// A fold to search: its period, and each search's shortest and longest
+/// durations and the score to beat.
+struct FoldJob {
+    period: f64,
+    searches: Vec<[f64; 3]>,
+}
+
+/// Each search's run, or `None` where no run beats its score; `None` for a
+/// fold to search on the CPU.
+type FoldRuns = Option<Vec<Option<Run>>>;
+
+/// Points the bitonic sort orders in shared memory (`LOCAL` in the
+/// kernels).
+const LOCAL: usize = 2048;
+/// Ends to a block of the bounds, at each level (`RUN_BLOCK`).
+const RUN_BLOCK: usize = 32;
+/// Numbers a search's run comes back as (`RUN_VALUES`).
+const RUN_VALUES: usize = 27;
+/// The share of the GPU's free memory a batch of folds may take.
+const MEMORY_SHARE: f64 = 0.5;
+
+impl GpuFolds {
+    /// Each fold's runs, a batch at a time; `None` for those the GPU does not
+    /// take (the CPU's fold then differs, or a score could overflow) and for
+    /// all from a batch where the GPU fails.
+    fn search(&self, jobs: &[FoldJob], objective: Objective) -> Vec<FoldRuns> {
+        let mut found: Vec<FoldRuns> = (0..jobs.len()).map(|_| None).collect();
+        let n = self.n;
+        if !(2..1 << 28).contains(&n) {
+            return found;
+        }
+        let take: Vec<usize> = (0..jobs.len())
+            .filter(|&k| {
+                !jobs[k].searches.is_empty() && AtPeriod::new(jobs[k].period).short_up_to(self.last)
+            })
+            .collect();
+        if take.is_empty() {
+            return found;
+        }
+        let Ok(_one) = self.lock.lock() else {
+            return found;
+        };
+        // Bytes a fold: keys and indices to sort, phases, totals, weights and
+        // g, and the blocks' least g.
+        let width = n.next_power_of_two();
+        let per_fold = 12 * width + 16 * n + 32 * (2 * n + 1) + 32 * n + n;
+        let free = self
+            .stream
+            .context()
+            .bind_to_thread()
+            .and_then(|()| cudarc::driver::result::mem_get_info())
+            .map_or(0, |(free, _)| free);
+        let batch = ((free as f64 * MEMORY_SHARE) as usize / per_fold).max(1);
+        for chunk in take.chunks(batch) {
+            let Ok(runs) = self.batch(jobs, chunk, objective) else {
+                break;
+            };
+            for (&k, runs) in chunk.iter().zip(runs) {
+                found[k] = runs;
+            }
+        }
+        found
+    }
+
+    /// The runs of the folds `which` of `jobs`, at once.
+    fn batch(
+        &self,
+        jobs: &[FoldJob],
+        which: &[usize],
+        objective: Objective,
+    ) -> Result<Vec<FoldRuns>, DriverError> {
+        let stream = &self.stream;
+        let k = &self.kernels;
+        let n = self.n;
+        let folds = which.len();
+        let width = n.next_power_of_two();
+        let periods: Vec<f64> = which
+            .iter()
+            .flat_map(|&j| {
+                let p = jobs[j].period;
+                let (hi, lo) = AtPeriod::new(p).halves();
+                [p, 1.0 / p, hi, lo]
+            })
+            .collect();
+        let most = which
+            .iter()
+            .map(|&j| jobs[j].searches.len())
+            .max()
+            .unwrap_or(0);
+        let mut searches = vec![0.0; folds * most * 3];
+        let mut counts = vec![0_i32; folds];
+        for (f, &j) in which.iter().enumerate() {
+            counts[f] = jobs[j].searches.len() as i32;
+            for (s, values) in jobs[j].searches.iter().enumerate() {
+                searches[3 * (f * most + s)..3 * (f * most + s + 1)].copy_from_slice(values);
+            }
+        }
+        let periods = stream.clone_htod(&periods)?;
+        let searches = stream.clone_htod(&searches)?;
+        let counts = stream.clone_htod(&counts)?;
+
+        let (n_i, width_i, folds_i, most_i) = (n as i32, width as i32, folds as i32, most as i32);
+        let grid = |items: usize, rows: usize| LaunchConfig {
+            grid_dim: (items.div_ceil(THREADS as usize) as u32, rows as u32, 1),
+            block_dim: (THREADS, 1, 1),
+            shared_mem_bytes: 0,
+        };
+        let [s, e, weights, centred] = &self.points;
+
+        // The folds: keys, sorted, phases and totals.
+        // SAFETY (each launch below): the arguments are the kernel's, in its
+        // order and of its types, and every array holds what the kernel
+        // reads or writes of it for `folds` folds of `n` points (`width`
+        // keys and indices, `2n` phases, `2n + 1` totals of four, `most`
+        // searches of three numbers, and one output a block of each).
+        let mut keys = stream.alloc_zeros::<u64>(folds * width)?;
+        let mut index = stream.alloc_zeros::<u32>(folds * width)?;
+        let mut launch = stream.launch_builder(&k.fold_keys);
+        launch
+            .arg(s)
+            .arg(e)
+            .arg(&n_i)
+            .arg(&periods)
+            .arg(&width_i)
+            .arg(&mut keys)
+            .arg(&mut index);
+        unsafe { launch.launch(grid(width, folds)) }?;
+        // The steps between points less than `LOCAL` apart, in shared memory.
+        let local = |keys: &mut CudaSlice<u64>,
+                     index: &mut CudaSlice<u32>,
+                     kk: i32|
+         -> Result<(), DriverError> {
+            let config = LaunchConfig {
+                grid_dim: (width.div_ceil(LOCAL) as u32, folds as u32, 1),
+                block_dim: (1024, 1, 1),
+                shared_mem_bytes: 0,
+            };
+            let mut launch = stream.launch_builder(&k.bitonic_local);
+            launch.arg(keys).arg(index).arg(&width_i).arg(&kk);
+            unsafe { launch.launch(config) }?;
+            Ok(())
+        };
+        local(&mut keys, &mut index, 0)?;
+        let mut length = 2 * LOCAL;
+        while length <= width {
+            let mut j = length / 2;
+            while j >= LOCAL {
+                let (kk, jj) = (length as i32, j as i32);
+                let mut launch = stream.launch_builder(&k.bitonic_step);
+                launch
+                    .arg(&mut keys)
+                    .arg(&mut index)
+                    .arg(&width_i)
+                    .arg(&kk)
+                    .arg(&jj);
+                unsafe { launch.launch(grid(width, folds)) }?;
+                j /= 2;
+            }
+            local(&mut keys, &mut index, length as i32)?;
+            length *= 2;
+        }
+        let mut phase = stream.alloc_zeros::<f64>(folds * 2 * n)?;
+        let mut launch = stream.launch_builder(&k.fold_phases);
+        launch
+            .arg(&keys)
+            .arg(&n_i)
+            .arg(&width_i)
+            .arg(&periods)
+            .arg(&mut phase);
+        unsafe { launch.launch(grid(n, folds)) }?;
+        drop(keys);
+        let mut sorted = stream.alloc_zeros::<f64>(folds * 2 * n)?;
+        let mut launch = stream.launch_builder(&k.fold_gather);
+        launch
+            .arg(&index)
+            .arg(weights)
+            .arg(centred)
+            .arg(&n_i)
+            .arg(&width_i)
+            .arg(&mut sorted);
+        unsafe { launch.launch(grid(n, folds)) }?;
+        drop(index);
+        let mut totals = stream.alloc_zeros::<f64>(folds * 4 * (2 * n + 1))?;
+        let chains = LaunchConfig {
+            grid_dim: (folds as u32, 1, 1),
+            block_dim: (2, 1, 1),
+            shared_mem_bytes: 0,
+        };
+        let mut launch = stream.launch_builder(&k.fold_sums);
+        launch.arg(&sorted).arg(&n_i).arg(&mut totals);
+        unsafe { launch.launch(chains) }?;
+        let mut launch = stream.launch_builder(&k.fold_errors);
+        launch.arg(&sorted).arg(&n_i).arg(&mut totals);
+        unsafe { launch.launch(grid(2 * n, folds)) }?;
+        let mut launch = stream.launch_builder(&k.fold_compensations);
+        launch.arg(&n_i).arg(&mut totals);
+        unsafe { launch.launch(chains) }?;
+        drop(sorted);
+
+        // The searches.
+        let mut orbit = stream.alloc_zeros::<f64>(folds * 4)?;
+        let mut ordered = stream.alloc_zeros::<i32>(folds)?;
+        let mut launch = stream.launch_builder(&k.fold_orbit);
+        launch
+            .arg(&totals)
+            .arg(&phase)
+            .arg(&n_i)
+            .arg(&periods)
+            .arg(&folds_i)
+            .arg(&mut orbit)
+            .arg(&mut ordered);
+        unsafe { launch.launch(grid(folds, 1)) }?;
+        let mut weight = stream.alloc_zeros::<f64>(folds * 2 * n)?;
+        let mut g = stream.alloc_zeros::<f64>(folds * 2 * n)?;
+        let mut largest = stream.alloc_zeros::<u64>(folds)?;
+        let mut launch = stream.launch_builder(&k.run_values);
+        launch
+            .arg(&totals)
+            .arg(&n_i)
+            .arg(&orbit)
+            .arg(&mut weight)
+            .arg(&mut g)
+            .arg(&mut largest);
+        unsafe { launch.launch(grid(2 * n, folds)) }?;
+        let count0 = (2 * n).div_ceil(RUN_BLOCK);
+        let count1 = count0.div_ceil(RUN_BLOCK);
+        let (count_i, count0_i, count1_i) = ((2 * n) as i32, count0 as i32, count1 as i32);
+        let mut mins0 = stream.alloc_zeros::<f64>(folds * count0)?;
+        let mut mins1 = stream.alloc_zeros::<f64>(folds * count1)?;
+        let mut launch = stream.launch_builder(&k.run_mins);
+        launch.arg(&g).arg(&count_i).arg(&count0_i).arg(&mut mins0);
+        unsafe { launch.launch(grid(count0, folds)) }?;
+        let mut launch = stream.launch_builder(&k.run_mins);
+        launch
+            .arg(&mins0)
+            .arg(&count0_i)
+            .arg(&count1_i)
+            .arg(&mut mins1);
+        unsafe { launch.launch(grid(count1, folds)) }?;
+
+        // Enough blocks a search to fill the GPU, each thread taking first
+        // points in turn.
+        let blocks = n
+            .div_ceil(THREADS as usize)
+            .min((4096 / (folds * most).max(1)).max(8));
+        let outputs = folds * most * blocks;
+        let mut highest = stream.alloc_zeros::<u64>(folds * most)?;
+        let mut scores = stream.alloc_zeros::<f64>(outputs)?;
+        let mut firsts = stream.alloc_zeros::<i32>(outputs)?;
+        let mut ends = stream.alloc_zeros::<i32>(outputs)?;
+        let mut bad = stream.alloc_zeros::<i32>(folds)?;
+        let likelihood = i32::from(objective == Objective::AstropyLikelihood);
+        let mut launch = stream.launch_builder(&k.runs);
+        launch
+            .arg(&phase)
+            .arg(&totals)
+            .arg(&n_i)
+            .arg(&periods)
+            .arg(&searches)
+            .arg(&counts)
+            .arg(&most_i)
+            .arg(&orbit)
+            .arg(&ordered)
+            .arg(&likelihood)
+            .arg(&g)
+            .arg(&weight)
+            .arg(&mins0)
+            .arg(&mins1)
+            .arg(&count0_i)
+            .arg(&count1_i)
+            .arg(&largest)
+            .arg(&mut highest)
+            .arg(&mut scores)
+            .arg(&mut firsts)
+            .arg(&mut ends)
+            .arg(&mut bad);
+        let config = LaunchConfig {
+            grid_dim: (blocks as u32, most as u32, folds as u32),
+            block_dim: (THREADS, 1, 1),
+            shared_mem_bytes: 0,
+        };
+        unsafe { launch.launch(config) }?;
+        let mut out = stream.alloc_zeros::<f64>(folds * most * RUN_VALUES)?;
+        let blocks_i = blocks as i32;
+        let mut launch = stream.launch_builder(&k.run_finish);
+        launch
+            .arg(&phase)
+            .arg(&totals)
+            .arg(&n_i)
+            .arg(&periods)
+            .arg(&counts)
+            .arg(&most_i)
+            .arg(&folds_i)
+            .arg(&blocks_i)
+            .arg(&scores)
+            .arg(&firsts)
+            .arg(&ends)
+            .arg(&mut out);
+        unsafe { launch.launch(grid(folds * most, 1)) }?;
+        let out = stream.clone_dtoh(&out)?;
+        let bad = stream.clone_dtoh(&bad)?;
+        let ordered = stream.clone_dtoh(&ordered)?;
+        let largest = stream.clone_dtoh(&largest)?;
+        let orbit = stream.clone_dtoh(&orbit)?;
+
+        Ok((0..folds)
+            .map(|f| {
+                if bad[f] != 0 || ordered[f] == 0 {
+                    return None;
+                }
+                // No score can overflow, so none is an error, wherever the
+                // CPU's search would skip it: the fall in flux is at most
+                // `2F + |S|`, and the box and the rest each hold a point's
+                // weight, to a rounding.
+                let (whole, flux) = (orbit[4 * f], orbit[4 * f + 1]);
+                let fall = 2.0 * f64::from_bits(largest[f]) + flux.abs();
+                let least = self.least_weight * (self.least_weight / whole) * 0.5;
+                let mut most_score = fall * (fall / least);
+                if objective == Objective::AstropyLikelihood {
+                    most_score *= whole / self.least_weight;
+                }
+                if most_score.is_nan() || most_score >= 1e300 {
+                    return None;
+                }
+                let count = jobs[which[f]].searches.len();
+                Some(
+                    (0..count)
+                        .map(|s| {
+                            let o = &out[RUN_VALUES * (f * most + s)..][..RUN_VALUES];
+                            (o[0] != 0.0).then(|| {
+                                let total = |w: usize| {
+                                    let t = &o[7 + 4 * w..][..4];
+                                    Total {
+                                        weight: Sum::from_parts([t[0], t[1]]),
+                                        flux: Sum::from_parts([t[2], t[3]]),
+                                    }
+                                };
+                                Run {
+                                    points: (o[2] - o[1]) as usize,
+                                    phases: [o[3], o[4], o[5], o[6]],
+                                    totals: [total(0), total(1), total(2), total(3), total(4)],
+                                }
+                            })
+                        })
+                        .collect(),
+                )
+            })
+            .collect())
+    }
+}
+
+impl Folds for GpuFolds {
+    fn best_of(
+        &self,
+        periods: &[f64],
+        durations: &[f64],
+        objective: Objective,
+    ) -> Vec<Option<BestOf>> {
+        // Each duration's first highest run with a dip: of the runs beating
+        // the best so far, `Folded::best_of` finds that one whenever it is
+        // among them, and none otherwise.
+        let jobs: Vec<FoldJob> = periods
+            .iter()
+            .map(|&p| FoldJob {
+                period: p,
+                searches: durations
+                    .iter()
+                    .filter(|&&d| d < p)
+                    .map(|&d| [d, d, 0.0])
+                    .collect(),
+            })
+            .collect();
+        let found = self.search(&jobs, objective);
+        found
+            .into_iter()
+            .zip(periods)
+            .map(|(runs, &p)| {
+                let runs = runs?;
+                let mut runs = runs.into_iter();
+                let mut best = || -> BestOf {
+                    let mut best: Option<(usize, f64, BoxFit)> = None;
+                    for (k, &d) in durations.iter().enumerate() {
+                        if d >= p {
+                            continue;
+                        }
+                        let beat = best.map_or(0.0, |b| objective.beat(objective.of(&b.2)));
+                        let Some(run) = runs.next().expect("a run a duration") else {
+                            continue;
+                        };
+                        if run.score(objective)? > beat {
+                            let (centre, _, fit) = run.best_box(self.mean, d, d)?;
+                            if best.is_none_or(|b| objective.of(&fit) > objective.of(&b.2)) {
+                                best = Some((k, centre, fit));
+                            }
+                        }
+                    }
+                    Ok(best)
+                };
+                Some(best())
+            })
+            .collect()
+    }
+
+    fn best_between(&self, jobs: &[[f64; 4]], objective: Objective) -> Vec<Option<BestBetween>> {
+        let folds: Vec<FoldJob> = jobs
+            .iter()
+            .map(|&[p, shortest, longest, beat]| FoldJob {
+                period: p,
+                searches: if shortest < p {
+                    vec![[shortest, longest, beat]]
+                } else {
+                    Vec::new()
+                },
+            })
+            .collect();
+        self.search(&folds, objective)
+            .into_iter()
+            .zip(jobs)
+            .map(|(runs, &[_, shortest, longest, _])| {
+                let run = runs?[0];
+                Some(
+                    run.map(|run| run.best_box(self.mean, shortest, longest))
+                        .transpose(),
+                )
+            })
+            .collect()
     }
 }

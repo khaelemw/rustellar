@@ -28,6 +28,12 @@ impl Sum {
         self.sum = t;
     }
 
+    /// A sum from its plain sum and compensation, as made elsewhere.
+    #[cfg(feature = "cuda")]
+    pub(crate) fn from_parts([sum, compensation]: [f64; 2]) -> Self {
+        Self { sum, compensation }
+    }
+
     /// The sum, with the lost rounding error added back. An overflow gives
     /// the infinite (or NaN) plain sum, as plain addition would.
     pub(crate) fn value(self) -> f64 {
