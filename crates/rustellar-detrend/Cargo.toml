@@ -10,3 +10,6 @@ categories = ["science", "algorithms"]
 
 [dependencies]
 rustellar-core.workspace = true
+
+[dev-dependencies]
+rustellar-bls.workspace = true
