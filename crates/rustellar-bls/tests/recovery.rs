@@ -396,7 +396,9 @@ fn study(set: &Set) -> (usize, usize) {
 // The study
 // ==========================
 
+// A study over thousands of searches, minutes long: run with `--ignored`.
 #[test]
+#[ignore = "heavy study: cargo test --release -p rustellar-bls -- --ignored"]
 fn injection_recovery() {
     let mut only = [0, 0];
     for (name, set) in [("first set", &FIRST), ("wide set", &WIDE)] {

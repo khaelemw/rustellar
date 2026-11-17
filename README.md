@@ -34,6 +34,13 @@ Run the tests (all features, so the umbrella crate's tools are included too):
 cargo test --workspace --all-features
 ```
 
+The long studies (injection-recovery against other packages, minutes each)
+are left out of that run; run them on their own:
+
+```sh
+cargo test --workspace --release -- --ignored
+```
+
 Run the benchmarks:
 
 ```sh

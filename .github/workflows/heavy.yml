@@ -1,0 +1,26 @@
+name: heavy
+# The long studies (injection-recovery against astropy and
+# transitleastsquares), kept out of the required checks: run on main, weekly,
+# and by hand.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  studies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --release -- --ignored

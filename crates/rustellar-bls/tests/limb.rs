@@ -330,7 +330,9 @@ impl Tally {
     }
 }
 
+// A study over thousands of searches, minutes long: run with `--ignored`.
 #[test]
+#[ignore = "heavy study: cargo test --release -p rustellar-bls -- --ignored"]
 fn limb_darkened_injection_recovery() {
     let cases = cases();
     let found = search_all(&cases);
