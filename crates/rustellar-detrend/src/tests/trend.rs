@@ -4,8 +4,9 @@
 
 use super::Random;
 use crate::{
+    biweight::{Scratch, biweight},
     exact_sum::ExactSum,
-    location::Location,
+    location::{Location, median},
     trend::trend,
     window::{Edges, WindowOptions, windows},
 };
@@ -72,8 +73,8 @@ fn numpys_median_and_the_exact_mean() {
             tolerance
         };
         let o = options(window, break_tolerance, edge_cutoff, edges);
-        let medians = trend(&times, &flux, Some(&masked), &o, Location::Median);
-        let means = trend(&times, &flux, Some(&masked), &o, Location::Mean);
+        let medians = trend(&times, &flux, Some(&masked), &o, Location::Median, 4);
+        let means = trend(&times, &flux, Some(&masked), &o, Location::Mean, 2);
         let value = |s: &str| (s != "nan").then(|| s.parse::<f64>().unwrap());
         for (i, row) in rows.iter().enumerate() {
             let (median, mean) = (value(row[5]), value(row[6]));
@@ -127,7 +128,7 @@ fn the_sliding_sum_is_a_fresh_sum() {
             Edges::HalfOpen
         };
         let o = options(window, 0.5, 0.2 * random.unit(), edges);
-        let means = trend(&times, &flux, Some(&masked), &o, Location::Mean);
+        let means = trend(&times, &flux, Some(&masked), &o, Location::Mean, 2);
         let w = windows(&times, Some(&masked), &o);
         for (i, window) in w.windows.iter().enumerate() {
             let expected = window.clone().filter(|r| !r.is_empty()).map(|r| {
@@ -153,15 +154,123 @@ fn no_window_no_trend() {
     for location in [Location::Median, Location::Mean] {
         // Everything masked: windows with no point.
         let all = [true; 5];
-        assert_eq!(trend(&times, &flux, Some(&all), &o, location), [None; 5]);
+        assert_eq!(trend(&times, &flux, Some(&all), &o, location, 1), [None; 5]);
         // The edge cutoff: no window at the ends.
         let cut = options(0.25, f64::INFINITY, 0.1, Edges::Symmetric);
-        let found = trend(&times, &flux, None, &cut, location);
+        let found = trend(&times, &flux, None, &cut, location, 2);
         assert_eq!(found, [None, Some(2.0), Some(3.0), Some(4.0), None]);
         // Every other point masked: the windows hold one or two points.
         let some = [false, true, false, true, false];
-        let found = trend(&times, &flux, Some(&some), &o, location);
+        let found = trend(&times, &flux, Some(&some), &o, location, 1);
         assert_eq!(found, [1.0, 2.0, 3.0, 4.0, 5.0].map(Some));
     }
-    assert!(trend(&[], &[], None, &o, Location::Mean).is_empty());
+    assert!(trend(&[], &[], None, &o, Location::Mean, 4).is_empty());
+}
+
+// A light curve with gaps, masked points, outliers and a slow trend, from
+// `seed`.
+fn curve(seed: u64, n: usize) -> (Vec<f64>, Vec<f64>, Vec<bool>) {
+    let mut random = Random(seed);
+    let mut t = 1400.0;
+    let mut times = Vec::with_capacity(n);
+    let mut flux = Vec::with_capacity(n);
+    for _ in 0..n {
+        t += if random.below(300) == 0 {
+            1.0
+        } else {
+            0.002 + 0.002 * random.unit()
+        };
+        times.push(t);
+        let outlier = if random.below(50) == 0 { 0.02 } else { 0.0 };
+        // A slow wave in plain arithmetic (no `sin`, whose last bits differ
+        // between platforms' maths libraries).
+        let phase = (t * 0.7).fract();
+        flux.push(1.0 + 12e-3 * phase * (1.0 - phase) + 1e-3 * (random.unit() - 0.5) + outlier);
+    }
+    let masked = (0..n).map(|_| random.below(20) == 0).collect();
+    (times, flux, masked)
+}
+
+const LOCATIONS: [Location; 4] = [
+    Location::Mean,
+    Location::Median,
+    Location::Biweight(5.0),
+    Location::Biweight(3.0),
+];
+
+#[test]
+fn any_number_of_threads() {
+    let (times, flux, masked) = curve(0x5eed_0401, 3000);
+    for edges in [Edges::Symmetric, Edges::HalfOpen] {
+        let o = options(0.5, 0.25, 0.1, edges);
+        for location in LOCATIONS {
+            let one = trend(&times, &flux, Some(&masked), &o, location, 1);
+            for threads in [2, 3, 7, 16, 5000] {
+                let many = trend(&times, &flux, Some(&masked), &o, location, threads);
+                let same = one
+                    .iter()
+                    .zip(&many)
+                    .all(|(a, b)| a.map(f64::to_bits) == b.map(f64::to_bits));
+                assert!(same, "{location:?}, {threads} threads");
+            }
+        }
+    }
+}
+
+#[test]
+fn the_sliding_window_is_each_window_alone() {
+    for seed in 0..8 {
+        let (times, flux, masked) = curve(0x5eed_0410 + seed, 800);
+        let edges = if seed % 2 == 0 {
+            Edges::Symmetric
+        } else {
+            Edges::HalfOpen
+        };
+        let o = options(0.1 + 0.1 * seed as f64, 0.3, 0.02, edges);
+        let w = windows(&times, Some(&masked), &o);
+        for location in LOCATIONS {
+            let found = trend(&times, &flux, Some(&masked), &o, location, 1);
+            for (i, window) in w.windows.iter().enumerate() {
+                let expected = window.clone().filter(|r| !r.is_empty()).map(|r| {
+                    let mut values: Vec<f64> = w.kept[r].iter().map(|&k| flux[k]).collect();
+                    match location {
+                        Location::Mean => {
+                            let mut sum = ExactSum::default();
+                            values.iter().for_each(|&x| sum.add(x));
+                            sum.mean(values.len() as u64)
+                        }
+                        Location::Median => median(&mut values),
+                        Location::Biweight(c) => biweight(&mut values, &mut Scratch::default(), c),
+                    }
+                });
+                assert_eq!(
+                    found[i].map(f64::to_bits),
+                    expected.map(f64::to_bits),
+                    "{location:?}, point {i}"
+                );
+            }
+        }
+    }
+}
+
+// Every output bit of four light curves and every location, hashed (FNV-1a):
+// a change anywhere, on any machine, changes it.
+#[test]
+fn fingerprint() {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut eat = |x: u64| {
+        for byte in x.to_le_bytes() {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3);
+        }
+    };
+    for seed in 0..4 {
+        let (times, flux, masked) = curve(0x5eed_0420 + seed, 2000);
+        let o = options(0.3, 0.15, 0.0, Edges::Symmetric);
+        for location in LOCATIONS {
+            for value in trend(&times, &flux, Some(&masked), &o, location, 4) {
+                eat(value.map_or(u64::MAX, f64::to_bits));
+            }
+        }
+    }
+    assert_eq!(hash, 0x6c972f18869fc1b1, "fingerprint {hash:#018x}");
 }

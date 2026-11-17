@@ -4,7 +4,7 @@
 
 use super::Random;
 use crate::{
-    biweight::{biweight, nearest_root},
+    biweight::{Estimate, Scratch, biweight, nearest_root},
     location::{Location, midpoint},
     trend::trend,
     window::{Edges, WindowOptions, windows},
@@ -15,7 +15,7 @@ use crate::{
 // ==========================
 
 fn location(values: &[f64], c: f64) -> f64 {
-    biweight(&mut values.to_vec(), &mut Vec::new(), c)
+    biweight(&mut values.to_vec(), &mut Scratch::default(), c)
 }
 
 // The gap from `x` to the next double away from zero: its ulp.
@@ -176,53 +176,68 @@ fn no_point_within_c_mads() {
     assert_eq!(location(&[0.0, 1.0, 2.0, 3.0], 0.5), 1.5);
 }
 
+// The larger gap from `t` to the doubles either side.
+fn gap(t: f64) -> f64 {
+    let toward = |up: bool| {
+        if t == 0.0 {
+            f64::from_bits(1)
+        } else if (t > 0.0) == up {
+            f64::from_bits(t.to_bits() + 1)
+        } else {
+            f64::from_bits(t.to_bits() - 1)
+        }
+    };
+    (toward(true) - t).abs().max((toward(false) - t).abs())
+}
+
+// The sign-change search from `t`, the residual there computed.
+// Twice: with the residual given exactly, and with a cheap estimate whose
+// bound is too wide to settle anything, so that every sign and the nearer
+// side come from the precise residual. Both must agree.
+fn root(t: f64, fine: f64, residual: &dyn Fn(f64) -> f64) -> f64 {
+    let exact = |t: f64| Estimate {
+        value: residual(t),
+        bound: 0.0,
+    };
+    let doubtful = |t: f64| Estimate {
+        value: residual(t),
+        bound: f64::INFINITY,
+    };
+    let sure = nearest_root(t, exact(t), fine, &exact, residual);
+    let unsure = nearest_root(t, doubtful(t), fine, &doubtful, residual);
+    assert_eq!(sure.to_bits(), unsure.to_bits());
+    sure
+}
+
 #[test]
 fn the_sign_change_and_ties() {
     let eps = f64::EPSILON;
     // Roots at 1 + 1.5 eps and 1 + 2.5 eps: midway, to the even double.
     let at = |root_in_eps: f64| move |t: f64| 2.0 * root_in_eps - 2.0 * (t - 1.0) / eps;
+    assert_eq!(root(1.0, f64::from_bits(1), &at(1.5)), 1.0 + 2.0 * eps);
+    assert_eq!(root(1.0, f64::from_bits(1), &at(2.5)), 1.0 + 2.0 * eps);
     assert_eq!(
-        nearest_root(1.0, f64::from_bits(1), &at(1.5)),
-        1.0 + 2.0 * eps
-    );
-    assert_eq!(
-        nearest_root(1.0, f64::from_bits(1), &at(2.5)),
-        1.0 + 2.0 * eps
-    );
-    assert_eq!(
-        nearest_root(1.0 + 4.0 * eps, f64::from_bits(1), &at(2.5)),
+        root(1.0 + 4.0 * eps, f64::from_bits(1), &at(2.5)),
         1.0 + 2.0 * eps
     );
     // Nearer one side or the other.
-    assert_eq!(nearest_root(1.0, f64::from_bits(1), &at(1.25)), 1.0 + eps);
-    assert_eq!(
-        nearest_root(1.0, f64::from_bits(1), &at(1.75)),
-        1.0 + 2.0 * eps
-    );
+    assert_eq!(root(1.0, f64::from_bits(1), &at(1.25)), 1.0 + eps);
+    assert_eq!(root(1.0, f64::from_bits(1), &at(1.75)), 1.0 + 2.0 * eps);
     // A root on a double.
-    assert_eq!(
-        nearest_root(1.0, f64::from_bits(1), &at(3.0)),
-        1.0 + 3.0 * eps
-    );
-    assert_eq!(nearest_root(1.0, f64::from_bits(1), &at(0.0)), 1.0);
+    assert_eq!(root(1.0, f64::from_bits(1), &at(3.0)), 1.0 + 3.0 * eps);
+    assert_eq!(root(1.0, f64::from_bits(1), &at(0.0)), 1.0);
     // Coarser than the doubles: multiples of 4 eps, from off them.
     let fine = 4.0 * eps;
-    assert_eq!(nearest_root(1.0 + eps, fine, &at(5.0)), 1.0 + 4.0 * eps);
-    assert_eq!(nearest_root(1.0 + eps, fine, &at(7.0)), 1.0 + 8.0 * eps);
-    assert_eq!(nearest_root(1.0, fine, &at(6.0)), 1.0 + 8.0 * eps);
-    assert_eq!(nearest_root(1.0, fine, &at(-6.0)), 1.0 - 8.0 * eps);
+    assert_eq!(root(1.0 + eps, fine, &at(5.0)), 1.0 + 4.0 * eps);
+    assert_eq!(root(1.0 + eps, fine, &at(7.0)), 1.0 + 8.0 * eps);
+    assert_eq!(root(1.0, fine, &at(6.0)), 1.0 + 8.0 * eps);
+    assert_eq!(root(1.0, fine, &at(-6.0)), 1.0 - 8.0 * eps);
     // Down through zero, and no sign change within reach.
     let tiny = f64::from_bits(1);
-    assert_eq!(
-        nearest_root(2.0 * tiny, tiny, &|t| -(t / tiny) - 3.0),
-        -3.0 * tiny
-    );
-    assert_eq!(
-        nearest_root(2.0 * tiny, tiny, &|t| -(t / tiny) - 2.5),
-        -2.0 * tiny
-    );
-    assert_eq!(nearest_root(-2.0 * tiny, tiny, &|t| -(t / tiny) + 0.5), 0.0);
-    assert_eq!(nearest_root(1.0, f64::from_bits(1), &|_| 1.0), 1.0);
+    assert_eq!(root(2.0 * tiny, tiny, &|t| -(t / tiny) - 3.0), -3.0 * tiny);
+    assert_eq!(root(2.0 * tiny, tiny, &|t| -(t / tiny) - 2.5), -2.0 * tiny);
+    assert_eq!(root(-2.0 * tiny, tiny, &|t| -(t / tiny) + 0.5), 0.0);
+    assert_eq!(root(1.0, f64::from_bits(1), &|_| 1.0), 1.0);
 }
 
 #[test]
@@ -244,7 +259,7 @@ fn the_trend_is_each_windows_biweight() {
         edge_cutoff: 0.1,
         edges: Edges::Symmetric,
     };
-    let found = trend(&times, &flux, Some(&masked), &o, Location::Biweight(5.0));
+    let found = trend(&times, &flux, Some(&masked), &o, Location::Biweight(5.0), 3);
     let w = windows(&times, Some(&masked), &o);
     let mut some = 0;
     for (i, window) in w.windows.iter().enumerate() {
@@ -256,4 +271,237 @@ fn the_trend_is_each_windows_biweight() {
         some += usize::from(expected.is_some());
     }
     assert!(some > 300 && some < n, "{some}");
+}
+
+// The solver written plainly: every value visited in every sum (ascending,
+// those with |u| < 1 dealt to four lanes in turn), the MAD by sorting the
+// deviations, the exact product by a fused multiply-add. The sorted solver
+// (runs of |u| < 1 found by bisection, the MAD by merging outward, Dekker's
+// product) must give the same bits.
+fn plain(values: &[f64], c: f64) -> f64 {
+    type Double = (f64, f64);
+    fn two_sum(a: f64, b: f64) -> Double {
+        let s = a + b;
+        let bv = s - a;
+        (s, (a - (s - bv)) + (b - bv))
+    }
+    fn two_product(a: f64, b: f64) -> Double {
+        let p = a * b;
+        (p, a.mul_add(b, -p))
+    }
+    fn add(a: Double, b: Double) -> Double {
+        let (s, e) = two_sum(a.0, b.0);
+        two_sum(s, e + a.1 + b.1)
+    }
+    fn multiply(a: Double, b: Double) -> Double {
+        let (p, e) = two_product(a.0, b.0);
+        two_sum(p, e + a.0 * b.1 + a.1 * b.0)
+    }
+    let mut v = values.to_vec();
+    v.sort_by(f64::total_cmp);
+    let n = v.len();
+    let (a, b) = (v[(n - 1) / 2], v[n / 2]);
+    let largest = v.iter().fold(0.0f64, |m, x| m.max(x.abs()));
+    if largest == 0.0 {
+        return midpoint(a, b);
+    }
+    let e = largest.log2().floor() as i32;
+    let e = if times_two_to(largest, -e) >= 2.0 {
+        e + 1
+    } else if times_two_to(largest, -e) < 1.0 {
+        e - 1
+    } else {
+        e
+    };
+    let y: Vec<f64> = v.iter().map(|&x| times_two_to(x, -e)).collect();
+    let (sum, error) = two_sum(times_two_to(a, -e), times_two_to(b, -e));
+    let median = (sum / 2.0, error / 2.0);
+    let mut deviations: Vec<Double> = y
+        .iter()
+        .map(|&x| {
+            let (d, error) = two_sum(x, -median.0);
+            let d = two_sum(d, error - median.1);
+            if d.0 < 0.0 { (-d.0, -d.1) } else { d }
+        })
+        .collect();
+    deviations.sort_by(|p, q| p.0.total_cmp(&q.0).then(p.1.total_cmp(&q.1)));
+    let total = add(deviations[(n - 1) / 2], deviations[n / 2]);
+    let mad = (total.0 / 2.0, total.1 / 2.0);
+    if mad.0 == 0.0 {
+        return midpoint(a, b);
+    }
+    let s = {
+        let (hi, lo) = two_product(c, mad.0);
+        two_sum(hi, lo + c * mad.1)
+    };
+    let inverse = 1.0 / s.0;
+    // (residual, weight, slope), plain
+    let sums = |t: f64| {
+        let mut lanes = [[0.0; 3]; 4];
+        let mut k = 0;
+        for &x in &y {
+            let d = x - t;
+            let u = d * inverse;
+            if u.abs() < 1.0 {
+                let v = 1.0 - u * u;
+                let lane = &mut lanes[k % 4];
+                lane[0] += v * v * d;
+                lane[1] += v * v;
+                lane[2] += v * (1.0 - 5.0 * u * u);
+                k += 1;
+            }
+        }
+        let total = |k: usize| (lanes[0][k] + lanes[1][k]) + (lanes[2][k] + lanes[3][k]);
+        (total(0), total(1), total(2))
+    };
+    // The residual compensated, with its bound.
+    let cheap = |t: f64| {
+        let mut lanes = [[0.0; 3]; 4];
+        let mut k = 0;
+        for &x in &y {
+            let (d, d_low) = two_sum(x, -t);
+            let u = d * inverse;
+            if u.abs() < 1.0 {
+                let v = 1.0 - u * u;
+                let lane = &mut lanes[k % 4];
+                let (sum, error) = two_sum(lane[0], v * v * d);
+                lane[0] = sum;
+                lane[1] += error + v * v * d_low;
+                lane[2] += d.abs() * v;
+                k += 1;
+            }
+        }
+        let total = |k: usize| (lanes[0][k] + lanes[1][k]) + (lanes[2][k] + lanes[3][k]);
+        let high = add(
+            two_sum(lanes[0][0], lanes[1][0]),
+            two_sum(lanes[2][0], lanes[3][0]),
+        );
+        let value = high.0 + (high.1 + total(1));
+        Estimate {
+            value,
+            bound: f64::EPSILON * (44.0 * total(2) + 2.0 * value.abs()),
+        }
+    };
+    let residual = |t: f64| {
+        let mut lanes = [(0.0, 0.0); 4];
+        let mut k = 0;
+        for &x in &y {
+            let d = two_sum(x, -t);
+            let u_hi = d.0 * inverse;
+            if u_hi.abs() >= 1.0 {
+                continue;
+            }
+            let (p, pe) = two_product(u_hi, s.0);
+            let u_lo = (((d.0 - p) - pe) + d.1 - u_hi * s.1) * inverse;
+            let u = (u_hi, u_lo);
+            let uu = multiply(u, u);
+            let v = add((1.0, 0.0), (-uu.0, -uu.1));
+            let term = multiply(multiply(v, v), d);
+            let lane: &mut Double = &mut lanes[k % 4];
+            let (sum, error) = two_sum(lane.0, term.0);
+            *lane = (sum, lane.1 + error + term.1);
+            k += 1;
+        }
+        let total = add(add(lanes[0], lanes[1]), add(lanes[2], lanes[3]));
+        total.0 + total.1
+    };
+    let mut t = median.0;
+    let mut last = f64::INFINITY;
+    for _ in 0..1000 {
+        let (r, weight, _) = sums(t);
+        if weight == 0.0 {
+            break;
+        }
+        let step = r / weight;
+        if step.abs() >= last {
+            break;
+        }
+        last = step.abs();
+        t += step;
+        if last <= s.0 / 1024.0 {
+            break;
+        }
+    }
+    let mut here = sums(t);
+    for _ in 0..32 {
+        if here.2 <= 0.0 || here.0 == 0.0 {
+            break;
+        }
+        let next = t + here.0 / here.2;
+        if (next - t).abs() <= 2.0 * gap(t) {
+            break;
+        }
+        let there = sums(next);
+        if there.0.abs() >= here.0.abs() {
+            break;
+        }
+        (t, here) = (next, there);
+    }
+    let mut at_t = cheap(t);
+    if at_t.value.abs() <= at_t.bound {
+        at_t = Estimate {
+            value: residual(t),
+            bound: 0.0,
+        };
+        for _ in 0..32 {
+            if here.2 <= 0.0 || at_t.value == 0.0 {
+                break;
+            }
+            let next = t + at_t.value / here.2;
+            if (next - t).abs() <= 2.0 * gap(t) {
+                break;
+            }
+            let at_next = residual(next);
+            if at_next.abs() >= at_t.value.abs() {
+                break;
+            }
+            (t, at_t) = (
+                next,
+                Estimate {
+                    value: at_next,
+                    bound: 0.0,
+                },
+            );
+        }
+    }
+    let fine = times_two_to(f64::from_bits(1), (-e).max(0));
+    times_two_to(nearest_root(t, at_t, fine, &cheap, &residual), e)
+}
+
+#[test]
+fn the_sorted_solver_is_the_plain_one() {
+    let mut random = Random(0x5eed_0304);
+    let text = include_str!("../../tests/reference/biweight_windows.csv");
+    let mut windows: Vec<(Vec<f64>, f64)> = text
+        .lines()
+        .filter(|l| !l.starts_with('#'))
+        .skip(1)
+        .map(|l| {
+            let f: Vec<&str> = l.split(',').collect();
+            (
+                f[9].split(';').map(|v| v.parse().unwrap()).collect(),
+                f[2].parse().unwrap(),
+            )
+        })
+        .collect();
+    for _ in 0..3000 {
+        let n = 1 + random.below(80) as usize;
+        let kind = random.below(4);
+        let values = (0..n)
+            .map(|_| match kind {
+                0 => 1.0 + 1e-3 * (random.unit() - 0.5),
+                1 => random.below(5) as f64,
+                2 => (random.unit() - 0.5) * 10f64.powi(random.below(8) as i32 - 4),
+                _ => {
+                    f64::from_bits(1 + random.below(1 << 20))
+                        * if random.below(2) == 0 { 1.0 } else { -1.0 }
+                }
+            })
+            .collect();
+        windows.push((values, 1.0 + 8.0 * random.unit()));
+    }
+    for (values, c) in &windows {
+        let (found, expected) = (location(values, *c), plain(values, *c));
+        assert_eq!(found.to_bits(), expected.to_bits(), "{values:?}, c {c}");
+    }
 }
