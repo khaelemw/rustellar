@@ -8,7 +8,7 @@
 //! | Feature | Module | What it does |
 //! |---|---|---|
 //! | `bls` | [`bls`] | Box least squares transit search (in development) |
-//! | `detrend` | [`detrend`] | Detrending: a sliding biweight to full precision (in development) |
+//! | `detrend` | [`detrend`] | Detrending: a sliding biweight, median or mean, to full precision (in development) |
 //! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
 //! | `full` | | Every tool |
 //!

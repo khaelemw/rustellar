@@ -171,6 +171,32 @@ fn small_windows_and_no_spread() {
 }
 
 #[test]
+fn a_tight_cluster_beside_distant_values() {
+    // The cluster symmetric about its middle, the distant values beyond
+    // c MAD: the middle, wherever c MAD falls (subnormal, or underflowing
+    // to zero at the window's first scale).
+    for p in [-1074, -1070, -1060, -1030, -1000, -700, -400] {
+        let unit = times_two_to(1.0, p);
+        for c in [1e-30, 0.3, 5.0, 1e5] {
+            let cluster = [unit, 2.0 * unit, 3.0 * unit];
+            let mut values = cluster.to_vec();
+            values.extend([-1.0, 1.0]);
+            assert_eq!(location(&values, c), 2.0 * unit, "2^{p}, c {c}");
+            values.extend(cluster.map(|x| x + 1e300).iter().chain(&[-1e300, -1e300]));
+            values.extend(cluster);
+            values.extend(cluster);
+            values.extend(cluster);
+            assert_eq!(location(&values, c), 2.0 * unit, "2^{p}, c {c}");
+        }
+    }
+    // c MAD far beyond the spread: every weight 1, the mean.
+    assert_eq!(
+        location(&[1.0, 1.0, 1.0 + f64::EPSILON, 1.5, 1.5], 1e30),
+        1.2
+    );
+}
+
+#[test]
 fn no_point_within_c_mads() {
     // c below 1: at the median no point is within c MAD, so no step.
     assert_eq!(location(&[0.0, 1.0, 2.0, 3.0], 0.5), 1.5);
@@ -305,34 +331,46 @@ fn plain(values: &[f64], c: f64) -> f64 {
     if largest == 0.0 {
         return midpoint(a, b);
     }
-    let e = largest.log2().floor() as i32;
-    let e = if times_two_to(largest, -e) >= 2.0 {
-        e + 1
-    } else if times_two_to(largest, -e) < 1.0 {
-        e - 1
-    } else {
-        e
+    // The binary exponent: 2^e <= x < 2^(e + 1).
+    let exponent = |x: f64| {
+        if x == 0.0 {
+            return -1075;
+        }
+        let e = x.log2().floor() as i32;
+        if times_two_to(x, -e) >= 2.0 {
+            e + 1
+        } else if times_two_to(x, -e) < 1.0 {
+            e - 1
+        } else {
+            e
+        }
     };
-    let y: Vec<f64> = v.iter().map(|&x| times_two_to(x, -e)).collect();
-    let (sum, error) = two_sum(times_two_to(a, -e), times_two_to(b, -e));
-    let median = (sum / 2.0, error / 2.0);
-    let mut deviations: Vec<Double> = y
-        .iter()
-        .map(|&x| {
-            let (d, error) = two_sum(x, -median.0);
-            let d = two_sum(d, error - median.1);
-            if d.0 < 0.0 { (-d.0, -d.1) } else { d }
-        })
-        .collect();
-    deviations.sort_by(|p, q| p.0.total_cmp(&q.0).then(p.1.total_cmp(&q.1)));
-    let total = add(deviations[(n - 1) / 2], deviations[n / 2]);
-    let mad = (total.0 / 2.0, total.1 / 2.0);
-    if mad.0 == 0.0 {
-        return midpoint(a, b);
-    }
-    let s = {
+    let mut e = exponent(largest);
+    let (y, median, s) = loop {
+        let y: Vec<f64> = v.iter().map(|&x| times_two_to(x, -e)).collect();
+        let (sum, error) = two_sum(times_two_to(a, -e), times_two_to(b, -e));
+        let median = (sum / 2.0, error / 2.0);
+        let mut deviations: Vec<Double> = y
+            .iter()
+            .map(|&x| {
+                let (d, error) = two_sum(x, -median.0);
+                let d = two_sum(d, error - median.1);
+                if d.0 < 0.0 { (-d.0, -d.1) } else { d }
+            })
+            .collect();
+        deviations.sort_by(|p, q| p.0.total_cmp(&q.0).then(p.1.total_cmp(&q.1)));
+        let total = add(deviations[(n - 1) / 2], deviations[n / 2]);
+        let mad = (total.0 / 2.0, total.1 / 2.0);
+        if mad.0 == 0.0 {
+            return midpoint(a, b);
+        }
         let (hi, lo) = two_product(c, mad.0);
-        two_sum(hi, lo + c * mad.1)
+        let s = two_sum(hi, lo + c * mad.1);
+        // c MAD below 2^-500: scaled up to 2^-500.
+        if s.0 >= times_two_to(1.0, -500) {
+            break (y, median, s);
+        }
+        e += exponent(s.0) + 500;
     };
     let inverse = 1.0 / s.0;
     // (residual, weight, slope), plain
@@ -486,19 +524,34 @@ fn the_sorted_solver_is_the_plain_one() {
         .collect();
     for _ in 0..3000 {
         let n = 1 + random.below(80) as usize;
-        let kind = random.below(4);
+        let kind = random.below(5);
         let values = (0..n)
             .map(|_| match kind {
                 0 => 1.0 + 1e-3 * (random.unit() - 0.5),
                 1 => random.below(5) as f64,
                 2 => (random.unit() - 0.5) * 10f64.powi(random.below(8) as i32 - 4),
-                _ => {
+                3 => {
                     f64::from_bits(1 + random.below(1 << 20))
                         * if random.below(2) == 0 { 1.0 } else { -1.0 }
                 }
+                // A tight cluster (subnormal or near it) beside distant
+                // values: c MAD far below the largest magnitude.
+                _ => {
+                    if random.below(3) == 0 {
+                        10f64.powi(random.below(600) as i32 - 300)
+                    } else {
+                        let bits = 1 << (1 + random.below(60));
+                        f64::from_bits(random.below(bits))
+                    }
+                }
             })
             .collect();
-        windows.push((values, 1.0 + 8.0 * random.unit()));
+        let c = match random.below(4) {
+            0 => 1e-30,
+            1 => 1e30,
+            _ => 1.0 + 8.0 * random.unit(),
+        };
+        windows.push((values, c));
     }
     for (values, c) in &windows {
         let (found, expected) = (location(values, *c), plain(values, *c));

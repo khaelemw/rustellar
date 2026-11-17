@@ -20,6 +20,7 @@ pub(crate) enum Location {
 /// For an even count, the midpoint of the two middle values correctly
 /// rounded: `(a + b) / 2` (numpy's, to the bit), or `a / 2 + b / 2` where
 /// `a + b` overflows.
+#[cfg(test)]
 pub(crate) fn median(values: &mut [f64]) -> f64 {
     // For an odd count, the midpoint of the middle value with itself: it.
     let (lower, upper) = middle(values);
@@ -28,12 +29,14 @@ pub(crate) fn median(values: &mut [f64]) -> f64 {
 
 /// The two middle values of `values` (finite, at least one), lower first,
 /// reordering them; the same value twice for an odd count.
+#[cfg(test)]
 pub(crate) fn middle(values: &mut [f64]) -> (f64, f64) {
     middle_by(values, f64::total_cmp)
 }
 
 /// The two middle items of `items` (at least one) in the order `order`,
 /// lower first, reordering them; the same item twice for an odd count.
+#[cfg(test)]
 pub(crate) fn middle_by<T: Copy>(
     items: &mut [T],
     order: impl Fn(&T, &T) -> Ordering + Copy,

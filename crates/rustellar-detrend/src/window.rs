@@ -11,9 +11,18 @@
 use std::{cmp::Ordering, ops::Range};
 
 /// Which ends of a window hold the points exactly half a window away.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Edges {
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_detrend::Edges;
+///
+/// assert_eq!(Edges::default(), Edges::Symmetric);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Edges {
     /// Both: the window is symmetric about its point.
+    #[default]
     Symmetric,
     /// The earlier only, as in wotan: `[t - w/2, t + w/2)`.
     HalfOpen,

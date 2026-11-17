@@ -30,6 +30,9 @@ const NEWTON_STEPS: usize = 32;
 /// Steps of one double at most when looking for the sign change.
 const SEARCH_STEPS: usize = 64;
 
+/// c MAD is scaled to at least 2^FLOOR.
+const FLOOR: i32 = -500;
+
 /// A double-double: `hi + lo`, `|lo|` at most half an ulp of `hi`.
 type Double = (f64, f64);
 
@@ -42,18 +45,19 @@ pub(crate) struct Scratch {
 
 /// The biweight location of `values` (finite, at least one) with tuning
 /// constant `c` (positive, in MADs), sorting `values`.
+#[cfg(test)]
 pub(crate) fn biweight(values: &mut [f64], scratch: &mut Scratch, c: f64) -> f64 {
     values.sort_unstable_by(f64::total_cmp);
     biweight_sorted(values, scratch, c)
 }
 
 /// The biweight location of `sorted` (finite, at least one, ascending by
-/// `total_cmp`) with tuning constant `c` (positive, in MADs).
+/// `total_cmp`) with tuning constant `c` (in MADs, from 2^-100 to 2^100).
 ///
 /// Every sum runs over the values in this order, so the result depends on
 /// the values alone, not on the order they came in.
 pub(crate) fn biweight_sorted(sorted: &[f64], scratch: &mut Scratch, c: f64) -> f64 {
-    debug_assert!(!sorted.is_empty() && c > 0.0);
+    debug_assert!(!sorted.is_empty() && (power_of_two(-100)..=power_of_two(100)).contains(&c));
     debug_assert!(sorted.is_sorted_by(|a, b| a.total_cmp(b).is_le()));
     let n = sorted.len();
     let (a, b) = (sorted[(n - 1) / 2], sorted[n / 2]);
@@ -61,22 +65,30 @@ pub(crate) fn biweight_sorted(sorted: &[f64], scratch: &mut Scratch, c: f64) -> 
     if largest == 0.0 {
         return midpoint(a, b);
     }
-    let e = exponent(largest);
-    scratch.scaled.clear();
-    scratch.scaled.extend(sorted.iter().map(|&x| scale(x, -e)));
-    let values = &scratch.scaled[..];
-    // The exact median: halving the sum's two parts is exact.
-    let (sum, error) = two_sum(scale(a, -e), scale(b, -e));
-    let median = (sum / 2.0, error / 2.0);
-    let mad = mad(values, median);
-    if mad.0 == 0.0 {
-        return midpoint(a, b);
-    }
-    let s = {
+    let mut e = exponent(largest);
+    let (median, s) = loop {
+        scratch.scaled.clear();
+        scratch.scaled.extend(sorted.iter().map(|&x| scale(x, -e)));
+        // The exact median: halving the sum's two parts is exact.
+        let (sum, error) = two_sum(scale(a, -e), scale(b, -e));
+        let median = (sum / 2.0, error / 2.0);
+        let mad = mad(&scratch.scaled, median);
+        if mad.0 == 0.0 {
+            return midpoint(a, b);
+        }
         let (hi, lo) = two_product(c, mad.0);
-        two_sum(hi, lo + c * mad.1)
+        let s = two_sum(hi, lo + c * mad.1);
+        // c MAD far below the largest magnitude (a tight cluster beside
+        // distant values): scaled up, so that 1 / (c MAD) and c MAD's low
+        // part stay normal. A nonzero MAD is at least 2^-1075 of the largest
+        // magnitude, so for c from 2^-100 to 2^100 c MAD is at least
+        // 2^-1175 of it and the values grow to 2^677 at most.
+        if s.0 >= power_of_two(FLOOR) {
+            break (median, s);
+        }
+        e += exponent(s.0) - FLOOR;
     };
-
+    let values = &scratch.scaled[..];
     let inverse = 1.0 / s.0;
 
     // wotan's iteration from the median, while its step shrinks, until the
