@@ -55,10 +55,16 @@ fn scaled(x: f64) -> i128 {
     let mantissa = i128::from((bits & ((1 << 52) - 1)) | (1 << 52));
     let shift = exponent + 82;
     assert!((0..=126 - 53).contains(&shift), "{x} out of range");
-    mantissa << shift
+    if x < 0.0 {
+        -(mantissa << shift)
+    } else {
+        mantissa << shift
+    }
 }
 
-// The windows by their definition, point against point.
+// The windows by their definition, point against point, in exact integer
+// arithmetic (none of the code's own): every time and length a whole number
+// of 2^-82 days.
 fn brute_force(
     times: &[f64],
     masked: &[bool],
@@ -67,25 +73,30 @@ fn brute_force(
     edge_cutoff: f64,
     edges: Edges,
 ) -> Vec<Option<Vec<usize>>> {
+    let exact = |x: f64| if x == 0.0 { 0 } else { scaled(x) };
     let n = times.len();
-    let half = window / 2.0;
-    let cutoff = edge_cutoff.min(half);
+    let t: Vec<i128> = times.iter().map(|&x| exact(x)).collect();
+    // Halving a double is exact.
+    let half = exact(window / 2.0);
+    let cutoff = exact(edge_cutoff).min(half);
+    let tolerance = (break_tolerance != f64::INFINITY).then(|| exact(break_tolerance));
     let mut segment = vec![0; n];
     for k in 1..n {
-        segment[k] = segment[k - 1] + usize::from(times[k] - times[k - 1] > break_tolerance);
+        let split = tolerance.is_some_and(|tol| t[k] - t[k - 1] > tol);
+        segment[k] = segment[k - 1] + usize::from(split);
     }
     (0..n)
         .map(|i| {
             let mine: Vec<usize> = (0..n).filter(|&j| segment[j] == segment[i]).collect();
-            let (first, last) = (times[mine[0]], times[*mine.last().unwrap()]);
-            if times[i] - first < cutoff || last - times[i] < cutoff {
+            let (first, last) = (t[mine[0]], t[*mine.last().unwrap()]);
+            if t[i] - first < cutoff || last - t[i] < cutoff {
                 return None;
             }
             Some(
                 mine.into_iter()
                     .filter(|&j| !masked[j])
                     .filter(|&j| {
-                        let d = times[j] - times[i];
+                        let d = t[j] - t[i];
                         -half <= d && (d < half || (d == half && edges == Edges::Symmetric))
                     })
                     .collect(),
@@ -147,6 +158,7 @@ fn gaps_at_the_tolerance() {
     assert_eq!(segments(&times, 1.5), vec![0..5]);
     assert_eq!(segments(&times, f64::INFINITY), vec![0..5]);
     assert_eq!(segments(&[2.0], 0.1), vec![0..1]);
+    assert_eq!(segments(&[], 0.1), Vec::<Range<usize>>::new());
 }
 
 // A gap whose rounded difference equals the tolerance but whose exact one is
@@ -161,6 +173,10 @@ fn a_gap_that_rounds_to_the_tolerance() {
     // Exactly 1 - 2^-60, below 1, though it rounds to 1.
     assert_eq!(segments(&times, 1.0 - 2f64.powi(-53)), vec![0..1, 1..2]);
     assert_eq!(segments(&times, 1.0), vec![0..2]);
+    // Exactly 1 + 2^-60, above 1, though it rounds to 1: split.
+    let times = [-(2f64.powi(-60)), 1.0];
+    assert_eq!(times[1] - times[0], 1.0);
+    assert_eq!(segments(&times, 1.0), vec![0..1, 1..2]);
 }
 
 // Points exactly half a window away: both in a symmetric window; only the
@@ -312,6 +328,83 @@ fn the_windows_are_their_definition() {
             assert_eq!(covered, n);
         }
     }
+}
+
+// Arbitrary doubles, from either side of zero, where differences of times
+// round: windows, tolerances and cutoffs set to rounded differences of the
+// times themselves, so the exact difference is a hair either side of them.
+// Against the definition in integer arithmetic.
+#[test]
+fn the_windows_are_exact_where_differences_round() {
+    let mut rng = Random(31);
+    let mut near_ties = 0;
+    for case in 0..400 {
+        let n = 2 + rng.below(60) as usize;
+        let mut times = Vec::with_capacity(n);
+        let mut t = 2.0 * rng.unit() - 1.0;
+        while times.len() < n {
+            // Leave out times too near zero for the integer check.
+            if t == 0.0 || t.abs() >= 2f64.powi(-30) {
+                times.push(t);
+            }
+            t += if rng.below(8) == 0 {
+                rng.unit()
+            } else {
+                0.08 * rng.unit() + 1e-9
+            };
+        }
+        let masked: Vec<bool> = (0..n).map(|_| rng.below(6) == 0).collect();
+        // A rounded difference of two of the times.
+        let difference = |rng: &mut Random| {
+            let i = rng.below(n as u64 - 1) as usize;
+            let j = i + 1 + rng.below((n - i - 1).min(20) as u64) as usize;
+            times[j] - times[i]
+        };
+        let window = if rng.below(2) == 0 {
+            2.0 * difference(&mut rng)
+        } else {
+            0.001 + 0.5 * rng.unit()
+        };
+        let break_tolerance = match rng.below(3) {
+            0 => f64::INFINITY,
+            1 => difference(&mut rng),
+            _ => window / 2.0,
+        };
+        let edge_cutoff = match rng.below(3) {
+            0 => 0.0,
+            1 => difference(&mut rng),
+            _ => 10.0,
+        };
+        // How often the rounded distance is a tie that the exact one is not.
+        for i in 0..n {
+            for j in i + 1..n {
+                let d = times[j] - times[i];
+                if (d == window / 2.0 || d == break_tolerance || d == edge_cutoff)
+                    && scaled_or_zero(times[j]) - scaled_or_zero(times[i]) != scaled_or_zero(d)
+                {
+                    near_ties += 1;
+                }
+            }
+        }
+        for edges in [Edges::Symmetric, Edges::HalfOpen] {
+            let w = windows(
+                &times,
+                Some(&masked),
+                &options(window, break_tolerance, edge_cutoff, edges),
+            );
+            assert_eq!(
+                points_in(&w),
+                brute_force(&times, &masked, window, break_tolerance, edge_cutoff, edges),
+                "case {case}, {edges:?}"
+            );
+        }
+    }
+    // The rounding mattered: plain doubles would have had ties that are not.
+    assert!(near_ties > 50, "{near_ties}");
+}
+
+fn scaled_or_zero(x: f64) -> i128 {
+    if x == 0.0 { 0 } else { scaled(x) }
 }
 
 // wotan 1.10's windows on random light curves (its own segmenting, masking
