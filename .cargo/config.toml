@@ -1,0 +1,15 @@
+# Shortcuts for the GPU tests, which CI cannot run (it has no GPU). Run them
+# on a machine with an NVIDIA GPU before pushing changes to the GPU code.
+[alias]
+# Every rustellar-bls test with the GPU on; a missing GPU fails, not skips.
+# Add `--test cuda -- --ignored` for the heavy GPU comparisons.
+gpu-test = [
+    "test", "--release", "-p", "rustellar-bls", "--features", "cuda",
+    "--config", "env.RUSTELLAR_REQUIRE_GPU='1'",
+]
+# rustellar-bls's line coverage with the GPU on. cargo-llvm-cov cannot take
+# the setting above, so here a missing GPU shows as `cuda.rs` uncovered.
+gpu-coverage = [
+    "llvm-cov", "--release", "-p", "rustellar-bls", "--features", "cuda",
+    "--summary-only",
+]

@@ -42,11 +42,20 @@ cargo test --workspace --release -- --ignored
 ```
 
 CI has no GPU, so run the GPU tests on a machine with an NVIDIA GPU before
-pushing changes to the GPU code (a missing GPU fails here, not skips;
-`--coverage` adds the GPU code's line coverage):
+pushing changes to the GPU code. These are cargo aliases (in
+`.cargo/config.toml`); a missing GPU fails here, not skips:
 
 ```sh
-scripts/gpu-tests.sh
+cargo gpu-test
+cargo gpu-test --test cuda -- --ignored
+```
+
+The second runs the heavy GPU comparisons. With
+[cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov), the line
+coverage of `rustellar-bls`, its GPU code included:
+
+```sh
+cargo gpu-coverage
 ```
 
 Run the benchmarks:

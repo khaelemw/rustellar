@@ -162,9 +162,9 @@ fn one_sector_is_the_cpus_search() {
     compare(&lc, &ofir(&lc, None), "1 sector");
 }
 
-// Heavy: scripts/gpu-tests.sh runs it, coverage leaves it out.
+// Heavy: `cargo gpu-test --test cuda -- --ignored` runs it.
 #[test]
-#[ignore = "heavy: scripts/gpu-tests.sh runs it"]
+#[ignore = "heavy: cargo gpu-test --test cuda -- --ignored"]
 fn three_sectors_are_the_cpus_search() {
     let lc = sectors(78, 3);
     compare(&lc, &ofir(&lc, None), "3 sectors");
@@ -193,7 +193,7 @@ fn small_curves_are_the_cpus_search() {
 
 // Long periods, whose bins go a tile at a time. Heavy, as above.
 #[test]
-#[ignore = "heavy: scripts/gpu-tests.sh runs it"]
+#[ignore = "heavy: cargo gpu-test --test cuda -- --ignored"]
 fn kepler_years_are_the_cpus_search() {
     let lc = kepler(6);
     compare(&lc, &ofir(&lc, Some(150.0)), "Kepler 6 quarters");
