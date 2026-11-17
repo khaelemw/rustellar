@@ -8,3 +8,13 @@
 //! biweight (Hippke et al. 2019), solved to full double precision.
 //!
 //! **Status:** in development. Nothing is public yet.
+
+// Only the tests use the windows until the trend is built on them.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "used by the tests until the trend")
+)]
+mod window;
+
+#[cfg(test)]
+mod tests;
