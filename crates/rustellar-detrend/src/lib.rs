@@ -9,10 +9,25 @@
 //!
 //! **Status:** in development. Nothing is public yet.
 
-// Only the tests use the windows until the trend is built on them.
+// Only the tests use these until the public API is built on them.
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "used by the tests until the trend")
+    allow(dead_code, reason = "used by the tests until the API")
+)]
+mod exact_sum;
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the API")
+)]
+mod location;
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the API")
+)]
+mod trend;
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the API")
 )]
 mod window;
 

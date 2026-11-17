@@ -4,32 +4,12 @@
 
 use std::{cmp::Ordering, ops::Range};
 
+use super::Random;
 use crate::window::{Edges, WindowOptions, Windows, exceeds, segments, windows};
 
 // ==========================
 // Helper Functions
 // ==========================
-
-// A small deterministic generator (xorshift64*), so the tests need no crate.
-struct Random(u64);
-
-impl Random {
-    fn next(&mut self) -> u64 {
-        self.0 ^= self.0 >> 12;
-        self.0 ^= self.0 << 25;
-        self.0 ^= self.0 >> 27;
-        self.0.wrapping_mul(0x2545_f491_4f6c_dd1d)
-    }
-
-    // Uniform in [0, 1).
-    fn unit(&mut self) -> f64 {
-        (self.next() >> 11) as f64 / (1u64 << 53) as f64
-    }
-
-    fn below(&mut self, n: u64) -> u64 {
-        self.next() % n
-    }
-}
 
 fn options(window: f64, break_tolerance: f64, edge_cutoff: f64, edges: Edges) -> WindowOptions {
     WindowOptions {
