@@ -14,6 +14,11 @@
     not(test),
     allow(dead_code, reason = "used by the tests until the API")
 )]
+mod biweight;
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the API")
+)]
 mod exact_sum;
 #[cfg_attr(
     not(test),

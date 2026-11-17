@@ -1,6 +1,7 @@
 //! The trend: each point's window of fluxes summarised by a location.
 
 use crate::{
+    biweight::biweight,
     exact_sum::ExactSum,
     location::{Location, median},
     window::{WindowOptions, windows},
@@ -29,6 +30,18 @@ pub(crate) fn trend(
                     scratch.clear();
                     scratch.extend_from_slice(&kept[window]);
                     Some(median(&mut scratch))
+                })
+                .collect()
+        }
+        Location::Biweight(c) => {
+            let (mut scratch, mut deviations) = (Vec::new(), Vec::new());
+            w.windows
+                .iter()
+                .map(|window| {
+                    let window = window.clone().filter(|r| !r.is_empty())?;
+                    scratch.clear();
+                    scratch.extend_from_slice(&kept[window]);
+                    Some(biweight(&mut scratch, &mut deviations, c))
                 })
                 .collect()
         }
