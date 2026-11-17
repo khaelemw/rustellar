@@ -101,16 +101,41 @@ fn the_defaults() {
 fn the_checks_in_order() {
     let lc = curve(&[1.0, 2.0], &[1.0, 2.0]);
     let check = |d: Detrend, mask: Option<&[bool]>| d.trend(&lc, mask).err();
-    let tuning = |c| Detrend::default().with_method(Method::Biweight { c });
-    for c in [f64::NAN, f64::INFINITY, -1.0, 0.0, 9e-31, 1.1e30] {
-        assert_eq!(
-            check(tuning(c), None),
-            Some(DetrendError::TuningOutOfRange),
-            "{c}"
-        );
+    let tuned: [fn(f64) -> Method; 4] = [
+        |c| Method::Biweight { c },
+        |c| Method::Welsch { c },
+        |c| Method::AndrewsSineWave { c },
+        |c| Method::Huber { c },
+    ];
+    for method in tuned {
+        let tuning = |c| Detrend::default().with_method(method(c));
+        for c in [f64::NAN, f64::INFINITY, -1.0, 0.0, 9e-31, 1.1e30] {
+            assert_eq!(
+                check(tuning(c), None),
+                Some(DetrendError::TuningOutOfRange),
+                "{c}"
+            );
+        }
+        for c in [1e-30, 1e30] {
+            assert_eq!(check(tuning(c), None), None);
+        }
     }
-    for c in [1e-30, 1e30] {
-        assert_eq!(check(tuning(c), None), None);
+    let proportioned: [fn(f64) -> Method; 2] = [
+        |proportion| Method::TrimmedMean { proportion },
+        |proportion| Method::WinsorizedMean { proportion },
+    ];
+    for method in proportioned {
+        let cut = |p| Detrend::default().with_method(method(p));
+        for p in [f64::NAN, f64::INFINITY, -1e-300, 0.5, 1.0] {
+            assert_eq!(
+                check(cut(p), None),
+                Some(DetrendError::ProportionOutOfRange),
+                "{p}"
+            );
+        }
+        for p in [0.0, 0.1, 0.5 - f64::EPSILON / 4.0] {
+            assert_eq!(check(cut(p), None), None);
+        }
     }
     for w in [0.0, -1.0] {
         let d = Detrend::default().with_window(days(w));
@@ -143,6 +168,11 @@ fn the_checks_in_order() {
         .with_edge_cutoff(days(-1.0));
     let mask: &[bool] = &[true];
     assert_eq!(check(all, Some(mask)), Some(DetrendError::TuningOutOfRange));
+    let all = all.with_method(Method::TrimmedMean { proportion: 0.5 });
+    assert_eq!(
+        check(all, Some(mask)),
+        Some(DetrendError::ProportionOutOfRange)
+    );
     let all = all.with_method(Method::Median);
     assert_eq!(
         check(all, Some(mask)),
@@ -183,7 +213,11 @@ fn the_messages() {
         ),
         (
             DetrendError::TuningOutOfRange,
-            "the biweight's c must be between 1e-30 and 1e30",
+            "the tuning constant c must be between 1e-30 and 1e30",
+        ),
+        (
+            DetrendError::ProportionOutOfRange,
+            "the proportion must be at least 0 and below 0.5",
         ),
         (
             DetrendError::MaskLengthMismatch,
@@ -265,9 +299,22 @@ fn the_median_and_mean_by_definition() {
     }
 }
 
+// Every method but the median and mean (checked by definition above).
+const ESTIMATORS: [Method; 9] = [
+    Method::Biweight { c: 5.0 },
+    Method::Biweight { c: 3.0 },
+    Method::Welsch { c: 2.11 },
+    Method::AndrewsSineWave { c: 1.339 },
+    Method::Huber { c: 1.28 },
+    Method::HodgesLehmann,
+    Method::TrimmedMean { proportion: 0.1 },
+    Method::WinsorizedMean { proportion: 0.1 },
+    Method::WinsorizedMean { proportion: 0.0 },
+];
+
 #[test]
-fn the_biweight_of_each_window_alone() {
-    // A window's biweight is the same whether found sliding or with the
+fn each_window_alone() {
+    // A window's location is the same whether found sliding or with the
     // window as the whole light curve.
     let mut random = Random(0x5eed_0502);
     let (time, flux) = grid(&mut random, 400);
@@ -275,8 +322,6 @@ fn the_biweight_of_each_window_alone() {
         .iter()
         .map(|f| f * (1.0 + 1e-9 * random.below(1000) as f64))
         .collect();
-    let d = Detrend::default().with_window(days(0.75));
-    let trend = d.trend(&curve(&time, &flux), None).unwrap();
     let expected = windows(
         &time,
         &flux,
@@ -286,18 +331,24 @@ fn the_biweight_of_each_window_alone() {
         0.0,
         Edges::Symmetric,
     );
-    let whole = Detrend::default()
-        .with_window(days(1e6))
-        .with_break_tolerance(BreakTolerance::Never);
-    for (i, values) in expected.iter().enumerate() {
-        let values = values.as_ref().unwrap();
-        let time: Vec<f64> = (0..values.len()).map(|k| k as f64).collect();
-        let alone = whole.trend(&curve(&time, values), None).unwrap();
-        assert_eq!(
-            trend[i].unwrap().to_bits(),
-            alone[0].unwrap().to_bits(),
-            "point {i}"
-        );
+    for method in ESTIMATORS {
+        let d = Detrend::default()
+            .with_window(days(0.75))
+            .with_method(method);
+        let trend = d.trend(&curve(&time, &flux), None).unwrap();
+        let whole = d
+            .with_window(days(1e6))
+            .with_break_tolerance(BreakTolerance::Never);
+        for (i, values) in expected.iter().enumerate() {
+            let values = values.as_ref().unwrap();
+            let time: Vec<f64> = (0..values.len()).map(|k| k as f64).collect();
+            let alone = whole.trend(&curve(&time, values), None).unwrap();
+            assert_eq!(
+                trend[i].unwrap().to_bits(),
+                alone[0].unwrap().to_bits(),
+                "{method:?}, point {i}"
+            );
+        }
     }
 }
 
@@ -311,7 +362,7 @@ fn any_number_of_threads() {
         .collect();
     let masked: Vec<bool> = (0..time.len()).map(|_| random.below(7) == 0).collect();
     let lc = curve(&time, &flux);
-    for method in [Method::default(), Method::Median, Method::Mean] {
+    for method in [Method::Median, Method::Mean].into_iter().chain(ESTIMATORS) {
         let d = Detrend::default().with_method(method);
         let one = d
             .with_threads(NonZeroUsize::MIN)

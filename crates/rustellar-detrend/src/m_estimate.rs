@@ -1,21 +1,29 @@
-//! Tukey's biweight location of a window's fluxes, to full precision.
+//! M-estimators of location of a window's fluxes, to full precision:
+//! Tukey's biweight, Welsch's, Andrews' sine wave and Huber's.
 //!
-//! With the median `M` and `MAD = median |x_i - M|`, the biweight location
-//! `T` solves `sum psi((x_i - T) / (c MAD)) = 0`, where `psi(u) = u (1 -
-//! u^2)^2` for `|u| < 1` and 0 beyond: the root that wotan's iteration
-//! `T <- T + sum w_i d_i / sum w_i` (`d_i = x_i - T`, `w_i = (1 - u_i^2)^2`)
-//! reaches from the median. `MAD = 0` gives `M`.
+//! With the median `M` and `MAD = median |x_i - M|`, the location `T` solves
+//! `sum psi((x_i - T) / (c MAD)) = 0` (see [`crate::psi`]): the root that
+//! wotan's iteration `T <- T + sum w_i d_i / sum w_i` (`d_i = x_i - T`, `w_i`
+//! the weights) reaches from the median. `MAD = 0` gives `M`.
 //!
 //! Here: the median and MAD exactly (as double-doubles, a double and its
 //! remainder), wotan's iteration until its step stops shrinking, Newton's
-//! method on the residual `sum w_i d_i` evaluated in double-double, and last
-//! the two doubles either side of the residual's sign change, the nearer
-//! taken: the root correctly rounded wherever the residual's sign is
-//! certain. Each window is first scaled by a power of two (exact) so that
-//! its largest magnitude is between 1 and 2: no deviation overflows and none
-//! loses bits to the subnormals.
+//! method on the residual `sum w_i d_i`, and last the two doubles either side
+//! of the residual's sign change, the nearer taken: the root correctly
+//! rounded wherever the residual's sign is certain. The residual is summed
+//! plainly with a bound on its error, and in double-double where that bound
+//! leaves the sign in doubt. Each window is first scaled by a power of two
+//! (exact) so that its largest magnitude is between 1 and 2: no deviation
+//! overflows and none loses bits to the subnormals.
 
-use crate::location::midpoint;
+use crate::{
+    double::{
+        Double, accumulate, add, exponent, half, negate, power_of_two, scale, split, two_product,
+        two_product_halves, two_sum,
+    },
+    location::midpoint,
+    psi::{Isa, LANES, Lanes, Plain, Psi},
+};
 
 /// Steps of wotan's iteration at most, before Newton's method takes over.
 const ITERATIONS: usize = 1000;
@@ -33,10 +41,7 @@ const SEARCH_STEPS: usize = 64;
 /// c MAD is scaled to at least 2^FLOOR.
 const FLOOR: i32 = -500;
 
-/// A double-double: `hi + lo`, `|lo|` at most half an ulp of `hi`.
-type Double = (f64, f64);
-
-/// Scratch space for [`biweight_sorted`], kept between windows so that no
+/// Scratch space for [`solve`], kept between windows so that no
 /// window allocates.
 #[derive(Debug, Default)]
 pub(crate) struct Scratch {
@@ -48,15 +53,65 @@ pub(crate) struct Scratch {
 #[cfg(test)]
 pub(crate) fn biweight(values: &mut [f64], scratch: &mut Scratch, c: f64) -> f64 {
     values.sort_unstable_by(f64::total_cmp);
-    biweight_sorted(values, scratch, c)
+    solve::<crate::psi::Biweight>(values, scratch, c)
 }
 
-/// The biweight location of `sorted` (finite, at least one, ascending by
-/// `total_cmp`) with tuning constant `c` (in MADs, from 2^-100 to 2^100).
+/// The location of `sorted` (finite, at least one, ascending by `total_cmp`)
+/// for the psi function `P` with tuning constant `c` (in MADs, from 2^-100
+/// to 2^100).
 ///
 /// Every sum runs over the values in this order, so the result depends on
 /// the values alone, not on the order they came in.
-pub(crate) fn biweight_sorted(sorted: &[f64], scratch: &mut Scratch, c: f64) -> f64 {
+///
+/// The same bits whichever instructions the processor has: built twice, for
+/// x86-64's baseline and with AVX2 (wider vectors; no fused multiply-add,
+/// which would round differently), the second used where the processor has
+/// it.
+pub(crate) fn solve<P: Psi>(sorted: &[f64], scratch: &mut Scratch, c: f64) -> f64 {
+    #[cfg(target_arch = "x86_64")]
+    if let Some(avx2) = wide() {
+        // SAFETY: an `Avx2` exists only where the processor has AVX2.
+        return unsafe { solve_wide::<P>(avx2, sorted, scratch, c) };
+    }
+    solve_with::<P, Plain>(Plain, sorted, scratch, c)
+}
+
+/// AVX2's vectors, if the processor has them (and the tests have not turned
+/// them off).
+#[cfg(target_arch = "x86_64")]
+pub(crate) fn wide() -> Option<crate::psi::Avx2> {
+    #[cfg(test)]
+    if NARROW.with(std::cell::Cell::get) {
+        return None;
+    }
+    crate::psi::Avx2::new()
+}
+
+#[cfg(all(test, target_arch = "x86_64"))]
+thread_local! {
+    /// Set by the tests to run the baseline build.
+    pub(crate) static NARROW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// [`solve`] built with AVX2.
+///
+/// # Safety
+///
+/// The processor must have AVX2.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn solve_wide<P: Psi>(
+    avx2: crate::psi::Avx2,
+    sorted: &[f64],
+    scratch: &mut Scratch,
+    c: f64,
+) -> f64 {
+    solve_with::<P, crate::psi::Avx2>(avx2, sorted, scratch, c)
+}
+
+/// [`solve`], inlined into each build together with all it calls.
+#[inline(always)]
+fn solve_with<P: Psi, V: Isa>(v: V, sorted: &[f64], scratch: &mut Scratch, c: f64) -> f64 {
     debug_assert!(!sorted.is_empty() && (power_of_two(-100)..=power_of_two(100)).contains(&c));
     debug_assert!(sorted.is_sorted_by(|a, b| a.total_cmp(b).is_le()));
     let n = sorted.len();
@@ -96,11 +151,11 @@ pub(crate) fn biweight_sorted(sorted: &[f64], scratch: &mut Scratch, c: f64) -> 
     let mut t = median.0;
     let mut last = f64::INFINITY;
     for _ in 0..ITERATIONS {
-        let here = steer(values, t, inverse);
-        if here.weight == 0.0 {
+        let (residual, weight) = iterate::<P, V>(v, values, t, inverse);
+        if weight == 0.0 {
             break;
         }
-        let step = here.residual / here.weight;
+        let step = residual / weight;
         if step.abs() >= last {
             break;
         }
@@ -112,7 +167,7 @@ pub(crate) fn biweight_sorted(sorted: &[f64], scratch: &mut Scratch, c: f64) -> 
     }
 
     // Newton's method, while the residual shrinks.
-    let mut here = steer(values, t, inverse);
+    let mut here = newton::<P, V>(v, values, t, inverse);
     for _ in 0..NEWTON_STEPS {
         if here.slope <= 0.0 || here.residual == 0.0 {
             break;
@@ -122,24 +177,26 @@ pub(crate) fn biweight_sorted(sorted: &[f64], scratch: &mut Scratch, c: f64) -> 
         if (next - t).abs() <= 2.0 * gap(t) {
             break;
         }
-        let there = steer(values, next, inverse);
+        let there = newton::<P, V>(v, values, next, inverse);
         if there.residual.abs() >= here.residual.abs() {
             break;
         }
         (t, here) = (next, there);
     }
 
-    let precise = |t: f64| residual(values, t, s, inverse);
-    let cheap = |t: f64| {
-        let (value, bound) = bounded(values, t, inverse);
-        Estimate { value, bound }
+    let sums = Sums::<P, V> {
+        values,
+        s,
+        inverse,
+        isa: v,
+        psi: std::marker::PhantomData,
     };
-    let mut at_t = cheap(t);
+    let mut at_t = sums.cheap(t);
     if !at_t.certain() {
         // The sums cannot tell the residual from zero here: Newton's method
         // on the double-double residual (the slope as last found: near the
         // root it hardly changes), while it shrinks.
-        at_t = Estimate::exact(precise(t));
+        at_t = Estimate::exact(sums.precise(t));
         for _ in 0..NEWTON_STEPS {
             if here.slope <= 0.0 || at_t.value == 0.0 {
                 break;
@@ -148,7 +205,7 @@ pub(crate) fn biweight_sorted(sorted: &[f64], scratch: &mut Scratch, c: f64) -> 
             if (next - t).abs() <= 2.0 * gap(t) {
                 break;
             }
-            let at_next = precise(next);
+            let at_next = sums.precise(next);
             if at_next.abs() >= at_t.value.abs() {
                 break;
             }
@@ -159,11 +216,12 @@ pub(crate) fn biweight_sorted(sorted: &[f64], scratch: &mut Scratch, c: f64) -> 
     // The nearer double either side of the sign change, among those exact
     // once scaled back (multiples of `fine`).
     let fine = power_of_two((-1074 - e).max(-1074));
-    let t = nearest_root(t, at_t, fine, &cheap, &precise);
+    let t = nearest_root(t, at_t, fine, &sums);
     scale(t, e)
 }
 
 /// `x - median`, exactly as a double-double (to the last bits of one).
+#[inline(always)]
 fn deviation(x: f64, median: Double) -> Double {
     let (d, error) = two_sum(x, -median.0);
     two_sum(d, error - median.1)
@@ -172,6 +230,7 @@ fn deviation(x: f64, median: Double) -> Double {
 /// The median absolute deviation of `sorted` from `median`, as a
 /// double-double: the deviations are taken outward from the median, the
 /// smaller first, up to the middle one (or two).
+#[inline(always)]
 fn mad(sorted: &[f64], median: Double) -> Double {
     let n = sorted.len();
     // Below `below` (and from `above`) the values not yet taken; at first
@@ -209,23 +268,22 @@ fn mad(sorted: &[f64], median: Double) -> Double {
     half(add(low, high))
 }
 
-/// The values with `|u| = |x - t| / s` below 1, `u` computed as the sums do
-/// (`(x - t) inverse`, `inverse = 1 / s`): a run of the sorted values, as `u`
-/// never decreases with `x`.
-fn inside(sorted: &[f64], t: f64, inverse: f64) -> &[f64] {
-    let start = sorted.partition_point(|&x| (x - t) * inverse <= -1.0);
-    let end = sorted.partition_point(|&x| (x - t) * inverse < 1.0);
+/// The values with `|u| = |x - t| / s` below `P`'s reach, `u` computed as
+/// the sums do (`(x - t) inverse`, `inverse = 1 / s`): a run of the sorted
+/// values, as `u` never decreases with `x`. All of them for an infinite
+/// reach.
+#[inline(always)]
+fn inside<P: Psi>(sorted: &[f64], t: f64, inverse: f64) -> &[f64] {
+    let start = sorted.partition_point(|&x| (x - t) * inverse <= -P::REACH);
+    let end = sorted.partition_point(|&x| (x - t) * inverse < P::REACH);
     &sorted[start..end]
 }
-
-/// Independent sums, so that the passes over the values can run in
-/// parallel lanes; the lanes are added in a fixed order.
-const LANES: usize = 4;
 
 /// The residual `sum w_i d_i` at `t` for `c MAD = s` (`inverse` its
 /// reciprocal), each term and the sum in double-double: wrong only in the
 /// last bits of a double-double.
-fn residual(values: &[f64], t: f64, s: Double, inverse: f64) -> f64 {
+#[inline(always)]
+fn residual<P: Psi>(values: &[f64], t: f64, s: Double, inverse: f64) -> f64 {
     let s_halves = split(s.0);
     let term = |x: f64| {
         let d = two_sum(x, -t);
@@ -233,12 +291,10 @@ fn residual(values: &[f64], t: f64, s: Double, inverse: f64) -> f64 {
         let u_hi = d.0 * inverse;
         let (p, p_error) = two_product_halves(u_hi, s.0, s_halves);
         let u_lo = (((d.0 - p) - p_error) + d.1 - u_hi * s.1) * inverse;
-        let u = (u_hi, u_lo);
-        let v = add((1.0, 0.0), negate(multiply(u, u)));
-        multiply(multiply(v, v), d)
+        P::term((u_hi, u_lo), d, s)
     };
     let mut lanes = [(0.0, 0.0); LANES];
-    let inside = inside(values, t, inverse);
+    let inside = inside::<P>(values, t, inverse);
     let mut chunks = inside.chunks_exact(LANES);
     for chunk in &mut chunks {
         for (lane, &x) in lanes.iter_mut().zip(chunk) {
@@ -252,117 +308,190 @@ fn residual(values: &[f64], t: f64, s: Double, inverse: f64) -> f64 {
     total.0 + total.1
 }
 
-/// `sum + term`, the sum's low part gathering the errors.
-fn accumulate(sum: Double, term: Double) -> Double {
-    let (hi, error) = two_sum(sum.0, term.0);
-    (hi, sum.1 + error + term.1)
+/// The values at or near `t` (see [`inside`]) lane by lane: whole runs of
+/// [`LANES`], then the rest (if any) padded with `t` itself, with `1` in
+/// `real` for each real lane and `0` for padding. A padded lane's deviation
+/// is 0, so it adds nothing to a sum of `w d` (nor to one of `|d| m`); the
+/// other sums take `real` times their terms.
+#[inline(always)]
+fn lanes_of<P: Psi>(
+    values: &[f64],
+    t: f64,
+    inverse: f64,
+) -> (std::slice::ChunksExact<'_, f64>, Option<(Lanes, Lanes)>) {
+    let chunks = inside::<P>(values, t, inverse).chunks_exact(LANES);
+    let rest = chunks.remainder();
+    let padded = (!rest.is_empty()).then(|| {
+        (
+            std::array::from_fn(|l| rest.get(l).copied().unwrap_or(t)),
+            std::array::from_fn(|l| if l < rest.len() { 1.0 } else { 0.0 }),
+        )
+    });
+    (chunks, padded)
 }
 
-fn negate(a: Double) -> Double {
-    (-a.0, -a.1)
+/// A run of [`LANES`] values as lanes.
+#[inline(always)]
+fn run(chunk: &[f64]) -> Lanes {
+    std::array::from_fn(|l| chunk[l])
 }
 
-fn add(a: Double, b: Double) -> Double {
-    let (sum, error) = two_sum(a.0, b.0);
-    two_sum(sum, error + a.1 + b.1)
+/// Lanes added in a fixed order.
+#[inline(always)]
+fn total(a: Lanes) -> f64 {
+    (a[0] + a[1]) + (a[2] + a[3])
 }
 
-fn multiply(a: Double, b: Double) -> Double {
-    let (product, error) = two_product(a.0, b.0);
-    two_sum(product, error + a.0 * b.1 + a.1 * b.0)
+/// The plain sums at `t` that steer wotan's iteration, with the rough
+/// weights: the residual `sum w_i d_i` and the weight `sum w_i`.
+#[inline(always)]
+fn iterate<P: Psi, V: Isa>(v: V, values: &[f64], t: f64, inverse: f64) -> (f64, f64) {
+    #[inline(always)]
+    fn step<P: Psi, V: Isa>(
+        v: V,
+        x: Lanes,
+        real: Lanes,
+        t: f64,
+        inverse: f64,
+        sums: &mut [Lanes; 2],
+    ) {
+        let d: Lanes = std::array::from_fn(|l| x[l] - t);
+        let w = P::rough(v, std::array::from_fn(|l| d[l] * inverse));
+        for l in 0..LANES {
+            sums[0][l] += w[l] * d[l];
+            sums[1][l] += w[l] * real[l];
+        }
+    }
+    let mut sums = [[0.0; LANES]; 2];
+    let (runs, rest) = lanes_of::<P>(values, t, inverse);
+    for chunk in runs {
+        step::<P, V>(v, run(chunk), [1.0; LANES], t, inverse, &mut sums);
+    }
+    if let Some((x, real)) = rest {
+        step::<P, V>(v, x, real, t, inverse, &mut sums);
+    }
+    (total(sums[0]), total(sums[1]))
 }
 
-/// Half of `a`: exact but where `lo` is subnormal.
-fn half(a: Double) -> Double {
-    (a.0 / 2.0, a.1 / 2.0)
-}
-
-/// The plain sums at `t` that steer the iteration: the residual
-/// `sum w_i d_i`, the weight `sum w_i` and the slope
-/// `sum (1 - u^2)(1 - 5 u^2)` (minus the residual's derivative in `t`).
-#[derive(Clone, Copy, Default)]
-struct Steer {
+/// The plain sums at `t` for Newton's method: the residual `sum w_i d_i`
+/// and the slope `sum psi'(u_i)` (minus the residual's derivative in `t`).
+#[derive(Clone, Copy)]
+struct Newton {
     residual: f64,
-    weight: f64,
     slope: f64,
 }
 
-fn steer(values: &[f64], t: f64, inverse: f64) -> Steer {
-    // Four lanes of each sum, side by side, so that they run as vectors.
-    let (mut residual, mut weight, mut slope) = ([0.0; LANES], [0.0; LANES], [0.0; LANES]);
-    let inside = inside(values, t, inverse);
-    let mut chunks = inside.chunks_exact(LANES);
-    for chunk in &mut chunks {
-        for lane in 0..LANES {
-            let d = chunk[lane] - t;
-            let u = d * inverse;
-            let v = 1.0 - u * u;
-            let w = v * v;
-            residual[lane] += w * d;
-            weight[lane] += w;
-            slope[lane] += v * (1.0 - 5.0 * u * u);
+#[inline(always)]
+fn newton<P: Psi, V: Isa>(v: V, values: &[f64], t: f64, inverse: f64) -> Newton {
+    #[inline(always)]
+    fn step<P: Psi, V: Isa>(
+        v: V,
+        x: Lanes,
+        real: Lanes,
+        t: f64,
+        inverse: f64,
+        sums: &mut [Lanes; 2],
+    ) {
+        let d: Lanes = std::array::from_fn(|l| x[l] - t);
+        let (w, _, slope) = P::weigh(v, std::array::from_fn(|l| d[l] * inverse));
+        for l in 0..LANES {
+            sums[0][l] += w[l] * d[l];
+            sums[1][l] += slope[l] * real[l];
         }
     }
-    for (lane, &x) in chunks.remainder().iter().enumerate() {
-        let d = x - t;
-        let u = d * inverse;
-        let v = 1.0 - u * u;
-        let w = v * v;
-        residual[lane] += w * d;
-        weight[lane] += w;
-        slope[lane] += v * (1.0 - 5.0 * u * u);
+    let mut sums = [[0.0; LANES]; 2];
+    let (runs, rest) = lanes_of::<P>(values, t, inverse);
+    for chunk in runs {
+        step::<P, V>(v, run(chunk), [1.0; LANES], t, inverse, &mut sums);
     }
-    let total = |a: [f64; LANES]| (a[0] + a[1]) + (a[2] + a[3]);
-    Steer {
-        residual: total(residual),
-        weight: total(weight),
-        slope: total(slope),
+    if let Some((x, real)) = rest {
+        step::<P, V>(v, x, real, t, inverse, &mut sums);
+    }
+    Newton {
+        residual: total(sums[0]),
+        slope: total(sums[1]),
     }
 }
 
-/// The rounding errors of a term `w d` of the residual, in units of
-/// `eps |d| (1 - u^2)`: `u` within 4 eps (the reciprocal, the product,
-/// `d`'s low part and c MAD's), `1 - u^2` within 9 eps u^2 + eps (1 - u^2),
-/// its square and the product with `d` 22 in all; doubled.
-const TERM_ERROR: f64 = 44.0;
-
 /// The residual `sum w_i d_i` at `t`, compensated and with `d_i` exact, and
 /// a bound on its error.
-fn bounded(values: &[f64], t: f64, inverse: f64) -> (f64, f64) {
-    // Each lane: the residual's high part, the errors gathered, and
-    // sum |d| (1 - u^2) for the bound.
-    let term = |lane: &mut [f64; 3], x: f64| {
-        let (d, d_low) = two_sum(x, -t);
-        let u = d * inverse;
-        let v = 1.0 - u * u;
-        let w = v * v;
-        let (sum, error) = two_sum(lane[0], w * d);
-        lane[0] = sum;
-        lane[1] += error + w * d_low;
-        lane[2] += d.abs() * v;
-    };
-    let mut lanes = [[0.0; 3]; LANES];
-    let inside = inside(values, t, inverse);
-    let mut chunks = inside.chunks_exact(LANES);
-    for chunk in &mut chunks {
-        for (lane, &x) in lanes.iter_mut().zip(chunk) {
-            term(lane, x);
+#[inline(always)]
+fn bounded<P: Psi, V: Isa>(v: V, values: &[f64], t: f64, inverse: f64) -> (f64, f64) {
+    // The residual's high parts, the errors gathered, and sum |d| m(u) for
+    // the bound.
+    #[inline(always)]
+    fn step<P: Psi, V: Isa>(v: V, x: Lanes, _: Lanes, t: f64, inverse: f64, sums: &mut [Lanes; 3]) {
+        let exact: [(f64, f64); LANES] = std::array::from_fn(|l| two_sum(x[l], -t));
+        let (w, m, _) = P::weigh(v, std::array::from_fn(|l| exact[l].0 * inverse));
+        for l in 0..LANES {
+            let (d, d_low) = exact[l];
+            let (sum, error) = two_sum(sums[0][l], w[l] * d);
+            sums[0][l] = sum;
+            sums[1][l] += error + w[l] * d_low;
+            sums[2][l] += d.abs() * m[l];
         }
     }
-    for (lane, &x) in lanes.iter_mut().zip(chunks.remainder()) {
-        term(lane, x);
+    let mut sums = [[0.0; LANES]; 3];
+    let (runs, rest) = lanes_of::<P>(values, t, inverse);
+    for chunk in runs {
+        step::<P, V>(v, run(chunk), [1.0; LANES], t, inverse, &mut sums);
     }
-    let total = |k: usize| (lanes[0][k] + lanes[1][k]) + (lanes[2][k] + lanes[3][k]);
+    if let Some((x, real)) = rest {
+        step::<P, V>(v, x, real, t, inverse, &mut sums);
+    }
     let high = add(
-        two_sum(lanes[0][0], lanes[1][0]),
-        two_sum(lanes[2][0], lanes[3][0]),
+        two_sum(sums[0][0], sums[0][1]),
+        two_sum(sums[0][2], sums[0][3]),
     );
-    let residual = high.0 + (high.1 + total(1));
+    let residual = high.0 + (high.1 + total(sums[1]));
     // The terms', the summation's (compensated: a few eps of the sum and
     // eps^2 of the terms, well inside the terms' share) and the last
     // rounding's.
-    let bound = f64::EPSILON * (TERM_ERROR * total(2) + 2.0 * residual.abs());
+    let bound = f64::EPSILON * (P::TERM_ERROR * total(sums[2]) + 2.0 * residual.abs());
     (residual, bound)
+}
+
+/// The residual two ways, for [`nearest_root`].
+pub(crate) trait Residual {
+    /// With a bound on its error.
+    fn cheap(&self, t: f64) -> Estimate;
+    /// Taken as exact.
+    fn precise(&self, t: f64) -> f64;
+}
+
+/// The sums of one window: methods rather than closures, so that they are
+/// built into the solver's wide build with all else.
+struct Sums<'a, P, V> {
+    values: &'a [f64],
+    s: Double,
+    inverse: f64,
+    isa: V,
+    psi: std::marker::PhantomData<P>,
+}
+
+impl<P: Psi, V: Isa> Residual for Sums<'_, P, V> {
+    #[inline(always)]
+    fn cheap(&self, t: f64) -> Estimate {
+        let (value, bound) = bounded::<P, V>(self.isa, self.values, t, self.inverse);
+        Estimate { value, bound }
+    }
+
+    #[inline(always)]
+    fn precise(&self, t: f64) -> f64 {
+        residual::<P>(self.values, t, self.s, self.inverse)
+    }
+}
+
+/// A cheap and a precise residual given as functions.
+#[cfg(test)]
+impl<C: Fn(f64) -> Estimate, R: Fn(f64) -> f64> Residual for (C, R) {
+    fn cheap(&self, t: f64) -> Estimate {
+        (self.0)(t)
+    }
+
+    fn precise(&self, t: f64) -> f64 {
+        (self.1)(t)
+    }
 }
 
 /// A residual and a bound on its error.
@@ -388,21 +517,17 @@ impl Estimate {
 /// the nearer by linear interpolation, ties to even. `t` (snapped to the
 /// multiples of `fine`) if there is no sign change within reach.
 ///
-/// The residual comes from `cheap`, with a bound on its error, and from
-/// `precise` (taken as exact) wherever that bound leaves a sign, or which
-/// side is nearer, in doubt. `at_t` is the residual at `t`, known already.
-pub(crate) fn nearest_root(
-    t: f64,
-    at_t: Estimate,
-    fine: f64,
-    cheap: &dyn Fn(f64) -> Estimate,
-    precise: &dyn Fn(f64) -> f64,
-) -> f64 {
+/// The residual comes from `residual.cheap`, with a bound on its error, and
+/// from `residual.precise` (taken as exact) wherever that bound leaves a
+/// sign, or which side is nearer, in doubt. `at_t` is the residual at `t`,
+/// known already.
+#[inline(always)]
+pub(crate) fn nearest_root(t: f64, at_t: Estimate, fine: f64, residual: &impl Residual) -> f64 {
     let settle = |t: f64, at: Estimate| {
         if at.certain() {
             at
         } else {
-            Estimate::exact(precise(t))
+            Estimate::exact(residual.precise(t))
         }
     };
     // Off the multiples only where the doubles are finer than `fine`, so
@@ -411,7 +536,7 @@ pub(crate) fn nearest_root(
         (t, at_t)
     } else {
         let snapped = (t / fine).round() * fine;
-        (snapped, cheap(snapped))
+        (snapped, residual.cheap(snapped))
     };
     let at_t = settle(t, at_t);
     if at_t.value == 0.0 {
@@ -422,7 +547,7 @@ pub(crate) fn nearest_root(
     let (mut near, mut at_near) = (t, at_t);
     for _ in 0..SEARCH_STEPS {
         let far = step(near, up, fine);
-        let at_far = settle(far, cheap(far));
+        let at_far = settle(far, residual.cheap(far));
         if at_far.value == 0.0 {
             return far;
         }
@@ -433,7 +558,7 @@ pub(crate) fn nearest_root(
             let (at_near, at_far) = if (at_near.value.abs() - at_far.value.abs()).abs() > doubt {
                 (at_near.value, at_far.value)
             } else {
-                (precise(near), precise(far))
+                (residual.precise(near), residual.precise(far))
             };
             // The root at `near + fraction (far - near)`.
             let fraction = at_near / (at_near - at_far);
@@ -454,6 +579,7 @@ pub(crate) fn nearest_root(
 }
 
 /// The next double from `t`, up or down.
+#[inline(always)]
 fn next_double(t: f64, up: bool) -> f64 {
     if t == 0.0 {
         let tiny = f64::from_bits(1);
@@ -466,6 +592,7 @@ fn next_double(t: f64, up: bool) -> f64 {
 }
 
 /// The larger gap from `t` to the doubles either side.
+#[inline(always)]
 fn gap(t: f64) -> f64 {
     (next_double(t, true) - t)
         .abs()
@@ -474,11 +601,13 @@ fn gap(t: f64) -> f64 {
 
 /// Whether the doubles next to `t` are at least `fine` apart, so that each
 /// is a multiple of `fine`.
+#[inline(always)]
 fn on_doubles(t: f64, fine: f64) -> bool {
     (next_double(t, true) - t).abs() >= fine && (next_double(t, false) - t).abs() >= fine
 }
 
 /// The next multiple of `fine` among the doubles from `t` (one), up or down.
+#[inline(always)]
 fn step(t: f64, up: bool, fine: f64) -> f64 {
     let next = next_double(t, up);
     if (next - t).abs() >= fine {
@@ -488,68 +617,4 @@ fn step(t: f64, up: bool, fine: f64) -> f64 {
     } else {
         t - fine
     }
-}
-
-/// `a b` and its rounding error, exactly (Dekker's product: no fused
-/// multiply-add, which most x86-64 builds would call in software). Exact for
-/// the scaled values here, far from overflow and underflow.
-fn two_product(a: f64, b: f64) -> (f64, f64) {
-    two_product_halves(a, b, split(b))
-}
-
-/// [`two_product`] with `b` already split.
-fn two_product_halves(a: f64, b: f64, (b_hi, b_lo): (f64, f64)) -> (f64, f64) {
-    let product = a * b;
-    let (a_hi, a_lo) = split(a);
-    let error = ((a_hi * b_hi - product) + a_hi * b_lo + a_lo * b_hi) + a_lo * b_lo;
-    (product, error)
-}
-
-/// `x` as two halves of 26 bits each (Veltkamp's split).
-fn split(x: f64) -> (f64, f64) {
-    let t = 134_217_729.0 * x; // 2^27 + 1
-    let hi = t - (t - x);
-    (hi, x - hi)
-}
-
-/// `a + b` and its rounding error, exactly (Knuth's two-sum).
-fn two_sum(a: f64, b: f64) -> (f64, f64) {
-    let sum = a + b;
-    let b_virtual = sum - a;
-    let a_virtual = sum - b_virtual;
-    (sum, (a - a_virtual) + (b - b_virtual))
-}
-
-/// `floor(log2 x)` for finite positive `x`.
-fn exponent(x: f64) -> i32 {
-    let bits = x.to_bits();
-    let biased = (bits >> 52) as i32;
-    if biased == 0 {
-        -1074 + 63 - bits.leading_zeros() as i32
-    } else {
-        biased - 1023
-    }
-}
-
-/// 2^`power`, for `power` from -1074 to 1023.
-fn power_of_two(power: i32) -> f64 {
-    debug_assert!((-1074..=1023).contains(&power));
-    if power >= -1022 {
-        f64::from_bits(((power + 1023) as u64) << 52)
-    } else {
-        f64::from_bits(1 << (power + 1074))
-    }
-}
-
-/// `x` 2^`power`, in steps that stay within the doubles' exponents.
-fn scale(mut x: f64, mut power: i32) -> f64 {
-    while power > 1000 {
-        x *= power_of_two(1000);
-        power -= 1000;
-    }
-    while power < -1000 {
-        x *= power_of_two(-1000);
-        power += 1000;
-    }
-    x * power_of_two(power)
 }

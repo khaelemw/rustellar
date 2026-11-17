@@ -1,5 +1,6 @@
 // Unit tests for crate-only items, one file per source module.
 mod biweight;
+mod estimators;
 mod exact_sum;
 mod location;
 mod trend;

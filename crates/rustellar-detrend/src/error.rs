@@ -28,9 +28,12 @@ pub enum DetrendError {
     },
     /// The edge cutoff is negative.
     NegativeEdgeCutoff,
-    /// The biweight's tuning constant `c` is not between `1e-30` and
+    /// An M-estimator's tuning constant `c` is not between `1e-30` and
     /// `1e30` (or is NaN).
     TuningOutOfRange,
+    /// A trimmed or winsorized mean's proportion is not from 0 to below 1/2
+    /// (or is NaN).
+    ProportionOutOfRange,
     /// The mask's length is not the light curve's.
     MaskLengthMismatch,
     /// [`Detrend::flatten`](crate::Detrend::flatten) found no point with a
@@ -45,7 +48,10 @@ impl fmt::Display for DetrendError {
             Self::NotPositive { name } => write!(f, "{name} must be greater than zero"),
             Self::NegativeEdgeCutoff => write!(f, "edge_cutoff must not be negative"),
             Self::TuningOutOfRange => {
-                write!(f, "the biweight's c must be between 1e-30 and 1e30")
+                write!(f, "the tuning constant c must be between 1e-30 and 1e30")
+            }
+            Self::ProportionOutOfRange => {
+                write!(f, "the proportion must be at least 0 and below 0.5")
             }
             Self::MaskLengthMismatch => {
                 write!(

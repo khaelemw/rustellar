@@ -44,6 +44,48 @@ pub enum Method {
     Median,
     /// The mean, correctly rounded (summed exactly).
     Mean,
+    /// Welsch's M-estimator (Dennis and Welsch 1978): weights
+    /// `exp(-u^2 / 2)`, `u` in units of `c` MADs, from `1e-30` to `1e30`;
+    /// wotan's default is 2.11. Solved as the biweight is. Unlike wotan's,
+    /// it gives every point some weight: wotan's also drops points beyond
+    /// `c` MADs, which can leave its defining sum with no root.
+    Welsch {
+        /// The tuning constant, in median absolute deviations.
+        c: f64,
+    },
+    /// Andrews' sine wave (Andrews et al. 1972): `psi(u) = sin u` for
+    /// `|u| < pi`, `u` in units of `c` MADs, from `1e-30` to `1e30`; wotan's
+    /// default is 1.339. Solved as the biweight is.
+    AndrewsSineWave {
+        /// The tuning constant, in median absolute deviations.
+        c: f64,
+    },
+    /// Huber's M-estimator (Huber 1964), iterated to its root:
+    /// `psi(u) = u` for `|u| < 1`, else its sign, `u` in units of `c` MADs,
+    /// from `1e-30` to `1e30`; 1.28 as wotan's `huber_psi`, which takes a
+    /// single step from the median instead.
+    Huber {
+        /// The tuning constant, in median absolute deviations.
+        c: f64,
+    },
+    /// The Hodges-Lehmann estimator: the median of the averages of every
+    /// pair of fluxes (each with itself too), correctly rounded.
+    HodgesLehmann,
+    /// The mean without the `floor(proportion n)` smallest and largest
+    /// fluxes, correctly rounded. `proportion` from 0 to below 1/2; wotan's
+    /// default is 0.1.
+    TrimmedMean {
+        /// The proportion cut from each end.
+        proportion: f64,
+    },
+    /// The mean with the `floor(proportion n)` smallest fluxes replaced by
+    /// the next, and the largest by the one before, correctly rounded.
+    /// `proportion` from 0 to below 1/2. (wotan's replaces one more at the
+    /// low end than at the high.)
+    WinsorizedMean {
+        /// The proportion replaced at each end.
+        proportion: f64,
+    },
 }
 
 impl Default for Method {
@@ -265,8 +307,10 @@ impl Detrend {
     ///
     /// The checks run in this order, and the first that fails is returned:
     ///
-    /// 1. [`TuningOutOfRange`](DetrendError::TuningOutOfRange) if the
-    ///    biweight's `c` is not between `1e-30` and `1e30`.
+    /// 1. [`TuningOutOfRange`](DetrendError::TuningOutOfRange) if an
+    ///    M-estimator's `c` is not between `1e-30` and `1e30`, or
+    ///    [`ProportionOutOfRange`](DetrendError::ProportionOutOfRange) if a
+    ///    trimmed or winsorized mean's proportion is not from 0 to below 1/2.
     /// 2. [`NotPositive`](DetrendError::NotPositive) if the window, or a
     ///    fixed break tolerance, is zero or negative.
     /// 3. [`NegativeEdgeCutoff`](DetrendError::NegativeEdgeCutoff) if the
@@ -380,15 +424,30 @@ impl Detrend {
 
     /// The settings checked, as the windows' options and the location.
     fn check(&self) -> Result<(WindowOptions, Location), DetrendError> {
-        let location = match self.method {
-            Method::Biweight { c } => {
-                if !(1e-30..=1e30).contains(&c) {
-                    return Err(DetrendError::TuningOutOfRange);
-                }
-                Location::Biweight(c)
+        let tuning = |c: f64| {
+            if (1e-30..=1e30).contains(&c) {
+                Ok(c)
+            } else {
+                Err(DetrendError::TuningOutOfRange)
             }
+        };
+        let proportion = |p: f64| {
+            if (0.0..0.5).contains(&p) {
+                Ok(p)
+            } else {
+                Err(DetrendError::ProportionOutOfRange)
+            }
+        };
+        let location = match self.method {
+            Method::Biweight { c } => Location::Biweight(tuning(c)?),
+            Method::Welsch { c } => Location::Welsch(tuning(c)?),
+            Method::AndrewsSineWave { c } => Location::Andrews(tuning(c)?),
+            Method::Huber { c } => Location::Huber(tuning(c)?),
             Method::Median => Location::Median,
             Method::Mean => Location::Mean,
+            Method::HodgesLehmann => Location::HodgesLehmann,
+            Method::TrimmedMean { proportion: p } => Location::Trimmed(proportion(p)?),
+            Method::WinsorizedMean { proportion: p } => Location::Winsorized(proportion(p)?),
         };
         let window = self.window.as_days();
         if window <= 0.0 {

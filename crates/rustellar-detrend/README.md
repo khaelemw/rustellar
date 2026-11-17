@@ -4,7 +4,9 @@ Detrending light curves in pure Rust: the slow variation of a star and of
 the instrument estimated and divided out before a transit search. The method
 is a time-windowed sliding filter, by default Tukey's biweight (Hippke et al.
 2019), solved to full double precision, with every point in the windows
-that cover it and the same results on any number of threads.
+that cover it and the same results on any number of threads. Welsch's,
+Andrews' and Huber's M-estimators, the Hodges-Lehmann estimator, the
+trimmed and winsorized means, the median and the mean are there too.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `detrend` feature.
@@ -19,11 +21,13 @@ trend is good to a few parts per million at best, and worse for fluxes in
 counts or far from 1; a window edge falls on whichever side the rounding of
 a time difference puts it.
 
-This crate is that detrender for Rust. Its biweight is correctly rounded
-wherever the sign of the sum that defines it can be told from zero, its
-median and mean are correctly rounded, and every window edge is decided
+This crate is that detrender for Rust. Its biweight and other M-estimators
+are correctly rounded wherever the sign of the sum that defines them can be
+told from zero; its median, mean, Hodges-Lehmann estimator and trimmed and
+winsorized means are correctly rounded; and every window edge is decided
 exactly. It runs on all cores with the same result, to the bit, on any
-number of threads, and on one thread it is faster than wotan.
+number of threads and any processor, and on one thread it is faster than
+wotan.
 
 ## Quick start
 
@@ -53,7 +57,14 @@ assert!((flux[740] - 0.995).abs() < 1e-5);
 
 ## References
 
+- Andrews, D. F., Bickel, P. J., Hampel, F. R., Huber, P. J., Rogers, W. H. &
+  Tukey, J. W. 1972, Robust Estimates of Location (Princeton University Press)
+- Dennis, J. E. & Welsch, R. E. 1978, Communications in Statistics -
+  Simulation and Computation, 7, 345
 - Hippke, M., David, T. J., Mulders, G. D. & Heller, R. 2019, AJ, 158, 143
+- Hodges, J. L. & Lehmann, E. L. 1963, Annals of Mathematical Statistics,
+  34, 598
+- Huber, P. J. 1964, Annals of Mathematical Statistics, 35, 73
 
 ## License
 

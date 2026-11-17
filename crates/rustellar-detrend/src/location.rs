@@ -13,6 +13,19 @@ pub(crate) enum Location {
     /// Tukey's biweight with tuning constant `c` (in MADs; wotan's is 5),
     /// to full precision.
     Biweight(f64),
+    /// Welsch's M-estimator, `c` in MADs.
+    Welsch(f64),
+    /// Andrews' sine wave, `c` in MADs.
+    Andrews(f64),
+    /// Huber's M-estimator, `c` in MADs.
+    Huber(f64),
+    /// The Hodges-Lehmann estimator, correctly rounded.
+    HodgesLehmann,
+    /// The mean without the proportion `p` at each end, correctly rounded.
+    Trimmed(f64),
+    /// The mean with the proportion `p` at each end replaced by the nearest
+    /// value kept, correctly rounded.
+    Winsorized(f64),
 }
 
 /// The median of `values` (finite, at least one), reordering them.

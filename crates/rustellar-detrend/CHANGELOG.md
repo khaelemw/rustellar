@@ -16,3 +16,8 @@ All notable changes to this crate are recorded here. The format follows
   exactly; the same results, to the bit, on any number of threads.
 - `Detrend::flatten` and `Flattened`: the light curve divided by its trend,
   with the original index of each point kept.
+- More methods: Welsch's, Andrews' sine wave and Huber's M-estimators
+  (correctly rounded wherever their sums' signs can be told from zero, as the
+  biweight), and the Hodges-Lehmann estimator and the trimmed and winsorized
+  means (correctly rounded). The plain series run four to a vector with AVX2
+  where the processor has it, to the same bits as without.

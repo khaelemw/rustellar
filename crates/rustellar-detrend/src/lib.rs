@@ -38,11 +38,14 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
-mod biweight;
 mod detrend;
+mod double;
 mod error;
 mod exact_sum;
 mod location;
+mod m_estimate;
+mod order;
+mod psi;
 mod trend;
 mod window;
 

@@ -4,9 +4,11 @@
 
 use super::Random;
 use crate::{
-    biweight::{Scratch, biweight},
     exact_sum::ExactSum,
     location::{Location, median},
+    m_estimate::{Scratch, biweight, solve},
+    order::{Rows, hodges_lehmann, trimmed_mean, winsorized_mean},
+    psi::{Andrews, Huber, Welsch},
     trend::trend,
     window::{Edges, WindowOptions, windows},
 };
@@ -198,12 +200,43 @@ const LOCATIONS: [Location; 4] = [
     Location::Biweight(3.0),
 ];
 
+const MORE_LOCATIONS: [Location; 7] = [
+    Location::Welsch(2.11),
+    Location::Andrews(1.339),
+    Location::Huber(1.28),
+    Location::HodgesLehmann,
+    Location::Trimmed(0.1),
+    Location::Winsorized(0.1),
+    Location::Winsorized(0.3),
+];
+
+// The location of one window by itself, sorted afresh.
+fn alone(location: Location, values: &mut [f64]) -> f64 {
+    let mut sum = ExactSum::default();
+    let mut scratch = Scratch::default();
+    values.sort_by(f64::total_cmp);
+    match location {
+        Location::Mean => {
+            values.iter().for_each(|&x| sum.add(x));
+            sum.mean(values.len() as u64)
+        }
+        Location::Median => median(values),
+        Location::Biweight(c) => biweight(values, &mut scratch, c),
+        Location::Welsch(c) => solve::<Welsch>(values, &mut scratch, c),
+        Location::Andrews(c) => solve::<Andrews>(values, &mut scratch, c),
+        Location::Huber(c) => solve::<Huber>(values, &mut scratch, c),
+        Location::HodgesLehmann => hodges_lehmann(values, &mut Rows::default(), &mut sum),
+        Location::Trimmed(p) => trimmed_mean(values, p, &mut sum),
+        Location::Winsorized(p) => winsorized_mean(values, p, &mut sum),
+    }
+}
+
 #[test]
 fn any_number_of_threads() {
     let (times, flux, masked) = curve(0x5eed_0401, 3000);
     for edges in [Edges::Symmetric, Edges::HalfOpen] {
         let o = options(0.5, 0.25, 0.1, edges);
-        for location in LOCATIONS {
+        for location in LOCATIONS.into_iter().chain(MORE_LOCATIONS) {
             let one = trend(&times, &flux, Some(&masked), &o, location, 1);
             for threads in [2, 3, 7, 16, 5000] {
                 let many = trend(&times, &flux, Some(&masked), &o, location, threads);
@@ -228,20 +261,12 @@ fn the_sliding_window_is_each_window_alone() {
         };
         let o = options(0.1 + 0.1 * seed as f64, 0.3, 0.02, edges);
         let w = windows(&times, Some(&masked), &o);
-        for location in LOCATIONS {
+        for location in LOCATIONS.into_iter().chain(MORE_LOCATIONS) {
             let found = trend(&times, &flux, Some(&masked), &o, location, 1);
             for (i, window) in w.windows.iter().enumerate() {
                 let expected = window.clone().filter(|r| !r.is_empty()).map(|r| {
                     let mut values: Vec<f64> = w.kept[r].iter().map(|&k| flux[k]).collect();
-                    match location {
-                        Location::Mean => {
-                            let mut sum = ExactSum::default();
-                            values.iter().for_each(|&x| sum.add(x));
-                            sum.mean(values.len() as u64)
-                        }
-                        Location::Median => median(&mut values),
-                        Location::Biweight(c) => biweight(&mut values, &mut Scratch::default(), c),
-                    }
+                    alone(location, &mut values)
                 });
                 assert_eq!(
                     found[i].map(f64::to_bits),
@@ -273,4 +298,26 @@ fn fingerprint() {
         }
     }
     assert_eq!(hash, 0x6c972f18869fc1b1, "fingerprint {hash:#018x}");
+}
+
+// The same for the other locations: a fingerprint of their own, so that
+// the one above still pins the first four.
+#[test]
+fn fingerprint_of_the_other_locations() {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut eat = |x: u64| {
+        for byte in x.to_le_bytes() {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3);
+        }
+    };
+    for seed in 0..4 {
+        let (times, flux, masked) = curve(0x5eed_0420 + seed, 2000);
+        let o = options(0.3, 0.15, 0.0, Edges::Symmetric);
+        for location in MORE_LOCATIONS {
+            for value in trend(&times, &flux, Some(&masked), &o, location, 4) {
+                eat(value.map_or(u64::MAX, f64::to_bits));
+            }
+        }
+    }
+    assert_eq!(hash, 0x3c8d0198dc77db6b, "fingerprint {hash:#018x}");
 }

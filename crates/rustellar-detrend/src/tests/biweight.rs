@@ -4,8 +4,8 @@
 
 use super::Random;
 use crate::{
-    biweight::{Estimate, Scratch, biweight, nearest_root},
     location::{Location, midpoint},
+    m_estimate::{Estimate, Scratch, biweight, nearest_root},
     trend::trend,
     window::{Edges, WindowOptions, windows},
 };
@@ -229,8 +229,8 @@ fn root(t: f64, fine: f64, residual: &dyn Fn(f64) -> f64) -> f64 {
         value: residual(t),
         bound: f64::INFINITY,
     };
-    let sure = nearest_root(t, exact(t), fine, &exact, residual);
-    let unsure = nearest_root(t, doubtful(t), fine, &doubtful, residual);
+    let sure = nearest_root(t, exact(t), fine, &(exact, residual));
+    let unsure = nearest_root(t, doubtful(t), fine, &(doubtful, residual));
     assert_eq!(sure.to_bits(), unsure.to_bits());
     sure
 }
@@ -503,7 +503,7 @@ fn plain(values: &[f64], c: f64) -> f64 {
         }
     }
     let fine = times_two_to(f64::from_bits(1), (-e).max(0));
-    times_two_to(nearest_root(t, at_t, fine, &cheap, &residual), e)
+    times_two_to(nearest_root(t, at_t, fine, &(cheap, residual)), e)
 }
 
 #[test]

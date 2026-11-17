@@ -3,9 +3,11 @@
 use std::ops::Range;
 
 use crate::{
-    biweight::{Scratch, biweight_sorted},
     exact_sum::ExactSum,
     location::{Location, midpoint},
+    m_estimate::{Scratch, solve},
+    order::{Rows, hodges_lehmann, trimmed_mean, winsorized_mean},
+    psi::{Andrews, Biweight, Huber, Welsch},
     window::{WindowOptions, windows},
 };
 
@@ -61,16 +63,24 @@ fn locate(
                 });
             }
         }
-        Location::Median | Location::Biweight(_) => {
+        _ => {
             let mut sorted = Sliding::<Sorted>::default();
             let mut scratch = Scratch::default();
+            let mut rows = Rows::default();
+            let mut sum = ExactSum::default();
             for (window, out) in windows.iter().zip(out) {
                 *out = nonempty(window).map(|window| {
                     sorted.slide(kept, &window);
                     let values = &sorted.held.0[..];
                     match location {
-                        Location::Biweight(c) => biweight_sorted(values, &mut scratch, c),
-                        _ => {
+                        Location::Biweight(c) => solve::<Biweight>(values, &mut scratch, c),
+                        Location::Welsch(c) => solve::<Welsch>(values, &mut scratch, c),
+                        Location::Andrews(c) => solve::<Andrews>(values, &mut scratch, c),
+                        Location::Huber(c) => solve::<Huber>(values, &mut scratch, c),
+                        Location::HodgesLehmann => hodges_lehmann(values, &mut rows, &mut sum),
+                        Location::Trimmed(p) => trimmed_mean(values, p, &mut sum),
+                        Location::Winsorized(p) => winsorized_mean(values, p, &mut sum),
+                        Location::Median | Location::Mean => {
                             let n = values.len();
                             midpoint(values[(n - 1) / 2], values[n / 2])
                         }
