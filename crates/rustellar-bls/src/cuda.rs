@@ -135,6 +135,13 @@ impl Kernels {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    /// For the tests: the next search on the GPU from this thread fails as a
+    /// failing GPU would.
+    pub(crate) static FAIL_NEXT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 fn device(error: impl fmt::Display) -> CudaError {
     CudaError::Device(error.to_string())
 }
@@ -364,6 +371,10 @@ impl Gpu {
         result: &mut BlsResult,
     ) -> Result<(), CudaError> {
         let durations = prepare(periods, durations, options, result)?;
+        #[cfg(test)]
+        if FAIL_NEXT.with(|fail| fail.replace(false)) {
+            return Err(CudaError::Device("a failure made by a test".into()));
+        }
         let oversample = options.oversample.get();
         let objective = options.objective;
         let threads = options.threads.get();

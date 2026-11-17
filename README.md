@@ -41,6 +41,14 @@ are left out of that run; run them on their own:
 cargo test --workspace --release -- --ignored
 ```
 
+CI has no GPU, so run the GPU tests on a machine with an NVIDIA GPU before
+pushing changes to the GPU code (a missing GPU fails here, not skips;
+`--coverage` adds the GPU code's line coverage):
+
+```sh
+scripts/gpu-tests.sh
+```
+
 Run the benchmarks:
 
 ```sh

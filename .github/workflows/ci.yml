@@ -36,6 +36,18 @@ jobs:
       # The umbrella crate's tools are behind features, off by default.
       - run: cargo test -p rustellar --all-features
 
+  # The `cuda` feature where there is no GPU or CUDA library: every search
+  # falls back to the CPU, never a panic.
+  cuda-without-gpu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p rustellar-bls --features cuda
+        env:
+          RUSTELLAR_EXPECT_NO_CUDA: "1"
+
   msrv:
     runs-on: ubuntu-latest
     steps:

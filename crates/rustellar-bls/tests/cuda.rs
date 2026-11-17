@@ -1,7 +1,7 @@
 // The search with its binned step on the GPU against the CPU's: the same
 // peaks, refined boxes and best box to the bit, and the power and boxes at
 // every period to a rounding. Skipped, with the reason printed, where there
-// is no GPU.
+// is no GPU, unless RUSTELLAR_REQUIRE_GPU is set: then no GPU is a failure.
 #![cfg(feature = "cuda")]
 
 #[expect(dead_code, reason = "only the survey recipe")]
@@ -75,6 +75,15 @@ fn ofir(lc: &LightCurve, longest: Option<f64>) -> Periods {
     .unwrap()
 }
 
+// A missing GPU: a skip, or a failure where RUSTELLAR_REQUIRE_GPU is set.
+fn no_gpu(why: &str) {
+    assert!(
+        std::env::var_os("RUSTELLAR_REQUIRE_GPU").is_none(),
+        "no GPU ({why}) with RUSTELLAR_REQUIRE_GPU set"
+    );
+    println!("skipped: no GPU ({why})");
+}
+
 // The same peaks and best box to the bit; at every period the same box
 // within a rounding, or (where two boxes are that close) another as high.
 fn same_search(cpu: &BlsResult, gpu: &BlsResult, what: &str) {
@@ -128,7 +137,7 @@ fn compare(lc: &LightCurve, periods: &Periods, what: &str) {
                 match bls.search(periods, &durations(), &options.with_device(Device::Gpu(0))) {
                     Ok(found) => found,
                     Err(BlsError::GpuUnavailable) => {
-                        println!("skipped: no GPU");
+                        no_gpu("GpuUnavailable");
                         return;
                     }
                     Err(error) => panic!("{error}"),
@@ -153,7 +162,9 @@ fn one_sector_is_the_cpus_search() {
     compare(&lc, &ofir(&lc, None), "1 sector");
 }
 
+// Heavy: scripts/gpu-tests.sh runs it, coverage leaves it out.
 #[test]
+#[ignore = "heavy: scripts/gpu-tests.sh runs it"]
 fn three_sectors_are_the_cpus_search() {
     let lc = sectors(78, 3);
     compare(&lc, &ofir(&lc, None), "3 sectors");
@@ -180,8 +191,9 @@ fn small_curves_are_the_cpus_search() {
     }
 }
 
-// Long periods, whose bins go a tile at a time.
+// Long periods, whose bins go a tile at a time. Heavy, as above.
 #[test]
+#[ignore = "heavy: scripts/gpu-tests.sh runs it"]
 fn kepler_years_are_the_cpus_search() {
     let lc = kepler(6);
     compare(&lc, &ofir(&lc, Some(150.0)), "Kepler 6 quarters");
@@ -211,4 +223,24 @@ fn a_missing_gpu_is_an_error_or_the_cpu() {
     println!("the default ran on {:?}", auto.device());
     assert!(matches!(auto.device(), Device::Cpu | Device::Gpu(0)));
     assert_eq!(auto.peaks(), cpu.peaks());
+}
+
+// Where there is no CUDA library at all (RUSTELLAR_EXPECT_NO_CUDA, as on CI):
+// the default searches on the CPU, and asking for a GPU is an error.
+#[test]
+fn without_cuda_the_default_is_the_cpu() {
+    if std::env::var_os("RUSTELLAR_EXPECT_NO_CUDA").is_none() {
+        println!("skipped: RUSTELLAR_EXPECT_NO_CUDA is not set");
+        return;
+    }
+    let lc = sectors(83, 1);
+    let bls = Bls::new(&lc).unwrap();
+    let periods = ofir(&lc, Some(5.0));
+    let options = SearchOptions::default();
+    let auto = bls.search(&periods, &durations(), &options).unwrap();
+    assert_eq!(auto.device(), Device::Cpu);
+    assert_eq!(
+        bls.search(&periods, &durations(), &options.with_device(Device::Gpu(0))),
+        Err(BlsError::GpuUnavailable)
+    );
 }
