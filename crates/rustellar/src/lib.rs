@@ -10,6 +10,7 @@
 //! | `bls` | [`bls`] | Box least squares transit search (in development) |
 //! | `detrend` | [`detrend`] | Detrending: a sliding biweight, median or mean, to full precision (in development) |
 //! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
+//! | `tls` | [`tls`] | Transit least squares: a limb-darkened template search (in development) |
 //! | `full` | | Every tool |
 //!
 //! No feature is on by default. In `Cargo.toml`:
@@ -64,3 +65,8 @@ pub use rustellar_detrend as detrend;
 #[cfg(feature = "model")]
 #[cfg_attr(docsrs, doc(cfg(feature = "model")))]
 pub use rustellar_model as model;
+
+/// Transit least squares, from [`rustellar-tls`](rustellar_tls).
+#[cfg(feature = "tls")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tls")))]
+pub use rustellar_tls as tls;

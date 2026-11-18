@@ -373,6 +373,7 @@ dependencies = [
  "rustellar-core",
  "rustellar-detrend",
  "rustellar-model",
+ "rustellar-tls",
 ]
 
 [[package]]
@@ -409,6 +410,14 @@ dependencies = [
  "criterion",
  "rstest",
  "rustellar-core",
+]
+
+[[package]]
+name = "rustellar-tls"
+version = "0.0.0"
+dependencies = [
+ "rustellar-core",
+ "rustellar-model",
 ]
 
 [[package]]

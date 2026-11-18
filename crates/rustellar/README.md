@@ -14,6 +14,7 @@ rustellar = { version = "0.0", features = ["model"] }
 | `bls` | `rustellar-bls` | Box least squares transit search (in development) |
 | `detrend` | `rustellar-detrend` | Detrending: a sliding biweight to full precision (in development) |
 | `model` | `rustellar-model` | Transit light curves (Mandel & Agol 2002), exposure averaging |
+| `tls` | `rustellar-tls` | Transit least squares: a limb-darkened template search (in development) |
 | `full` | | Every tool |
 
 The shared types from `rustellar-core` (`LightCurve`, `Epoch`, `TimeDelta`)

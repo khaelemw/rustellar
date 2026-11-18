@@ -1,0 +1,17 @@
+[package]
+name = "rustellar-tls"
+description = "Transit least squares in pure Rust: a limb-darkened transit template fitted by weighted least squares at every period, duration and mid-transit time (Hippke & Heller 2019)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "exoplanet", "transit", "periodogram"]
+categories = ["science", "algorithms"]
+# The published package holds the library and its unit tests, which need no
+# files. The reference data, the integration tests that read it and the
+# benchmarks stay in the source.
+exclude = ["/tests/", "/benches/"]
+
+[dependencies]
+rustellar-core.workspace = true
+rustellar-model.workspace = true

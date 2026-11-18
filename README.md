@@ -24,7 +24,7 @@ rustellar = { version = "0.0", features = ["model"] }
 | [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) | in progress |
 | `rustellar-mcmc` | `mcmc` | Affine-invariant ensemble sampler | planned |
 | `rustellar-ls` | `ls` | Lomb-Scargle periodogram | planned |
-| `rustellar-tls` | `tls` | Transit least squares | planned |
+| [`rustellar-tls`](crates/rustellar-tls) | `tls` | Transit least squares | in progress |
 
 ## Development
 
