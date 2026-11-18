@@ -30,6 +30,11 @@ mod durations;
     not(test),
     allow(dead_code, reason = "used by the tests until the public API")
 )]
+mod errors;
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the public API")
+)]
 mod exact;
 #[cfg_attr(
     not(test),

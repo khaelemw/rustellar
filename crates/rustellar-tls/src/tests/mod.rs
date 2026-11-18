@@ -7,6 +7,7 @@ mod cells;
 #[cfg(feature = "cuda")]
 mod cuda;
 mod durations;
+mod errors;
 mod exact;
 mod fast;
 mod fit;

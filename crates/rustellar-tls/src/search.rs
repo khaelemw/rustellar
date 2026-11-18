@@ -8,6 +8,7 @@ use rustellar_core::LightCurve;
 
 use crate::cells::{self, CELLS_PER_STEP};
 use crate::durations::{self, Constants, Stars};
+use crate::errors::{Errors, OddEven, Transit, errors, odd_even, transits};
 use crate::fast::{self, PeriodBest, Settings, Table};
 use crate::fit::{Points, Position, fit};
 use crate::refine::{Reach, Refined, refine};
@@ -96,6 +97,12 @@ pub(crate) struct Outcome {
     /// The best of the refined peaks, if any fitted.
     pub(crate) best: Option<Refined>,
     pub(crate) period_uncertainty: f64,
+    /// The best fit's standard errors, where its curvature fixes them.
+    pub(crate) errors: Option<Errors>,
+    /// The best fit's transits, each with its own depth.
+    pub(crate) transits: Vec<Transit>,
+    /// The best fit's odd and even transits compared.
+    pub(crate) odd_even: Option<OddEven>,
 }
 
 /// Indices of the `count` highest local maxima of `power`, highest first.
@@ -183,6 +190,9 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
             spectra: None,
             best: None,
             period_uncertainty: f64::INFINITY,
+            errors: None,
+            transits: Vec::new(),
+            odd_even: None,
         };
     }
     let chi2: Vec<f64> = found.iter().map(|p| p.chi2).collect();
@@ -244,10 +254,20 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
             fit: fit(&points, &options.template, r.position),
         });
 
+    let (errors, transits) = best.map_or((None, Vec::new()), |b| {
+        (
+            errors(&points, &options.template, b.position, b.fit.depth),
+            transits(&points, &options.template, b.position),
+        )
+    });
+    let odd_even = odd_even(&transits);
     Outcome {
         periods: found,
         spectra: Some(spectra),
         best,
         period_uncertainty: uncertainty,
+        errors,
+        transits,
+        odd_even,
     }
 }
