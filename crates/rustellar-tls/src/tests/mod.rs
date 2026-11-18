@@ -1,6 +1,7 @@
 // Unit tests, one file per module.
 
 mod durations;
+mod fit;
 mod template;
 
 /// A small, fast pseudo-random generator (SplitMix64), so the tests need no
