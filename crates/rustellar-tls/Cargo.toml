@@ -15,3 +15,6 @@ exclude = ["/tests/", "/benches/"]
 [dependencies]
 rustellar-core.workspace = true
 rustellar-model.workspace = true
+
+[dev-dependencies]
+rustellar-bls.workspace = true

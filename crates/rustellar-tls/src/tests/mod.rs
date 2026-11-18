@@ -8,6 +8,7 @@ mod exact;
 mod fast;
 mod fit;
 mod refine;
+mod search;
 mod spectra;
 mod template;
 

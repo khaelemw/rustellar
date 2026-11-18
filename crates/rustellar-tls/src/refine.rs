@@ -2,13 +2,21 @@
 //! period, each free to move continuously around where the grid put it.
 //!
 //! The gain is maximised over one parameter at a time by golden-section
-//! search, round after round, until a round gains nothing. The mid-transit
+//! search, then along the round's whole move, round after round, until a
+//! round gains nothing worth having. The mid-transit
 //! time is held at the transit nearest the light curve's middle while the
 //! period moves, so a change of period moves the transits at both ends
 //! equally and the two barely trade off.
 
 use crate::fit::{Fit, Points, Position, fit, gain};
 use crate::template::Template;
+
+/// The most rounds of searches; far more than a peak needs.
+const MAX_ROUNDS: usize = 100;
+
+/// A round gaining less than this, relative to the gain, is the last: the
+/// chi-squared is then within this of its least.
+const TOLERANCE: f64 = 1e-12;
 
 /// How far each parameter may move from where it starts.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -85,10 +93,10 @@ pub(crate) fn refine(
         )
     };
     let mut best = at(period, duration, centre);
-    // Each search starts from the best so far, so only the last gain is
-    // needed: the round's.
-    loop {
-        let before = best;
+    for _ in 0..MAX_ROUNDS {
+        let before = (best, centre, duration, period);
+        // Each search starts from the best so far, so the last one's value
+        // is the round's.
         (centre, _) = golden(
             |t| at(period, duration, t),
             centre,
@@ -107,8 +115,26 @@ pub(crate) fn refine(
             start.period - reach.period,
             start.period + reach.period,
         );
-        // Rounds gaining less than rounding are not worth another.
-        if best - before <= 1e-14 * best {
+        // Then along the round's whole move, which follows a valley that
+        // one parameter at a time can only zig-zag down (Powell's idea).
+        let (dc, dd, dp) = (centre - before.1, duration - before.2, period - before.3);
+        let along = |a: f64| {
+            at(
+                dp.mul_add(a, period),
+                dd.mul_add(a, duration),
+                dc.mul_add(a, centre),
+            )
+        };
+        let (a, gained) = golden(along, 0.0, -1.0, 3.0);
+        if gained > best {
+            (centre, duration, period, best) = (
+                dc.mul_add(a, centre),
+                dd.mul_add(a, duration),
+                dp.mul_add(a, period),
+                gained,
+            );
+        }
+        if best - before.0 <= TOLERANCE * best {
             break;
         }
     }

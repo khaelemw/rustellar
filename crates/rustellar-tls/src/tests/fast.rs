@@ -209,6 +209,13 @@ fn nothing_to_fit_leaves_the_flat_model() {
         time,
     };
     let fractions = [0.01, 0.02, 0.04];
+    // And no duration allowed at this period at all.
+    let mut none = search(&points, &table, &fractions, 25);
+    none.settings.stars = Stars::TLS;
+    let tiny = [1e-9];
+    none.fractions = &tiny;
+    let flat = none.period(3.0, &mut Scratch::default());
+    assert_eq!((flat.chi2, flat.depth), (points.flat_chi2(), 0.0));
     let found = search(&points, &table, &fractions, 25).period(3.0, &mut Scratch::default());
     assert_eq!(
         found,

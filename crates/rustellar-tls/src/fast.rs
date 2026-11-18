@@ -6,9 +6,12 @@
 //! `steps` per duration. Each point lies within half a duration of about
 //! `steps` of them, and adds its terms `w r s` and `w s²` to each, with `s`
 //! the template at its own time from that trial (not at a bin's centre).
-//! So the cost per duration is about `N steps + B`, and the sums at each
-//! trial time are those of the exact fit there, up to the table's
-//! interpolation.
+//! So the cost per duration is about `N steps`, whatever `B`, and the sums
+//! at each trial time are those of the exact fit there, up to the table's
+//! interpolation. There are no more trial times than points, on average,
+//! unless that leaves fewer than [`MIN_STEPS`] per duration, so a short
+//! transit in a sparse light curve costs `N` times the points it holds,
+//! like TLS's template laid on the samples.
 
 use std::num::NonZeroUsize;
 use std::thread;
@@ -34,12 +37,21 @@ impl Table {
         Self { values }
     }
 
+    /// The number of intervals, as a double.
+    fn intervals(&self) -> f64 {
+        #[expect(clippy::cast_precision_loss, reason = "a sample count")]
+        let intervals = (self.values.len() - 1) as f64;
+        intervals
+    }
+
     /// The template at `x`, interpolated: 0 for `|x| >= 1/2`.
     pub(crate) fn at(&self, x: f64) -> f64 {
-        let intervals = self.values.len() - 1;
-        #[expect(clippy::cast_precision_loss, reason = "a sample count")]
-        let u = (x + 0.5) * intervals as f64;
-        if !(u > 0.0 && u < intervals as f64) {
+        self.at_sample((x + 0.5) * self.intervals())
+    }
+
+    /// The template at `u` samples from `x = -1/2`, interpolated.
+    fn at_sample(&self, u: f64) -> f64 {
+        if !(u > 0.0 && u < self.intervals()) {
             return 0.0;
         }
         #[expect(
@@ -53,6 +65,10 @@ impl Table {
         f.mul_add(self.values[j + 1] - self.values[j], self.values[j])
     }
 }
+
+/// The fewest trial mid-transit times per duration, however few points
+/// there are.
+pub(crate) const MIN_STEPS: usize = 10;
 
 /// How the fast search is run.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -94,12 +110,18 @@ pub(crate) struct Search<'a> {
     pub(crate) span: f64,
 }
 
-/// Sums reused from one duration to the next.
+/// Buffers reused from one period to the next.
 #[derive(Debug, Default)]
 pub(crate) struct Scratch {
+    /// The points' offsets from the first time, folded into `[0, P)`, with
+    /// their indices, sorted by offset.
+    folded: Vec<(f64, usize)>,
+    /// The sweep, in order of offset: the points near the fold's end a
+    /// period early, all of them, and those near its start a period late;
+    /// their offsets, `w r` and `w`.
     offset: Vec<f64>,
-    rs: Vec<f64>,
-    ss: Vec<f64>,
+    weighted_residual: Vec<f64>,
+    weight: Vec<f64>,
 }
 
 impl Search<'_> {
@@ -120,15 +142,15 @@ impl Search<'_> {
     }
 
     /// The best fit at `period`.
+    ///
+    /// The points are sorted by phase, and each trial time's sums taken
+    /// over the run of points within half a duration of it, a run that only
+    /// moves forward from one trial time to the next. A transit across the
+    /// fold's ends is covered by sweeping the points within the longest
+    /// half duration of the end a period early, before the rest, and those
+    /// near the start a period late, after.
     pub(crate) fn period(&self, period: f64, scratch: &mut Scratch) -> PeriodBest {
         let points = self.points;
-        scratch.offset.clear();
-        scratch.offset.extend(
-            points
-                .time
-                .iter()
-                .map(|&t| ((t - self.origin) / period).rem_euclid(1.0) * period),
-        );
         let mut best = PeriodBest {
             period,
             chi2: self.flat_chi2,
@@ -136,63 +158,95 @@ impl Search<'_> {
             t0: self.origin,
             depth: 0.0,
         };
+        let Some(longest) = self.durations(period).last() else {
+            return best;
+        };
+
+        scratch.folded.clear();
+        scratch.folded.extend(
+            points
+                .time
+                .iter()
+                .enumerate()
+                .map(|(i, &t)| (((t - self.origin) / period).rem_euclid(1.0) * period, i)),
+        );
+        scratch
+            .folded
+            .sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        let folded = &scratch.folded;
+        let reach = 0.5 * longest;
+        let tail = folded.partition_point(|p| p.0 <= period - reach);
+        let head = folded.partition_point(|p| p.0 < reach);
+        let sweep = folded[tail..]
+            .iter()
+            .map(|&(o, i)| (o - period, i))
+            .chain(folded.iter().copied())
+            .chain(folded[..head].iter().map(|&(o, i)| (o + period, i)));
+        let (offset, weighted_residual, weight) = (
+            &mut scratch.offset,
+            &mut scratch.weighted_residual,
+            &mut scratch.weight,
+        );
+        offset.clear();
+        weighted_residual.clear();
+        weight.clear();
+        for (o, i) in sweep {
+            offset.push(o);
+            weighted_residual.push(points.weight[i] * points.residual[i]);
+            weight.push(points.weight[i]);
+        }
+
         let mut best_gain = 0.0;
+        let samples = self.table.intervals();
         for duration in self.durations(period) {
-            #[expect(
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss,
-                clippy::cast_precision_loss,
-                reason = "a positive count of trial times"
-            )]
-            let count = ((period / duration) * self.settings.steps as f64).ceil() as usize;
+            let count = {
+                #[expect(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_sign_loss,
+                    clippy::cast_precision_loss,
+                    reason = "a positive count of trial times"
+                )]
+                let per_duration =
+                    |steps: usize| ((period / duration) * steps as f64).ceil() as usize;
+                // No more trial times than points, on average, unless that
+                // leaves fewer than `MIN_STEPS` per duration: closer than
+                // the points' own spacing in phase they gain little.
+                per_duration(self.settings.steps)
+                    .min(points.time.len().max(per_duration(MIN_STEPS)))
+            };
             #[expect(clippy::cast_precision_loss, reason = "a count")]
             let step = period / count as f64;
-            scratch.rs.clear();
-            scratch.rs.resize(count, 0.0);
-            scratch.ss.clear();
-            scratch.ss.resize(count, 0.0);
             let half = 0.5 * duration;
-            for (i, &d) in scratch.offset.iter().enumerate() {
-                let (w, r) = (points.weight[i], points.residual[i]);
-                // Trial times k step with |d - k step| < D/2.
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    reason = "within a period's trial times of 0"
-                )]
-                let first = ((d - half) / step).floor() as i64 + 1;
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    reason = "within a period's trial times of 0"
-                )]
-                let last = ((d + half) / step).ceil() as i64 - 1;
-                for k in first..=last {
-                    #[expect(clippy::cast_precision_loss, reason = "a trial index")]
-                    let s = self.table.at((d - k as f64 * step) / duration);
-                    if s > 0.0 {
-                        #[expect(
-                            clippy::cast_possible_truncation,
-                            clippy::cast_possible_wrap,
-                            reason = "reduced modulo the count"
-                        )]
-                        let slot = k.rem_euclid(count as i64) as usize;
-                        scratch.rs[slot] += w * r * s;
-                        scratch.ss[slot] += w * s * s;
-                    }
+            let to_sample = samples / duration;
+            let (mut lo, mut hi) = (0, 0);
+            for k in 0..count {
+                #[expect(clippy::cast_precision_loss, reason = "a trial index")]
+                let centre = k as f64 * step;
+                while lo < offset.len() && offset[lo] <= centre - half {
+                    lo += 1;
                 }
-            }
-            for (k, (&rs, &ss)) in scratch.rs.iter().zip(&scratch.ss).enumerate() {
+                hi = hi.max(lo);
+                while hi < offset.len() && offset[hi] < centre + half {
+                    hi += 1;
+                }
+                // Table samples from x = -1/2: (o - centre) / D + 1/2.
+                let shift = 0.5f64.mul_add(samples, -centre * to_sample);
+                let (mut rs, mut ss) = (0.0, 0.0);
+                for i in lo..hi {
+                    let s = self.table.at_sample(offset[i].mul_add(to_sample, shift));
+                    rs += weighted_residual[i] * s;
+                    ss += weight[i] * s * s;
+                }
                 if rs > 0.0 {
                     let depth = rs / ss;
                     let gain = rs * depth;
                     if depth > self.settings.min_depth && gain > best_gain {
                         best_gain = gain;
-                        #[expect(clippy::cast_precision_loss, reason = "a trial index")]
-                        let t0 = self.origin + k as f64 * step;
                         best = PeriodBest {
                             period,
                             chi2: self.flat_chi2 - gain,
                             duration,
-                            t0,
+                            t0: self.origin + centre,
                             depth,
                         };
                     }

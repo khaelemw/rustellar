@@ -8,40 +8,46 @@
 //!
 //! **Status:** in development. Nothing is public yet.
 
-// Only the tests use these until the search is built on them.
+// Only the tests use these until the public API is built on them. `allow`,
+// not `expect`: Rust 1.85 counts as live what later versions find dead.
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "used by the tests until the search")
+    allow(dead_code, reason = "used by the tests until the public API")
 )]
 mod durations;
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "used by the tests until the search")
+    allow(dead_code, reason = "used by the tests until the public API")
 )]
 mod exact;
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "used by the tests until the search")
+    allow(dead_code, reason = "used by the tests until the public API")
 )]
 mod fast;
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "used by the tests until the search")
+    allow(dead_code, reason = "used by the tests until the public API")
 )]
 mod fit;
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "used by the tests until the search")
+    allow(dead_code, reason = "used by the tests until the public API")
 )]
 mod refine;
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "used by the tests until the search")
+    allow(dead_code, reason = "used by the tests until the public API")
+)]
+mod search;
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the public API")
 )]
 mod spectra;
 #[cfg_attr(
     not(test),
-    expect(dead_code, reason = "used by the tests until the search")
+    allow(dead_code, reason = "used by the tests until the public API")
 )]
 mod template;
 
