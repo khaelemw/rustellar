@@ -1,6 +1,7 @@
 // Unit tests, one file per module.
 
 mod durations;
+mod exact;
 mod fit;
 mod template;
 
