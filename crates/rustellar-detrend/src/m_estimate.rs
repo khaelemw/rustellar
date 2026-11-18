@@ -22,7 +22,7 @@ use crate::{
         two_product_halves, two_sum,
     },
     location::midpoint,
-    psi::{Isa, LANES, Lanes, Plain, Psi},
+    psi::{Doubles, Isa, LANES, Lanes, Plain, Psi, two_sum_lanes},
 };
 
 /// Steps of wotan's iteration at most, before Newton's method takes over.
@@ -283,29 +283,64 @@ fn inside<P: Psi>(sorted: &[f64], t: f64, inverse: f64) -> &[f64] {
 /// reciprocal), each term and the sum in double-double: wrong only in the
 /// last bits of a double-double.
 #[inline(always)]
-fn residual<P: Psi>(values: &[f64], t: f64, s: Double, inverse: f64) -> f64 {
+fn residual<P: Psi, V: Isa>(v: V, values: &[f64], t: f64, s: Double, inverse: f64) -> f64 {
     let s_halves = split(s.0);
-    let term = |x: f64| {
-        let d = two_sum(x, -t);
-        // u = d / s: the quotient and its correction.
-        let u_hi = d.0 * inverse;
-        let (p, p_error) = two_product_halves(u_hi, s.0, s_halves);
-        let u_lo = (((d.0 - p) - p_error) + d.1 - u_hi * s.1) * inverse;
-        P::term((u_hi, u_lo), d, s)
-    };
+    // Value `k` goes to lane `k % LANES`, the lanes summed in order.
     let mut lanes = [(0.0, 0.0); LANES];
     let inside = inside::<P>(values, t, inverse);
-    let mut chunks = inside.chunks_exact(LANES);
-    for chunk in &mut chunks {
-        for (lane, &x) in lanes.iter_mut().zip(chunk) {
-            *lane = accumulate(*lane, term(x));
+    let mut blocks = inside.chunks_exact(BLOCK);
+    for block in &mut blocks {
+        let x = std::array::from_fn(|g| run(&block[g * LANES..]));
+        let terms = terms::<P, V>(v, x, t, s, s_halves, inverse);
+        for group in terms {
+            for (l, lane) in lanes.iter_mut().enumerate() {
+                *lane = accumulate(*lane, (group.0[l], group.1[l]));
+            }
         }
     }
-    for (lane, &x) in lanes.iter_mut().zip(chunks.remainder()) {
-        *lane = accumulate(*lane, term(x));
+    // The rest padded with `t` (whose terms are not added).
+    let rest = blocks.remainder();
+    if !rest.is_empty() {
+        let x = std::array::from_fn(|g| {
+            std::array::from_fn(|l| rest.get(g * LANES + l).copied().unwrap_or(t))
+        });
+        let terms = terms::<P, V>(v, x, t, s, s_halves, inverse);
+        for k in 0..rest.len() {
+            let (group, l) = (terms[k / LANES], k % LANES);
+            lanes[l] = accumulate(lanes[l], (group.0[l], group.1[l]));
+        }
     }
     let total = add(add(lanes[0], lanes[1]), add(lanes[2], lanes[3]));
     total.0 + total.1
+}
+
+/// Groups of [`LANES`] values whose double-double terms are worked out
+/// side by side.
+const GROUPS: usize = 4;
+const BLOCK: usize = GROUPS * LANES;
+
+/// The terms `w(u) d` of [`GROUPS`] groups of values in double-double,
+/// `d = x - t` exactly and `u = d / s` with its correction.
+#[inline(always)]
+fn terms<P: Psi, V: Isa>(
+    v: V,
+    x: [Lanes; GROUPS],
+    t: f64,
+    s: Double,
+    s_halves: Double,
+    inverse: f64,
+) -> [Doubles; GROUPS] {
+    let d: [Doubles; GROUPS] = std::array::from_fn(|g| two_sum_lanes(x[g], [-t; LANES]));
+    let u = std::array::from_fn(|g| {
+        let d = d[g];
+        let u_hi: Lanes = std::array::from_fn(|l| d.0[l] * inverse);
+        let u_lo = std::array::from_fn(|l| {
+            let (p, p_error) = two_product_halves(u_hi[l], s.0, s_halves);
+            (((d.0[l] - p) - p_error) + d.1[l] - u_hi[l] * s.1) * inverse
+        });
+        (u_hi, u_lo)
+    });
+    P::terms(v, u, d, s)
 }
 
 /// The values at or near `t` (see [`inside`]) lane by lane: whole runs of
@@ -478,7 +513,7 @@ impl<P: Psi, V: Isa> Residual for Sums<'_, P, V> {
 
     #[inline(always)]
     fn precise(&self, t: f64) -> f64 {
-        residual::<P>(self.values, t, self.s, self.inverse)
+        residual::<P, V>(self.isa, self.values, t, self.s, self.inverse)
     }
 }
 
@@ -553,12 +588,19 @@ pub(crate) fn nearest_root(t: f64, at_t: Estimate, fine: f64, residual: &impl Re
         }
         if (at_far.value > 0.0) != up {
             // Which is nearer: certain if the sizes differ by more than the
-            // bounds, else both precisely.
+            // bounds, else both precisely (each unless known so already).
             let doubt = at_near.bound + at_far.bound;
             let (at_near, at_far) = if (at_near.value.abs() - at_far.value.abs()).abs() > doubt {
                 (at_near.value, at_far.value)
             } else {
-                (residual.precise(near), residual.precise(far))
+                let exact = |t: f64, at: Estimate| {
+                    if at.bound == 0.0 {
+                        at.value
+                    } else {
+                        residual.precise(t)
+                    }
+                };
+                (exact(near, at_near), exact(far, at_far))
             };
             // The root at `near + fraction (far - near)`.
             let fraction = at_near / (at_near - at_far);

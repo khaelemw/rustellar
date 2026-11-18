@@ -397,6 +397,7 @@ dependencies = [
 name = "rustellar-detrend"
 version = "0.0.0"
 dependencies = [
+ "criterion",
  "rustellar-bls",
  "rustellar-core",
 ]

@@ -520,6 +520,56 @@ fn the_wide_weights_are_the_plain_ones() {
     same(Welsch::weigh(Plain, u).0, Welsch::weigh(wide, u).0, "edges");
 }
 
+// The double-double terms, four lanes in four groups at a time, by either
+// build: the scalar ones to the bit (every lane takes the same steps).
+#[test]
+fn the_grouped_terms_are_the_scalar_ones() {
+    use crate::psi::{Biweight, Doubles, Isa, Plain};
+    fn check<P: Psi, V: Isa>(v: V, random: &mut Random, reach: f64, what: &str) {
+        let mut pick = |size: f64| -> [Doubles; 4] {
+            std::array::from_fn(|_| {
+                let hi: [f64; 4] = std::array::from_fn(|_| (2.0 * random.unit() - 1.0) * size);
+                let lo = std::array::from_fn(|i| hi[i] * f64::EPSILON * (random.unit() - 0.5));
+                (hi, lo)
+            })
+        };
+        let (mut u, d) = (pick(reach), pick(1e-3));
+        // Zero, and (for Welsch) past where e^(-u^2 / 2) underflows.
+        u[0].0[0] = 0.0;
+        u[0].1[0] = 0.0;
+        u[1].0[1] = reach;
+        u[1].1[1] = 0.0;
+        let s = (2.5e-3, 1e-20);
+        let grouped = P::terms(v, u, d, s);
+        for g in 0..4 {
+            for l in 0..4 {
+                let scalar = P::term((u[g].0[l], u[g].1[l]), (d[g].0[l], d[g].1[l]), s);
+                let lane = (grouped[g].0[l], grouped[g].1[l]);
+                assert_eq!(
+                    (lane.0.to_bits(), lane.1.to_bits()),
+                    (scalar.0.to_bits(), scalar.1.to_bits()),
+                    "{what}: u {:?}",
+                    (u[g].0[l], u[g].1[l])
+                );
+            }
+        }
+    }
+    fn all<V: Isa>(v: V) {
+        let mut random = Random(0x5eed_0702);
+        for _ in 0..2_000 {
+            check::<Biweight, V>(v, &mut random, 1.0, "biweight");
+            check::<Welsch, V>(v, &mut random, 40.0, "welsch");
+            check::<Welsch, V>(v, &mut random, 2.0, "welsch");
+            check::<Andrews, V>(v, &mut random, std::f64::consts::PI - 1e-3, "andrews");
+            check::<Huber, V>(v, &mut random, 2.0, "huber");
+        }
+    }
+    all(Plain);
+    if let Some(wide) = crate::psi::Avx2::new() {
+        all(wide);
+    }
+}
+
 // The solver's baseline build gives the bits its AVX2 build does, on every
 // reference window.
 #[cfg(target_arch = "x86_64")]

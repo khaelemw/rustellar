@@ -20,4 +20,5 @@ All notable changes to this crate are recorded here. The format follows
   (correctly rounded wherever their sums' signs can be told from zero, as the
   biweight), and the Hodges-Lehmann estimator and the trimmed and winsorized
   means (correctly rounded). The plain series run four to a vector with AVX2
-  where the processor has it, to the same bits as without.
+  where the processor has it, to the same bits as without, and so do the
+  double-double sums that settle the last bit, sixteen terms side by side.

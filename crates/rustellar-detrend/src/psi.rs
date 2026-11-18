@@ -14,7 +14,7 @@
 
 use std::f64::consts::PI;
 
-use crate::double::{Double, add, multiply, negate, scale, two_product};
+use crate::double::{Double, add, multiply, negate, scale, split, two_product};
 
 /// Values side by side, as many as one vector of the widest instructions
 /// the solver is built for holds.
@@ -39,6 +39,21 @@ pub(crate) trait Isa: Copy {
     fn estrin(self, c: [f64; 16], z: Lanes) -> Lanes;
     /// `e^x` for `x <= 0` with `series(r)` for `e^r`, `|r| <= ln 2 / 2`.
     fn exp_by(self, x: Lanes, series: impl Fn(Lanes) -> Lanes) -> Lanes;
+    /// The double-double sum, as [`add`], in each lane.
+    fn add_double(self, a: Doubles, b: Doubles) -> Doubles;
+    /// The double-double product, as [`multiply`], in each lane.
+    fn multiply_double(self, a: Doubles, b: Doubles) -> Doubles;
+    /// `sum c_j z^j` by Horner's scheme: the `tail` (the highest powers)
+    /// plainly on `z`'s high part, then the `head` in double-double, as
+    /// [`exp_negative_double`] and [`sinc_double`] do; for `G` groups of
+    /// lanes, step by step together (each step waits on the last, so one
+    /// group alone would leave the processor waiting).
+    fn series_double<const G: usize>(
+        self,
+        tail: &[Double],
+        head: &[Double],
+        z: [Doubles; G],
+    ) -> [Doubles; G];
 }
 
 /// Lane by lane, with whatever vectors the compiler makes of it.
@@ -59,6 +74,38 @@ impl Isa for Plain {
     #[inline(always)]
     fn exp_by(self, x: Lanes, series: impl Fn(Lanes) -> Lanes) -> Lanes {
         exp_by(x, series)
+    }
+
+    #[inline(always)]
+    fn add_double(self, a: Doubles, b: Doubles) -> Doubles {
+        add_lanes(a, b)
+    }
+
+    #[inline(always)]
+    fn multiply_double(self, a: Doubles, b: Doubles) -> Doubles {
+        multiply_lanes(a, b)
+    }
+
+    #[inline(always)]
+    fn series_double<const G: usize>(
+        self,
+        tail: &[Double],
+        head: &[Double],
+        z: [Doubles; G],
+    ) -> [Doubles; G] {
+        let mut plain = [[0.0; LANES]; G];
+        for c in tail {
+            for g in 0..G {
+                plain[g] = each(|i| plain[g][i] * z[g].0[i] + c.0);
+            }
+        }
+        let mut p: [Doubles; G] = std::array::from_fn(|g| (plain[g], [0.0; LANES]));
+        for &c in head {
+            for g in 0..G {
+                p[g] = add_lanes(multiply_lanes(p[g], z[g]), splat(c));
+            }
+        }
+        p
     }
 }
 
@@ -99,6 +146,34 @@ impl Isa for Avx2 {
             wide::store(wide::scale(p, half, rest))
         }
     }
+
+    #[inline(always)]
+    fn add_double(self, a: Doubles, b: Doubles) -> Doubles {
+        // SAFETY: as above.
+        unsafe { wide::store_double(wide::add_double(wide::load_double(a), wide::load_double(b))) }
+    }
+
+    #[inline(always)]
+    fn multiply_double(self, a: Doubles, b: Doubles) -> Doubles {
+        // SAFETY: as above.
+        unsafe {
+            wide::store_double(wide::multiply_double(
+                wide::load_double(a),
+                wide::load_double(b),
+            ))
+        }
+    }
+
+    #[inline(always)]
+    fn series_double<const G: usize>(
+        self,
+        tail: &[Double],
+        head: &[Double],
+        z: [Doubles; G],
+    ) -> [Doubles; G] {
+        // SAFETY: as above.
+        unsafe { wide::series_double(tail, head, z) }
+    }
 }
 
 /// The plain series on AVX2's vectors: step for step as [`estrin8`],
@@ -114,7 +189,118 @@ mod wide {
         _mm256_slli_epi64, _mm256_storeu_pd, _mm256_sub_epi64, _mm256_sub_pd,
     };
 
-    use super::{LN2_HI, LN2_LO, Lanes, SHIFT};
+    use super::{Double, Doubles, LN2_HI, LN2_LO, Lanes, SHIFT};
+
+    /// A double-double in each lane: the high parts, then the low.
+    type Wide = (__m256d, __m256d);
+
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    pub(super) unsafe fn load_double(a: Doubles) -> Wide {
+        unsafe { (load(a.0), load(a.1)) }
+    }
+
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    pub(super) unsafe fn store_double(v: Wide) -> Doubles {
+        unsafe { (store(v.0), store(v.1)) }
+    }
+
+    /// As [`crate::double::two_sum`].
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    unsafe fn two_sum(a: __m256d, b: __m256d) -> Wide {
+        unsafe {
+            let sum = add(a, b);
+            let b_virtual = sub(sum, a);
+            let a_virtual = sub(sum, b_virtual);
+            (sum, add(sub(a, a_virtual), sub(b, b_virtual)))
+        }
+    }
+
+    /// As [`crate::double::split`].
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    unsafe fn split(x: __m256d) -> Wide {
+        unsafe {
+            let t = mul(splat(134_217_729.0), x);
+            let hi = sub(t, sub(t, x));
+            (hi, sub(x, hi))
+        }
+    }
+
+    /// As [`crate::double::two_product`].
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    unsafe fn two_product(a: __m256d, b: __m256d) -> Wide {
+        unsafe {
+            let product = mul(a, b);
+            let (a_hi, a_lo) = split(a);
+            let (b_hi, b_lo) = split(b);
+            let error = add(
+                add(
+                    add(sub(mul(a_hi, b_hi), product), mul(a_hi, b_lo)),
+                    mul(a_lo, b_hi),
+                ),
+                mul(a_lo, b_lo),
+            );
+            (product, error)
+        }
+    }
+
+    /// As [`crate::double::add`].
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    pub(super) unsafe fn add_double(a: Wide, b: Wide) -> Wide {
+        unsafe {
+            let (sum, error) = two_sum(a.0, b.0);
+            two_sum(sum, add(add(error, a.1), b.1))
+        }
+    }
+
+    /// As [`crate::double::multiply`].
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    pub(super) unsafe fn multiply_double(a: Wide, b: Wide) -> Wide {
+        unsafe {
+            let (product, error) = two_product(a.0, b.0);
+            two_sum(product, add(add(error, mul(a.0, b.1)), mul(a.1, b.0)))
+        }
+    }
+
+    /// As [`super::Plain`]'s `series_double`. (Loops, not closures: a
+    /// closure would be built without AVX2.)
+    #[target_feature(enable = "avx2")]
+    #[inline]
+    pub(super) unsafe fn series_double<const G: usize>(
+        tail: &[Double],
+        head: &[Double],
+        z: [Doubles; G],
+    ) -> [Doubles; G] {
+        unsafe {
+            let mut zs = [(splat(0.0), splat(0.0)); G];
+            for g in 0..G {
+                zs[g] = load_double(z[g]);
+            }
+            let mut p = [(splat(0.0), splat(0.0)); G];
+            for c in tail {
+                for g in 0..G {
+                    p[g].0 = add(mul(p[g].0, zs[g].0), splat(c.0));
+                }
+            }
+            for c in head {
+                let c = (splat(c.0), splat(c.1));
+                for g in 0..G {
+                    p[g] = add_double(multiply_double(p[g], zs[g]), c);
+                }
+            }
+            let mut out = [([0.0; 4], [0.0; 4]); G];
+            for g in 0..G {
+                out[g] = store_double(p[g]);
+            }
+            out
+        }
+    }
 
     #[target_feature(enable = "avx2")]
     #[inline]
@@ -241,6 +427,22 @@ pub(crate) trait Psi {
     fn weigh<V: Isa>(v: V, u: Lanes) -> (Lanes, Lanes, Lanes);
     /// The term `w(u) d` in double-double, for `u`, `d` and `s` given so.
     fn term(u: Double, d: Double, s: Double) -> Double;
+    /// [`term`](Self::term) for each lane of `G` groups, to the same bits:
+    /// independent chains side by side, for the processor to overlap.
+    #[inline(always)]
+    fn terms<V: Isa, const G: usize>(
+        _: V,
+        u: [Doubles; G],
+        d: [Doubles; G],
+        s: Double,
+    ) -> [Doubles; G] {
+        std::array::from_fn(|g| {
+            let (u, d) = (u[g], d[g]);
+            let t: [Double; LANES] =
+                std::array::from_fn(|l| Self::term((u.0[l], u.1[l]), (d.0[l], d.1[l]), s));
+            (each(|l| t[l].0), each(|l| t[l].1))
+        })
+    }
 }
 
 /// Tukey's biweight: `w = (1 - u^2)^2` for `|u| < 1`.
@@ -272,6 +474,27 @@ impl Psi for Biweight {
     fn term(u: Double, d: Double, _: Double) -> Double {
         let v = add((1.0, 0.0), negate(multiply(u, u)));
         multiply(multiply(v, v), d)
+    }
+
+    #[inline(always)]
+    fn terms<V: Isa, const G: usize>(
+        isa: V,
+        u: [Doubles; G],
+        d: [Doubles; G],
+        _: Double,
+    ) -> [Doubles; G] {
+        // Loops, not closures, round the vector steps: a closure would be
+        // built without AVX2.
+        let mut terms = [ZERO; G];
+        for g in 0..G {
+            let square = isa.multiply_double(u[g], u[g]);
+            let v = isa.add_double(
+                splat((1.0, 0.0)),
+                (each(|i| -square.0[i]), each(|i| -square.1[i])),
+            );
+            terms[g] = isa.multiply_double(isa.multiply_double(v, v), d[g]);
+        }
+        terms
     }
 }
 
@@ -313,6 +536,25 @@ impl Psi for Welsch {
         let x = multiply(u, u);
         multiply(exp_negative_double((-x.0 / 2.0, -x.1 / 2.0)), d)
     }
+
+    #[inline(always)]
+    fn terms<V: Isa, const G: usize>(
+        v: V,
+        u: [Doubles; G],
+        d: [Doubles; G],
+        _: Double,
+    ) -> [Doubles; G] {
+        let mut x = [ZERO; G];
+        for g in 0..G {
+            let square = v.multiply_double(u[g], u[g]);
+            x[g] = (each(|i| -square.0[i] / 2.0), each(|i| -square.1[i] / 2.0));
+        }
+        let mut terms = exp_negative_lanes(v, x);
+        for g in 0..G {
+            terms[g] = v.multiply_double(terms[g], d[g]);
+        }
+        terms
+    }
 }
 
 /// Andrews' sine wave: `psi = sin u`, `w = sin(u) / u`, for `|u| < pi`.
@@ -346,6 +588,25 @@ impl Psi for Andrews {
     #[inline(always)]
     fn term(u: Double, d: Double, _: Double) -> Double {
         multiply(sinc_double(multiply(u, u)), d)
+    }
+
+    #[inline(always)]
+    fn terms<V: Isa, const G: usize>(
+        v: V,
+        u: [Doubles; G],
+        d: [Doubles; G],
+        _: Double,
+    ) -> [Doubles; G] {
+        let mut y = [ZERO; G];
+        for g in 0..G {
+            y[g] = v.multiply_double(u[g], u[g]);
+        }
+        let (tail, head) = SINC_DOUBLE.split_at(SINC_DOUBLE.len() - 14);
+        let mut terms = v.series_double(tail, head, y);
+        for g in 0..G {
+            terms[g] = v.multiply_double(terms[g], d[g]);
+        }
+        terms
     }
 }
 
@@ -651,4 +912,99 @@ pub(crate) fn sinc_double(y: Double) -> Double {
     let tail = tail.iter().fold(0.0, |p, &c| p * y.0 + c.0);
     head.iter()
         .fold((tail, 0.0), |p, &c| add(multiply(p, y), c))
+}
+
+// ==========================
+// Double-doubles four at a time
+// ==========================
+
+/// A double-double in each lane: the high parts, then the low.
+pub(crate) type Doubles = (Lanes, Lanes);
+
+/// Zero in each lane.
+const ZERO: Doubles = ([0.0; LANES], [0.0; LANES]);
+
+/// `x` in every lane.
+#[inline(always)]
+fn splat(x: Double) -> Doubles {
+    ([x.0; LANES], [x.1; LANES])
+}
+
+/// [`crate::double::two_sum`] in each lane.
+#[inline(always)]
+pub(crate) fn two_sum_lanes(a: Lanes, b: Lanes) -> Doubles {
+    let sum = each(|i| a[i] + b[i]);
+    let b_virtual = each(|i| sum[i] - a[i]);
+    let a_virtual = each(|i| sum[i] - b_virtual[i]);
+    (sum, each(|i| (a[i] - a_virtual[i]) + (b[i] - b_virtual[i])))
+}
+
+/// [`crate::double::two_product`] in each lane (Dekker's, no FMA).
+#[inline(always)]
+pub(crate) fn two_product_lanes(a: Lanes, b: Lanes) -> Doubles {
+    let product = each(|i| a[i] * b[i]);
+    let a_parts: [Double; LANES] = std::array::from_fn(|i| split(a[i]));
+    let b_parts: [Double; LANES] = std::array::from_fn(|i| split(b[i]));
+    let error = each(|i| {
+        let ((a_hi, a_lo), (b_hi, b_lo)) = (a_parts[i], b_parts[i]);
+        ((a_hi * b_hi - product[i]) + a_hi * b_lo + a_lo * b_hi) + a_lo * b_lo
+    });
+    (product, error)
+}
+
+/// [`add`] in each lane.
+#[inline(always)]
+pub(crate) fn add_lanes(a: Doubles, b: Doubles) -> Doubles {
+    let (sum, error) = two_sum_lanes(a.0, b.0);
+    two_sum_lanes(sum, each(|i| error[i] + a.1[i] + b.1[i]))
+}
+
+/// [`multiply`] in each lane.
+#[inline(always)]
+pub(crate) fn multiply_lanes(a: Doubles, b: Doubles) -> Doubles {
+    let (product, error) = two_product_lanes(a.0, b.0);
+    two_sum_lanes(
+        product,
+        each(|i| error[i] + a.0[i] * b.1[i] + a.1[i] * b.0[i]),
+    )
+}
+
+/// [`exp_negative_double`] in each lane of `G` groups, to the same bits.
+#[inline(always)]
+pub(crate) fn exp_negative_lanes<V: Isa, const G: usize>(v: V, x: [Doubles; G]) -> [Doubles; G] {
+    // Lanes below -746 are 0; worked through as 0 meanwhile.
+    let under: [[bool; LANES]; G] =
+        std::array::from_fn(|g| std::array::from_fn(|i| x[g].0[i] < -746.0));
+    let k: [Lanes; G] = std::array::from_fn(|g| {
+        each(|i| {
+            let x = if under[g][i] { 0.0 } else { x[g].0[i] };
+            (x * std::f64::consts::LOG2_E + SHIFT) - SHIFT
+        })
+    });
+    let mut r = [ZERO; G];
+    for g in 0..G {
+        let x = (
+            each(|i| if under[g][i] { 0.0 } else { x[g].0[i] }),
+            each(|i| if under[g][i] { 0.0 } else { x[g].1[i] }),
+        );
+        let (hi, lo) = two_product_lanes(k[g], [LN2.0; LANES]);
+        r[g] = v.add_double(
+            v.add_double(x, (each(|i| -hi[i]), each(|i| -lo[i]))),
+            (each(|i| -k[g][i] * LN2.1), [0.0; LANES]),
+        );
+    }
+    let (tail, head) = EXP_DOUBLE.split_at(EXP_DOUBLE.len() - 14);
+    let p = v.series_double(tail, head, r);
+    std::array::from_fn(|g| {
+        let part = |part: Lanes| {
+            each(|i| {
+                if under[g][i] {
+                    0.0
+                } else {
+                    scale(part[i], k[g][i] as i32)
+                }
+            })
+        };
+        (part(p[g].0), part(p[g].1))
+    })
 }

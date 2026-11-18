@@ -55,6 +55,62 @@ assert!((flux[740] - 0.995).abs() < 1e-5);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
+## Accuracy
+
+**Survey light curves.** Five simulated curves with spots, drift, flares,
+noise and transits (a TESS sector at 2-minute cadence, a fast rotator, one
+in counts, a faint star at flux 1e-5, a Kepler quarter), 1,477 sampled
+points against the biweight root at 50 digits. Each of wotan's is compared
+with the root of its own window:
+
+| | Nearest double | Worst relative error |
+|---|--:|--:|
+| rustellar-detrend | 1,477 of 1,477 | half a unit |
+| wotan 1.10, normalised flux | 0 | 1.0e-6 |
+| wotan 1.10, counts | 0 | 2.4e-11 |
+| wotan 1.10, faint star | 0 | 4.6e-5 |
+
+**Reference windows.** 909 biweight windows and 1,599 windows of the other
+methods, at 50 digits or exactly: every M-estimate within half a unit plus
+its rounding doubt, and the nearest double wherever that doubt is small
+(all but a few windows with roots very near zero, ties and multiple roots);
+the order estimators to the bit. wotan is never nearer.
+
+**Detrend then search.** The five curves flattened by this crate's trend
+and by wotan's, then searched with rustellar-bls: both find every transit
+with the same period and mid-transit time, and depths that agree to 0.006.
+The exact trend changes accuracy and speed, not detections.
+
+## Speed
+
+Seconds on an AMD Ryzen 7 5700G (8 cores, 16 threads), Rust 1.99; wotan
+1.10 (numba 0.64, after its first call) runs on one thread. The light
+curves are the survey's: a Kepler quarter (4,265 points, 1-day window), a
+TESS sector at 2 minutes (18,139 points) and at 20 seconds (108,878), the
+TESS windows half a day.
+
+| Biweight | wotan | rustellar-detrend, 1 thread | rustellar-detrend, 16 threads |
+|---|--:|--:|--:|
+| Kepler quarter | 0.0104 | 0.0045 | 0.0013 |
+| TESS, 2 minutes | 0.185 | 0.095 | 0.012 |
+| TESS, 20 seconds | 6.01 | 3.09 | 0.35 |
+
+Each method on the 2-minute sector, one thread (wotan's default settings):
+
+| | wotan | rustellar-detrend |
+|---|--:|--:|
+| Median | 0.060 | 0.0022 |
+| Mean | 0.0099 | 0.0046 |
+| Biweight | 0.185 | 0.095 |
+| Welsch | 0.331 | 0.216 |
+| Andrews' sine wave | 0.333 | 0.210 |
+| Huber | needs statsmodels | 0.076 |
+| Hodges-Lehmann | 9.76 | 0.97 |
+| Trimmed mean | 0.202 | 0.018 |
+| Winsorized mean | 0.202 | 0.021 |
+
+`cargo bench -p rustellar-detrend` runs these.
+
 ## References
 
 - Andrews, D. F., Bickel, P. J., Hampel, F. R., Huber, P. J., Rogers, W. H. &
