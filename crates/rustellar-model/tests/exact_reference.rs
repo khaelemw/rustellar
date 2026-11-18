@@ -196,3 +196,48 @@ fn exact_where_the_answer_is_exact() {
     }
     assert!(checked > 1000, "only {checked} points");
 }
+
+// Each moment on its own, through three laws (see the line file's header):
+// uniform, 1 - B0; linear with u1 = 1, 1 - B1 / (2/3); and (0.5, 0.25),
+// whose B0 term vanishes too, 1 - (B1 + B2 / 4) / (19/24). So a wrong
+// moment is named by the laws that fail: B0 by the first, B1 by the second
+// and third, B2 by the third alone. The exact moments, rounded, give each
+// flux to a few rounding errors of 1, well within the tolerance.
+/// A limb-darkening law and its flux from the three moments.
+type Law = ((f64, f64), fn([f64; 3]) -> f64);
+
+#[test]
+fn each_moment_on_and_near_case_lines() {
+    let laws: [Law; 3] = [
+        ((0.0, 0.0), |b| 1.0 - b[0]),
+        ((1.0, 0.0), |b| 1.0 - b[1] / (2.0 / 3.0)),
+        ((0.5, 0.25), |b| 1.0 - (b[1] + 0.25 * b[2]) / (19.0 / 24.0)),
+    ];
+    let (mut checked, mut untouched) = (0, 0);
+    for line in LINES.lines().filter(|line| !line.starts_with('#')).skip(1) {
+        let v: Vec<f64> = line.split(',').map(|f| f.parse().unwrap()).collect();
+        let (k, z, b) = (v[0], v[1], [v[4], v[5], v[6]]);
+        for ((u1, u2), expected) in laws {
+            let found = flux(
+                z,
+                RadiusRatio::new(k).unwrap(),
+                LimbDarkening::quadratic(u1, u2).unwrap(),
+            );
+            let error = (found - expected(b)).abs();
+            assert!(
+                error <= TOLERANCE * k.max(1.0),
+                "({u1}, {u2}) at k = {k}, z = {z}: {found} vs {}, error {error:e}",
+                expected(b)
+            );
+            // Where the planet misses the star exactly, nothing is blocked,
+            // not even a rounding error's worth.
+            if b == [0.0; 3] {
+                assert_eq!(found, 1.0, "({u1}, {u2}) at k = {k}, z = {z}");
+                untouched += 1;
+            }
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 3 * 3974);
+    assert!(untouched > 600, "only {untouched}");
+}

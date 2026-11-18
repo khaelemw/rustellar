@@ -1,11 +1,10 @@
 // The binned search: equal to fitting each box point by point where every
-// point sits on a bin edge, equal to astropy's fast search where astropy is
-// right, at full depth where astropy's wrap-around goes wrong, never below
-// astropy's slow search, and never above the exact search.
+// point sits on a bin edge, never above the exact search, and below it by at
+// most half a bin. (Against astropy: the integration tests.)
 
 use rustellar_core::{Epoch, LightCurve, TimeDelta};
 
-use super::recipe::{Random, Recipe, Survey, check_samples};
+use super::recipe::{Random, Recipe, Survey};
 use crate::{
     BlsError, Objective, TransitBox,
     binned::{BinnedBox, Bounds, Scratch, WINDOW, best_binned, bin_count, box_at, point_totals},
@@ -16,17 +15,6 @@ use crate::{
 // ==========================
 // Helper Functions
 // ==========================
-
-const FAST_CURVES: &str = include_str!("../../tests/reference/fast_curves.csv");
-const FAST_POWER: &str = include_str!("../../tests/reference/fast_power.csv");
-const WRAP_CASES: &str = include_str!("../../tests/reference/wrap_cases.csv");
-
-fn rows(csv: &str) -> impl Iterator<Item = Vec<&str>> {
-    csv.lines()
-        .filter(|line| !line.starts_with('#'))
-        .skip(1)
-        .map(|line| line.split(',').collect())
-}
 
 fn binned(lc: &LightCurve, period: f64, durations: &[f64], oversample: usize) -> Option<BinnedBox> {
     best_binned(
@@ -66,81 +54,6 @@ fn holds_its_own_points(lc: &LightCurve, ours: &BinnedBox, period: f64) {
         "P {period}: {fit:?} vs {ours:?}"
     );
 }
-
-// How far astropy's plain sums can be from the exact snr, relative: each of
-// its sums over `n` points can be off by about n rounding errors of the
-// largest |flux|, and the depth is a difference of two such means. Eight
-// times that, plus a floor for our own rounding.
-fn astropy_tolerance(lc: &LightCurve, depth: f64) -> f64 {
-    let largest = lc.flux().iter().fold(0.0_f64, |m, y| m.max(y.abs()));
-    1e-12 + 8.0 * lc.len() as f64 * f64::EPSILON * largest / depth.abs()
-}
-
-fn fast_curve(fields: &[&str]) -> LightCurve {
-    let lc = Recipe {
-        seed: fields[1].parse().unwrap(),
-        n: 1350,
-        t_start: 1325.0,
-        cadence: 0.02,
-        noise: 1e-3,
-        period: fields[2].parse().unwrap(),
-        tc: fields[3].parse().unwrap(),
-        duration: fields[4].parse().unwrap(),
-        depth: fields[5].parse().unwrap(),
-    }
-    .light_curve();
-    check_samples(&lc, fields[6]);
-    lc
-}
-
-struct WrapCase<'a> {
-    name: &'a str,
-    lc: LightCurve,
-    // The transit's duration.
-    duration: f64,
-    // astropy's (snr, depth) from the fast and the slow method.
-    fast: (f64, f64),
-    slow: (f64, f64),
-}
-
-fn wrap_cases() -> Vec<WrapCase<'static>> {
-    let rows: Vec<Vec<&str>> = rows(WRAP_CASES).collect();
-    rows.chunks(2)
-        .map(|pair| {
-            let (fast, slow) = (&pair[0], &pair[1]);
-            assert_eq!((fast[4], slow[4]), ("fast", "slow"));
-            let lc = Recipe {
-                seed: fast[1].parse().unwrap(),
-                n: 15_000,
-                t_start: 1325.0,
-                cadence: 0.002,
-                noise: 1e-4,
-                period: 3.0,
-                tc: fast[2].parse().unwrap(),
-                duration: fast[3].parse().unwrap(),
-                depth: 0.01,
-            }
-            .light_curve();
-            check_samples(&lc, fast[9]);
-            let numbers = |v: &[&str]| (v[5].parse().unwrap(), v[6].parse().unwrap());
-            WrapCase {
-                name: fast[0],
-                lc,
-                duration: fast[3].parse().unwrap(),
-                fast: numbers(fast),
-                slow: numbers(slow),
-            }
-        })
-        .collect()
-}
-
-// Bins of 3/512 d, 512 to the orbit, as astropy's.
-const WRAP_DURATIONS: [f64; 3] = [3.0 / 64.0, 3.0 / 32.0, 3.0 / 16.0];
-const WRAP_OVERSAMPLE: usize = 8;
-
-// Bins of 1/256 d, and periods of a whole number of them: astropy's bins.
-const FAST_DURATIONS: [f64; 4] = [0.031_25, 0.08, 0.12, 0.16];
-const FAST_OVERSAMPLE: usize = 8;
 
 // ==========================
 // Point by point, where points sit on bin edges
@@ -240,132 +153,13 @@ fn statistics_that_overflow() {
 // The shared recipe
 // ==========================
 
-#[test]
-fn recipe_reproduces_the_generators_light_curves() {
-    for v in rows(FAST_CURVES) {
-        fast_curve(&v);
-    }
-    assert_eq!(wrap_cases().len(), 4);
-}
-
 // ==========================
 // Against astropy's fast search
 // ==========================
 
-// 4 light curves (a transit mid-phase, one centred on the first point, one
-// just before it, and noise only) at 250 periods from 0.8 to 9 days, each a
-// whole number of astropy's bins, so its bins are these bins. Where its best
-// box is clean (clear of the last real bin, which its padding overwrites,
-// and of the wrap-around, which it pads too short), that box is one this
-// search tries too, with the same sums: ours is at least as good. Where ours
-// is clean as well, each search tried the other's box, so the two are equally
-// good, to astropy's rounding. Maximising the snr maximises delta_chi2, its
-// square.
-#[test]
-fn agrees_with_astropy_fast_away_from_phase_zero() {
-    let curves: Vec<LightCurve> = rows(FAST_CURVES).map(|v| fast_curve(&v)).collect();
-    let (mut equal, mut better) = (0, 0);
-    for v in rows(FAST_POWER) {
-        let lc = &curves[v[0].parse::<usize>().unwrap()];
-        let period: f64 = v[1].parse().unwrap();
-        let ours = binned(lc, period, &FAST_DURATIONS, FAST_OVERSAMPLE).unwrap();
-        holds_its_own_points(lc, &ours, period);
-        let (snr, depth): (f64, f64) = (v[2].parse().unwrap(), v[3].parse().unwrap());
-        let m: usize = v[8].parse().unwrap();
-        assert_eq!(ours.bin, period / m as f64);
-        assert_eq!(ours.bin, 1.0 / 256.0);
-        let tolerance = astropy_tolerance(lc, depth);
-
-        if v[9] == "1" {
-            assert!(
-                ours.fit.snr >= snr * (1.0 - tolerance),
-                "P {period}: {} below astropy's {snr}",
-                ours.fit.snr
-            );
-            // Clear of the last bin, as astropy's clean boxes are.
-            if ours.start + ours.bins < m {
-                assert!(
-                    (ours.fit.snr / snr - 1.0).abs() < tolerance,
-                    "P {period}: {} vs {snr}",
-                    ours.fit.snr
-                );
-                equal += 1;
-            } else if ours.fit.snr > snr * (1.0 + tolerance) {
-                better += 1;
-            }
-        }
-    }
-    // Most periods are compared exactly (947 of 1,000); at some, the best box
-    // straddles phase zero, where astropy cannot put it (20 better).
-    assert!(equal > 900, "{equal} equal");
-    assert!(better >= 15, "{better} better");
-}
-
 // ==========================
 // Where astropy's wrap-around goes wrong
 // ==========================
-
-// astropy's recorded failures, so a test fails if a future astropy fixes
-// them (then the docs need updating).
-#[test]
-fn astropy_fast_fails_at_phase_zero() {
-    for case in wrap_cases() {
-        let (fast, slow) = (case.fast, case.slow);
-        match case.name {
-            "mid_phase" => assert!((fast.0 / slow.0 - 1.0).abs() < 1e-12, "{fast:?} {slow:?}"),
-            // The last bin's points never count as in transit: no box has a
-            // dip, and astropy leaves the depth, duration and time as whatever
-            // was in memory (here a NaN depth).
-            "last_bin" => assert_eq!(fast.0, f64::NEG_INFINITY),
-            // The box cannot straddle phase zero: the depth is 8% low.
-            "phase_zero_short" => assert!(fast.1 < 0.93 * slow.1, "{fast:?} {slow:?}"),
-            // Longer boxes fare worse: 76% of the snr, 77% of the depth.
-            "phase_zero_long" => assert!(fast.0 < 0.77 * slow.0, "{fast:?} {slow:?}"),
-            name => panic!("unexpected case {name}"),
-        }
-    }
-}
-
-// astropy's slow search tries a box every D / oversample from the first point,
-// which for these durations (8, 16 and 32 bins) is every 1, 2 or 4 bins, with
-// the box's edges on bin edges: every box it tries, this search tries too.
-// So this search is never below it, and it finds every transit, at full depth.
-#[test]
-fn full_depth_where_astropy_fast_is_wrong() {
-    for case in wrap_cases() {
-        let ours = binned(&case.lc, 3.0, &WRAP_DURATIONS, WRAP_OVERSAMPLE).unwrap();
-        assert_eq!(ours.bin, 3.0 / 512.0);
-        let tolerance = astropy_tolerance(&case.lc, case.slow.1);
-        assert!(
-            ours.fit.snr >= case.slow.0 * (1.0 - tolerance),
-            "{}: {} vs slow {}",
-            case.name,
-            ours.fit.snr,
-            case.slow.0
-        );
-        assert!(
-            ours.fit.snr >= case.fast.0 * (1.0 - tolerance),
-            "{}",
-            case.name
-        );
-        if case.name != "last_bin" {
-            // A box centred on the transit, which holds a part `overlap / box`
-            // of it, and leaves the rest among the other points, measures a
-            // depth of 0.01 (overlap / box - rest / (P - box)): 0.00996 for
-            // phase_zero_long, whose box is 0.0125 d short. The depth's error
-            // is 3e-6 to 6e-6; the seeds are fixed, so this never flakes.
-            let length = ours.bins as f64 * ours.bin;
-            let overlap = case.duration.min(length);
-            let expected = 0.01 * (overlap / length - (case.duration - overlap) / (3.0 - length));
-            assert!(
-                (ours.fit.depth - expected).abs() < 1.5e-5,
-                "{}: {} vs {expected}",
-                case.name,
-                ours.fit.depth
-            );
-        }
-    }
-}
 
 // ==========================
 // Bounded by the exact search

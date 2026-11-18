@@ -5,11 +5,11 @@
 use rstest::rstest;
 use rustellar_core::{Epoch, LightCurve, TimeDelta};
 
-use super::recipe::{Recipe, check_samples};
+use super::recipe::Recipe;
 use crate::{
     Objective, TransitBox,
     binned::{Scratch, best_binned},
-    box_fit::{Weighted, offset_from_transit},
+    box_fit::Weighted,
     refine::{peaks, refine},
 };
 
@@ -296,135 +296,6 @@ fn statistics_that_overflow() {
 // ==========================
 // Injected transits, against astropy
 // ==========================
-
-const INJECTED: &str = include_str!("../../tests/reference/injected.csv");
-
-// How far a reported box is from the injected one: the mid-transit time at
-// the transit nearest the middle of the data (where a slightly wrong period
-// moves it least), and the depth.
-struct Errors {
-    time: [f64; 2],
-    depth: [f64; 2],
-}
-
-fn injected() -> Vec<Errors> {
-    let durations = [0.04, 0.06, 0.08, 0.11, 0.15, 0.2];
-    let middle = 1325.0 + 13.5;
-    let at_middle = |t0: f64, p: f64| t0 + ((middle - t0) / p).round() * p;
-    INJECTED
-        .lines()
-        .filter(|line| !line.starts_with('#'))
-        .skip(1)
-        .map(|line| {
-            let v: Vec<&str> = line.split(',').collect();
-            let f = |i: usize| v[i].parse::<f64>().unwrap();
-            let (period, tc, depth) = (f(2), f(3), f(5));
-            let lc = Recipe {
-                seed: v[1].parse().unwrap(),
-                n: 2000,
-                t_start: 1325.0,
-                cadence: 0.0135,
-                noise: 1e-3,
-                period,
-                tc,
-                duration: f(4),
-                depth,
-            }
-            .light_curve();
-            check_samples(&lc, v[11]);
-            let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
-            let weighted = Weighted::new(&lc).unwrap();
-            // The generator's periods, operation for operation.
-            let periods: Vec<f64> = (0..201)
-                .map(|k| period * (1.0 + 0.02 * f64::from(k - 100) / 100.0))
-                .collect();
-            let mut scratch = Scratch::default();
-            let power: Vec<f64> = periods
-                .iter()
-                .map(|&p| {
-                    best_binned(
-                        &weighted,
-                        p,
-                        &durations,
-                        10,
-                        Objective::DeltaChi2,
-                        &mut scratch,
-                    )
-                    .unwrap()
-                    .map_or(0.0, |b| b.fit.delta_chi2)
-                })
-                .collect();
-            let ours = refine(
-                &btjd(&lc),
-                &weighted,
-                &periods,
-                &durations,
-                &peaks(&power, 1),
-                2,
-                Objective::DeltaChi2,
-                1,
-            )
-            .unwrap()[0];
-            let ours_time = at_middle(times[0] + ours.centre, ours.days);
-            let theirs_time = at_middle(f(7), f(6));
-            Errors {
-                time: [ours_time, theirs_time].map(|t| offset_from_transit(t, tc, period).abs()),
-                depth: [ours.fit.depth, f(8)].map(|d| (d - depth).abs()),
-            }
-        })
-        .collect()
-}
-
-fn median(mut x: Vec<f64>) -> f64 {
-    x.sort_by(f64::total_cmp);
-    0.5 * (x[(x.len() - 1) / 2] + x[x.len() / 2])
-}
-
-fn largest(x: &[f64]) -> f64 {
-    x.iter().copied().fold(0.0, f64::max)
-}
-
-// 144 box transits, each searched at 201 periods within 2% of its own, the
-// binned power's highest peak refined two periods either side, against
-// astropy's best box on the same light curves and periods. Three groups of
-// 48: snr 8 to 20 at random phases, snr 50 to 150 at random phases, and snr
-// 8 to 20 within 0.03 d of the first point's phase.
-//
-// Measured (median, and largest, error; days for times):
-//
-// | group      | time, ours        | time, astropy     | depth, ours | depth, astropy |
-// |------------|-------------------|-------------------|-------------|----------------|
-// | random     | 1.05e-3 (5.8e-3)  | 2.13e-3 (1.27e-2) | 5.0e-5      | 5.8e-5         |
-// | bright     | 7.1e-4 (4.2e-3)   | 2.77e-3 (9.6e-3)  | 7.7e-5      | 2.40e-4        |
-// | phase zero | 6.7e-4 (3.8e-3)   | 3.24e-3 (2.06e-2) | 6.6e-5      | 1.08e-4        |
-//
-// At snr 8 to 20 the noise sets much of the error; when it does not, the
-// grid of durations does (a box shorter than the transit can sit anywhere in
-// it), and astropy's phase bins, and near phase zero its wrap-around.
-#[test]
-fn closer_to_injected_transits_than_astropy() {
-    let errors = injected();
-    assert_eq!(errors.len(), 144);
-    for (name, group) in [
-        ("random", &errors[..48]),
-        ("bright", &errors[48..96]),
-        ("phase zero", &errors[96..]),
-    ] {
-        let time = |k: usize| group.iter().map(|e| e.time[k]).collect::<Vec<f64>>();
-        let depth = |k: usize| group.iter().map(|e| e.depth[k]).collect::<Vec<f64>>();
-        let (ours, theirs) = (median(time(0)), median(time(1)));
-        assert!(ours < 0.6 * theirs, "{name}: time {ours} vs {theirs}");
-        assert!(
-            largest(&time(0)) < largest(&time(1)),
-            "{name}: largest time"
-        );
-        let (ours, theirs) = (median(depth(0)), median(depth(1)));
-        assert!(ours < theirs, "{name}: depth {ours} vs {theirs}");
-        if name == "bright" {
-            assert!(ours < 0.5 * theirs, "{name}: depth {ours} vs {theirs}");
-        }
-    }
-}
 
 // A box that only the second step tries can overflow too. The run from 0.12
 // to 0.32 days holds the point of weight 1e300 and spans 0.2 days, so only a

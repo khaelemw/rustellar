@@ -6,6 +6,10 @@ mod box_fit;
 mod cuda;
 mod exact;
 mod grid;
+#[expect(
+    dead_code,
+    reason = "the integration tests check their light curves against the generator's"
+)]
 mod recipe;
 mod refine;
 mod sums;

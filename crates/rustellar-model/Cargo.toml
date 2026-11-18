@@ -7,25 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 keywords = ["astronomy", "exoplanet", "transit", "light-curve"]
 categories = ["science", "algorithms"]
-# Reference data for the tests only, and the tests that read it; users of the
-# crate do not need them. exact_lines.csv stays, as the unit tests in src read
-# it.
-exclude = [
-    "tests/reference/batman_points.csv",
-    "tests/reference/batman_sets.csv",
-    "tests/reference/exact_random.csv",
-    "tests/reference/exposure_points.csv",
-    "tests/reference/flux_points.csv",
-    "tests/reference/flux_random.csv",
-    "tests/reference/lightcurve_points.csv",
-    "tests/reference/lightcurve_sets.csv",
-    "tests/exact_reference.rs",
-    "tests/reference.rs",
-    "tests/flux_reference.rs",
-    "tests/exposure_reference.rs",
-    "tests/flux_random.rs",
-    "tests/lightcurve_reference.rs",
-]
+# The published package holds the library and its unit tests, which need no
+# files. The reference data, the integration tests that read it and the
+# benchmarks stay in the source.
+exclude = ["/tests/", "/benches/"]
 
 [dependencies]
 rustellar-core.workspace = true

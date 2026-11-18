@@ -1,6 +1,6 @@
-// The trend over windows: numpy's median and the exact mean (Fractions) of
-// every window, the windows made with exact times; and the sliding sum
-// against a fresh one per window.
+// The trend over windows: the sliding sum against a fresh one per window,
+// the sliding window against each window alone, and threads. (numpy's
+// median and the exact mean: the integration tests.)
 
 use super::Random;
 use crate::{
@@ -26,80 +26,9 @@ fn options(window: f64, break_tolerance: f64, edge_cutoff: f64, edges: Edges) ->
     }
 }
 
-// The same double, or both zero (numpy may keep a zero's sign).
-fn same(found: Option<f64>, expected: Option<f64>) -> bool {
-    match (found, expected) {
-        (Some(a), Some(b)) => a.to_bits() == b.to_bits() || (a == 0.0 && b == 0.0),
-        (a, b) => a.is_none() && b.is_none(),
-    }
-}
-
 // ==========================
 // Tests
 // ==========================
-
-#[test]
-fn numpys_median_and_the_exact_mean() {
-    let rows = |text: &'static str| {
-        text.lines()
-            .filter(|l| !l.starts_with('#'))
-            .skip(1)
-            .map(|l| l.split(',').collect::<Vec<&str>>())
-    };
-    let cases: Vec<Vec<&str>> =
-        rows(include_str!("../../tests/reference/location_cases.csv")).collect();
-    let mut points = rows(include_str!("../../tests/reference/location_points.csv")).peekable();
-    let (mut checked, mut none) = (0, 0);
-    let mut kinds = std::collections::BTreeSet::new();
-    for case in &cases {
-        let id = case[0];
-        kinds.insert(case[1]);
-        let window: f64 = case[2].parse().unwrap();
-        let tolerance: f64 = case[3].parse().unwrap();
-        let edge_cutoff: f64 = case[4].parse().unwrap();
-        let edges = match case[5] {
-            "symmetric" => Edges::Symmetric,
-            _ => Edges::HalfOpen,
-        };
-        let mut rows = Vec::new();
-        while points.peek().is_some_and(|p| p[0] == id) {
-            rows.push(points.next().unwrap());
-        }
-        assert_eq!(rows.len(), case[6].parse::<usize>().unwrap());
-        let times: Vec<f64> = rows.iter().map(|r| r[2].parse().unwrap()).collect();
-        let flux: Vec<f64> = rows.iter().map(|r| r[3].parse().unwrap()).collect();
-        let masked: Vec<bool> = rows.iter().map(|r| r[4] == "1").collect();
-        let break_tolerance = if tolerance == 0.0 {
-            f64::INFINITY
-        } else {
-            tolerance
-        };
-        let o = options(window, break_tolerance, edge_cutoff, edges);
-        let medians = trend(&times, &flux, Some(&masked), &o, Location::Median, 4);
-        let means = trend(&times, &flux, Some(&masked), &o, Location::Mean, 2);
-        let value = |s: &str| (s != "nan").then(|| s.parse::<f64>().unwrap());
-        for (i, row) in rows.iter().enumerate() {
-            let (median, mean) = (value(row[5]), value(row[6]));
-            assert!(
-                same(medians[i], median),
-                "case {id}, point {i}: median {:?} against {median:?}",
-                medians[i]
-            );
-            assert!(
-                same(means[i], mean),
-                "case {id}, point {i}: mean {:?} against {mean:?}",
-                means[i]
-            );
-            checked += 1;
-            none += usize::from(median.is_none());
-        }
-    }
-    assert_eq!(cases.len(), 30);
-    assert_eq!(kinds.len(), 6);
-    assert_eq!(checked, 2_850);
-    // Edges cut and empty windows met, but most points have a trend.
-    assert!(none > 100 && none < checked / 2, "{none}");
-}
 
 #[test]
 fn the_sliding_sum_is_a_fresh_sum() {

@@ -65,7 +65,11 @@ cargo bench -p rustellar-model
 ```
 
 The reference data the tests compare against is in each crate's
-`tests/reference` folder. It is not part of the published packages.
+`tests/reference` folder. The published packages stay small: they hold the
+unit tests, which need no files (their data is generated in the test), and
+leave out the reference data, the integration tests and the benchmarks
+(each crate's `exclude`). So a test that reads a reference file is an
+integration test, in `tests/`, and the full suite runs from the source.
 
 ## License
 

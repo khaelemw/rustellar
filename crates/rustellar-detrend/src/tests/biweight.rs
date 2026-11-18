@@ -1,8 +1,8 @@
-// The biweight: against the root at 50 digits within a bound derived from
-// the roundings (and wotan 1.10's error on the same windows), exact
-// symmetries, the hand-built edges, and the sign-change search.
+// The biweight: exact symmetries, the hand-built edges, the sign-change
+// search, and the sorted solver against a plain one. (Against the roots at
+// 50 digits: the integration tests.)
 
-use super::Random;
+use super::{Random, awkward_windows};
 use crate::{
     location::{Location, midpoint},
     m_estimate::{Estimate, Scratch, biweight, nearest_root},
@@ -18,12 +18,6 @@ fn location(values: &[f64], c: f64) -> f64 {
     biweight(&mut values.to_vec(), &mut Scratch::default(), c)
 }
 
-// The gap from `x` to the next double away from zero: its ulp.
-fn ulp(x: f64) -> f64 {
-    let x = x.abs();
-    f64::from_bits(x.to_bits() + 1) - x
-}
-
 // `x` 2^`power`, exactly where the result is a double (in steps that stay
 // within the doubles' exponents).
 fn times_two_to(mut x: f64, mut power: i32) -> f64 {
@@ -35,89 +29,9 @@ fn times_two_to(mut x: f64, mut power: i32) -> f64 {
     x
 }
 
-// The bound's share for the roundings, in units of eps^2 (the residual is
-// summed in double-double) times the window's sensitivity (see the
-// reference): a residual term `w d` takes about eight roundings (u, u^2,
-// 1 - u^2, the square, the product with d, the sum), as does c MAD.
-const ROUNDINGS: f64 = 8.0;
-
 // ==========================
 // Tests
 // ==========================
-
-#[test]
-fn the_root_at_fifty_digits() {
-    let text = include_str!("../../tests/reference/biweight_windows.csv");
-    let (mut windows_seen, mut nearest, mut certain, mut worst_ulps) = (0, 0, 0, 0.0f64);
-    let (mut wotan_worse, mut wotan_worst_ulps, mut ours_worse) = (0, 0.0f64, 0);
-    let mut kinds = std::collections::BTreeSet::new();
-    for line in text.lines().filter(|l| !l.starts_with('#')).skip(1) {
-        let f: Vec<&str> = line.split(',').collect();
-        let kind = f[1];
-        kinds.insert(kind);
-        let number = |k: usize| f[k].parse::<f64>().unwrap();
-        let (c, hi, lo, sensitivity, wotan) =
-            (number(2), number(4), number(5), number(7), number(8));
-        // The root, c MAD and sensitivity are given times 2^-e.
-        let e: i32 = f[3].parse().unwrap();
-        let values: Vec<f64> = f[9].split(';').map(|v| v.parse().unwrap()).collect();
-        let ours = location(&values, c);
-        // |x 2^-e - root|: x 2^-e - hi is exact (Sterbenz) wherever it
-        // matters.
-        let error = |x: f64| ((times_two_to(x, -e) - hi) - lo).abs();
-        // The spacing of the doubles there, once scaled back.
-        let unit = ulp(hi).max(times_two_to(f64::from_bits(1), (-e).max(0)));
-        let rounding = ROUNDINGS * f64::EPSILON * f64::EPSILON * sensitivity;
-        let bound = 0.5 * unit + rounding;
-        assert!(
-            error(ours) <= bound,
-            "window {} ({kind}): {ours:e}, root {hi:e} + {lo:e}: {:.2} ulp, bound {:.2}",
-            f[0],
-            error(ours) / unit,
-            bound / unit
-        );
-        windows_seen += 1;
-        nearest += usize::from(error(ours) <= 0.5 * unit);
-        // Where the roundings cannot move the sign change past a double:
-        // the nearest double, always.
-        if rounding <= 0.01 * unit {
-            certain += 1;
-            assert!(
-                error(ours) <= 0.5 * unit,
-                "window {}: {:.3} ulp",
-                f[0],
-                error(ours) / unit
-            );
-        }
-        worst_ulps = worst_ulps.max(error(ours) / unit);
-        if wotan.is_nan() {
-            // wotan fails here (subnormal) or cannot finish (1e250).
-        } else if error(wotan) > error(ours) {
-            wotan_worse += 1;
-        } else if error(wotan) < error(ours) {
-            ours_worse += 1;
-        }
-        if !wotan.is_nan() {
-            wotan_worst_ulps = wotan_worst_ulps.max(error(wotan) / unit);
-        }
-    }
-    eprintln!(
-        "{windows_seen} windows: {nearest} the nearest double ({certain} certain), worst {worst_ulps:.3e} ulp; \
-         wotan worse in {wotan_worse}, better in {ours_worse}, worst {wotan_worst_ulps:.3e} ulp"
-    );
-    assert!(
-        windows_seen > 800 && kinds.len() >= 14,
-        "{windows_seen}, {kinds:?}"
-    );
-    // Certain but for roots within about 1e-19 of zero; wotan never nearer,
-    // often far off.
-    assert!(
-        certain * 100 >= windows_seen * 98,
-        "{certain} of {windows_seen}"
-    );
-    assert_eq!(ours_worse, 0);
-    assert!(wotan_worse > windows_seen / 2 && wotan_worst_ulps > 1e6);
-}
 
 #[test]
 fn powers_of_two_and_negation_are_exact() {
@@ -509,50 +423,7 @@ fn plain(values: &[f64], c: f64) -> f64 {
 #[test]
 fn the_sorted_solver_is_the_plain_one() {
     let mut random = Random(0x5eed_0304);
-    let text = include_str!("../../tests/reference/biweight_windows.csv");
-    let mut windows: Vec<(Vec<f64>, f64)> = text
-        .lines()
-        .filter(|l| !l.starts_with('#'))
-        .skip(1)
-        .map(|l| {
-            let f: Vec<&str> = l.split(',').collect();
-            (
-                f[9].split(';').map(|v| v.parse().unwrap()).collect(),
-                f[2].parse().unwrap(),
-            )
-        })
-        .collect();
-    for _ in 0..3000 {
-        let n = 1 + random.below(80) as usize;
-        let kind = random.below(5);
-        let values = (0..n)
-            .map(|_| match kind {
-                0 => 1.0 + 1e-3 * (random.unit() - 0.5),
-                1 => random.below(5) as f64,
-                2 => (random.unit() - 0.5) * 10f64.powi(random.below(8) as i32 - 4),
-                3 => {
-                    f64::from_bits(1 + random.below(1 << 20))
-                        * if random.below(2) == 0 { 1.0 } else { -1.0 }
-                }
-                // A tight cluster (subnormal or near it) beside distant
-                // values: c MAD far below the largest magnitude.
-                _ => {
-                    if random.below(3) == 0 {
-                        10f64.powi(random.below(600) as i32 - 300)
-                    } else {
-                        let bits = 1 << (1 + random.below(60));
-                        f64::from_bits(random.below(bits))
-                    }
-                }
-            })
-            .collect();
-        let c = match random.below(4) {
-            0 => 1e-30,
-            1 => 1e30,
-            _ => 1.0 + 8.0 * random.unit(),
-        };
-        windows.push((values, c));
-    }
+    let windows = awkward_windows(&mut random, 4000);
     for (values, c) in &windows {
         let (found, expected) = (location(values, *c), plain(values, *c));
         assert_eq!(found.to_bits(), expected.to_bits(), "{values:?}, c {c}");

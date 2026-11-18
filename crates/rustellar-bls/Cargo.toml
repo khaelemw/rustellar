@@ -7,42 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 keywords = ["astronomy", "exoplanet", "transit", "periodogram"]
 categories = ["science", "algorithms"]
-# Reference data for the integration tests only, and those tests; users of the
-# crate do not need them. The fast_* and wrap_cases files stay: the unit tests
-# in src read them.
-exclude = [
-    "tests/reference/autoperiod_cases.csv",
-    "tests/reference/autoperiod_grids.csv",
-    "tests/reference/exact_cases.csv",
-    "tests/reference/exact_points.csv",
-    "tests/reference/example_3_points.csv",
-    "tests/reference/in_transit.csv",
-    "tests/reference/limb_cases.csv",
-    "tests/reference/limb_families.csv",
-    "tests/reference/limb_tls.csv",
-    "tests/reference/ofir_cases.csv",
-    "tests/reference/ofir_grids.csv",
-    "tests/reference/precision_boxes.csv",
-    "tests/reference/precision_curves.csv",
-    "tests/reference/recovery_cases.csv",
-    "tests/reference/recovery_families.csv",
-    "tests/reference/recovery_tls.csv",
-    "tests/reference/recovery_wide_cases.csv",
-    "tests/reference/recovery_wide_families.csv",
-    "tests/reference/recovery_wide_tls.csv",
-    "tests/reference/slow_power.csv",
-    "tests/reference/survey_curves.csv",
-    "tests/reference/survey_power.csv",
-    "tests/autoperiod.rs",
-    "tests/ofir.rs",
-    "tests/precision.rs",
-    "tests/recovery.rs",
-    "tests/box_fit.rs",
-    "tests/exact.rs",
-    "tests/limb.rs",
-    "tests/search.rs",
-    "tests/survey.rs",
-]
+# The published package holds the library and its unit tests, which need no
+# files. The reference data, the integration tests that read it and the
+# benchmarks stay in the source.
+exclude = ["/tests/", "/benches/"]
 
 [features]
 # The search on an NVIDIA GPU where there is one (`Device`): needs the CUDA

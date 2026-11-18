@@ -7,6 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 keywords = ["astronomy", "light-curve", "time-series"]
 categories = ["science", "algorithms"]
+# The published package holds the library and its unit tests. The
+# integration tests stay in the source.
+exclude = ["/tests/"]
 
 [dependencies]
 

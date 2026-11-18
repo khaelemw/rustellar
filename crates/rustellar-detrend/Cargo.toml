@@ -7,6 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 keywords = ["astronomy", "exoplanet", "detrending", "light-curve"]
 categories = ["science", "algorithms"]
+# The published package holds the library and its unit tests, which need no
+# files. The reference data, the integration tests that read it and the
+# benchmarks stay in the source.
+exclude = ["/tests/", "/benches/"]
 
 [dependencies]
 rustellar-core.workspace = true

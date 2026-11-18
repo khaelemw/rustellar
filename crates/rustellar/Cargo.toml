@@ -7,6 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 keywords = ["astronomy", "exoplanet", "transit", "light-curve"]
 categories = ["science", "algorithms"]
+# The published package holds the library and its unit tests. The
+# integration tests stay in the source.
+exclude = ["/tests/"]
 
 # Each tool is its own crate, brought in by a feature of the same name, so a
 # build compiles only what it uses. rustellar-core is always included.

@@ -1,8 +1,8 @@
 // Welsch, Andrews' sine wave, Huber, Hodges-Lehmann, trimmed and winsorized
-// means: against 50-digit and exact references, brute force, exact
-// symmetries, and wotan 1.10 measured the same way.
+// means: the series at 50 digits, brute force, exact symmetries, and the two
+// builds. (Against the reference windows: the integration tests.)
 
-use super::Random;
+use super::{Random, awkward_windows};
 use crate::{
     exact_sum::ExactSum,
     m_estimate::{Scratch, solve},
@@ -151,128 +151,6 @@ fn the_series_across_their_range() {
 // ==========================
 // References
 // ==========================
-
-struct Row {
-    kind: String,
-    method: String,
-    c: f64,
-    e: i32,
-    hi: f64,
-    lo: f64,
-    sensitivity: f64,
-    wotan: f64,
-    values: Vec<f64>,
-}
-
-fn rows() -> Vec<Row> {
-    include_str!("../../tests/reference/estimator_windows.csv")
-        .lines()
-        .filter(|l| !l.starts_with('#'))
-        .skip(1)
-        .map(|l| {
-            let f: Vec<&str> = l.split(',').collect();
-            Row {
-                kind: f[1].to_string(),
-                method: f[2].to_string(),
-                c: f[3].parse().unwrap(),
-                e: f[4].parse().unwrap(),
-                hi: f[5].parse().unwrap(),
-                lo: f[6].parse().unwrap(),
-                sensitivity: f[8].parse().unwrap(),
-                wotan: f[9].parse().unwrap(),
-                values: f[10].split(';').map(|v| v.parse().unwrap()).collect(),
-            }
-        })
-        .collect()
-}
-
-#[test]
-fn the_reference_windows() {
-    let rows = rows();
-    assert!(rows.len() > 1500);
-    let eps = f64::EPSILON;
-    let mut stats = std::collections::BTreeMap::<String, [usize; 4]>::new();
-    for r in &rows {
-        let found = estimate(&r.method, &r.values, r.c);
-        let entry = stats.entry(r.method.clone()).or_default();
-        entry[0] += 1;
-        if matches!(r.method.as_str(), "welsch" | "andrews" | "huber") {
-            // As the biweight's: the nearest double to the root wherever the
-            // root is further from a midpoint than its rounding can move it.
-            let scaled = times_two_to(found, -r.e);
-            let error = ((scaled - r.hi) - r.lo).abs();
-            let doubt = 8.0 * eps * eps * r.sensitivity;
-            // The doubles' spacing, or the subnormals' once scaled back.
-            let unit = ulp(r.hi).max(times_two_to(f64::from_bits(1), (-r.e).max(0)));
-            assert!(
-                error <= 0.5 * unit + doubt,
-                "{} {} c {}: {scaled:e} for {:e} + {:e} ({:e})",
-                r.kind,
-                r.method,
-                r.c,
-                r.hi,
-                r.lo,
-                error
-            );
-            // An exact midpoint (the mean of two points, say) is a tie, and
-            // ties go to the even double of the grid.
-            let tie = doubt < 1e-6 * unit && (error - 0.5 * unit).abs() <= doubt;
-            if tie {
-                entry[1] += 1;
-                assert_eq!(
-                    (scaled / unit) % 2.0,
-                    0.0,
-                    "{} {}: the tie not to even",
-                    r.kind,
-                    r.method
-                );
-            }
-            let certain = (error - 0.5 * unit).abs() > doubt;
-            if certain {
-                entry[1] += 1;
-                assert!(
-                    error <= 0.5 * unit,
-                    "{} {}: not the nearest",
-                    r.kind,
-                    r.method
-                );
-            }
-            if r.wotan.is_finite() {
-                let theirs = (times_two_to(r.wotan, -r.e) - r.hi - r.lo).abs();
-                entry[2] += usize::from(theirs > error);
-                entry[3] += usize::from(theirs < error);
-            }
-        } else {
-            // Exact: the correctly rounded value, to the bit.
-            assert_eq!(
-                found.to_bits(),
-                r.hi.to_bits(),
-                "{} {} {}: {found:e} for {:e}",
-                r.kind,
-                r.method,
-                r.c,
-                r.hi
-            );
-            entry[1] += 1;
-            if r.wotan.is_finite() {
-                entry[2] += usize::from(r.wotan != r.hi);
-            }
-        }
-    }
-    for (method, [n, certain, wotan_worse, wotan_better]) in &stats {
-        println!(
-            "{method}: {n} windows, {certain} certain, wotan worse in {wotan_worse}, better in {wotan_better}"
-        );
-        assert!(
-            *certain * 100 >= *n * 97,
-            "{method}: {certain} of {n} certain"
-        );
-        // Andrews is wotan's estimator too: wotan never nearer.
-        if method == "andrews" || method == "hodges" || method == "trimmed" {
-            assert_eq!(*wotan_better, 0, "{method}");
-        }
-    }
-}
 
 // ==========================
 // Brute force
@@ -539,6 +417,12 @@ fn the_grouped_terms_are_the_scalar_ones() {
         u[0].1[0] = 0.0;
         u[1].0[1] = reach;
         u[1].1[1] = 0.0;
+        // Just inside the cut at |u| = 1: a high part of exactly 1 and a
+        // tail toward zero, either sign.
+        u[2].0[2] = 1.0;
+        u[2].1[2] = -1e-17;
+        u[2].0[3] = -1.0;
+        u[2].1[3] = 1e-17;
         let s = (2.5e-3, 1e-20);
         let grouped = P::terms(v, u, d, s);
         for g in 0..4 {
@@ -570,8 +454,8 @@ fn the_grouped_terms_are_the_scalar_ones() {
     }
 }
 
-// The solver's baseline build gives the bits its AVX2 build does, on every
-// reference window.
+// The solver's baseline build gives the bits its AVX2 build does, for each
+// M-estimator, on awkward windows.
 #[cfg(target_arch = "x86_64")]
 #[test]
 fn the_baseline_build_is_the_wide_one() {
@@ -580,23 +464,74 @@ fn the_baseline_build_is_the_wide_one() {
     NARROW.with(|n| n.set(true));
     assert!(wide().is_none(), "the baseline build not taken");
     NARROW.with(|n| n.set(false));
-    let run = |narrow: bool, r: &Row| {
+    let run = |narrow: bool, method: &str, values: &[f64], c: f64| {
         NARROW.with(|n| n.set(narrow));
-        let found = match r.method.as_str() {
-            "welsch" | "andrews" | "huber" => estimate(&r.method, &r.values, r.c),
-            _ => m::<Biweight>(&r.values, 5.0),
+        let found = match method {
+            "biweight" => m::<Biweight>(values, c),
+            _ => estimate(method, values, c),
         };
         NARROW.with(|n| n.set(false));
         found
     };
-    for r in &rows() {
-        assert_eq!(
-            run(true, r).to_bits(),
-            run(false, r).to_bits(),
-            "{} {} c {}",
-            r.kind,
-            r.method,
-            r.c
-        );
+    let mut random = Random(0x5eed_0603);
+    let mut windows = awkward_windows(&mut random, 1500);
+    // Symmetric about 0, MAD m, and a point x at the double just below c m
+    // (where c m is not a double): its |u| = x / (c m) is 1 less a tail, just
+    // inside Huber's cut. The location is 0.
+    let mut edges = 0;
+    for m in [3.0, 5.0, 7.0, 11.0] {
+        for c in [1.1, 1.28, 1.3, 1.7] {
+            let x: f64 = c * m;
+            let x = if c.mul_add(m, -x) < 0.0 {
+                f64::from_bits(x.to_bits() - 1)
+            } else {
+                x
+            };
+            if c.mul_add(m, -x) > 0.0 {
+                let values = vec![-x, -x, -m, -m, 0.0, m, m, x, x];
+                assert_eq!(estimate("huber", &values, c), 0.0, "c {c}, m {m}");
+                windows.push((values, c));
+                edges += 1;
+            }
+        }
+    }
+    assert!(edges >= 8, "{edges}");
+    // Hand-built: MAD 0, one and two points, points exactly at and a hair
+    // either side of the biweight's cut (c MAD = 5), and clusters.
+    let hand_built: [&[f64]; 18] = [
+        &[1.0, 1.0, 1.0, 2.0, 3.0],
+        &[0.3, 0.3, 0.3, 0.3],
+        &[0.7],
+        &[0.1, 0.2],
+        &[1.0, 1.000_000_000_000_000_2],
+        &[-3.0, 1e-17],
+        &[-5.0, -1.0, 0.0, 1.0, 5.0],
+        &[-5.0, -1.0, 0.0, 1.0, 4.999_999_999],
+        &[-5.0, -1.0, 0.0, 1.0, 5.000_000_001],
+        &[-4.999_999_999, -1.0, 0.0, 1.0, 5.0],
+        &[-5.0, -1.0, 0.0, 1.0, 4.999_999_999_999_999],
+        &[-5.0, -1.0, 0.0, 1.0, 5.000_000_000_000_001],
+        &[-4.999_999_999_999_999, -1.0, 0.0, 1.0, 5.0],
+        &[-5.000_000_000_000_001, -1.0, 0.0, 1.0, 5.0],
+        &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.4],
+        &[1.0, 1.001, 1.002, 1.003, 1.0045, 1.006, 1.2, 1.21],
+        &[-1e300, -1.0, 0.0, 1.0, 1e300],
+        &[f64::MIN_POSITIVE, 2.0 * f64::MIN_POSITIVE, 1.0],
+    ];
+    for values in hand_built {
+        let mut values = values.to_vec();
+        values.sort_by(f64::total_cmp);
+        for c in [1.0, 5.0] {
+            windows.push((values.clone(), c));
+        }
+    }
+    for (values, c) in &windows {
+        for method in ["biweight", "welsch", "andrews", "huber"] {
+            assert_eq!(
+                run(true, method, values, *c).to_bits(),
+                run(false, method, values, *c).to_bits(),
+                "{method} c {c}: {values:?}"
+            );
+        }
     }
 }

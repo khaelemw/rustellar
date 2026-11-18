@@ -1,6 +1,6 @@
 // The segments and windows: the exact comparison against integer
-// arithmetic, hand-built edges, a brute-force definition on times where
-// doubles are exact, and wotan 1.10's windows with its two differences.
+// arithmetic, hand-built edges, and a brute-force definition on times where
+// doubles are exact. (wotan 1.10's windows: the integration tests.)
 
 use std::{cmp::Ordering, ops::Range};
 
@@ -385,78 +385,4 @@ fn the_windows_are_exact_where_differences_round() {
 
 fn scaled_or_zero(x: f64) -> i128 {
     if x == 0.0 { 0 } else { scaled(x) }
-}
-
-// wotan 1.10's windows on random light curves (its own segmenting, masking
-// and slider): the same as our half-open windows, but that wotan's never
-// hold a segment's last point.
-#[test]
-fn wotan_windows_but_the_last_point() {
-    let rows = |text: &'static str| {
-        text.lines()
-            .filter(|l| !l.starts_with('#'))
-            .skip(1)
-            .map(|l| l.split(',').collect::<Vec<&str>>())
-    };
-    let cases: Vec<Vec<&str>> =
-        rows(include_str!("../../tests/reference/wotan_window_cases.csv")).collect();
-    let mut points = rows(include_str!(
-        "../../tests/reference/wotan_window_points.csv"
-    ))
-    .peekable();
-    let (mut checked, mut last_point_differs) = (0, 0);
-    for case in &cases {
-        let id = case[0];
-        let window: f64 = case[2].parse().unwrap();
-        let tolerance: f64 = case[3].parse().unwrap();
-        let edge_cutoff: f64 = case[4].parse().unwrap();
-        let mut rows = Vec::new();
-        while points.peek().is_some_and(|p| p[0] == id) {
-            rows.push(points.next().unwrap());
-        }
-        assert_eq!(rows.len(), case[5].parse::<usize>().unwrap());
-        let times: Vec<f64> = rows.iter().map(|r| r[2].parse().unwrap()).collect();
-        let masked: Vec<bool> = rows.iter().map(|r| r[3] == "1").collect();
-        let break_tolerance = if tolerance == 0.0 {
-            f64::INFINITY
-        } else {
-            tolerance
-        };
-        let w = windows(
-            &times,
-            Some(&masked),
-            &options(window, break_tolerance, edge_cutoff, Edges::HalfOpen),
-        );
-        let segment_last: Vec<usize> = w
-            .segments
-            .iter()
-            .flat_map(|s| s.clone().map(move |_| s.end - 1))
-            .collect();
-        for (i, row) in rows.iter().enumerate() {
-            let ours = points_in(&w)[i].clone();
-            // wotan's: ours without the segment's last point; no trend where
-            // that leaves none.
-            let theirs = ours.as_ref().map(|p| {
-                p.iter()
-                    .copied()
-                    .filter(|&j| j != segment_last[i])
-                    .collect::<Vec<usize>>()
-            });
-            let expected = match &theirs {
-                Some(p) if !p.is_empty() => (p[0] as i64, *p.last().unwrap() as i64, p.len()),
-                _ => (-1, -1, 0),
-            };
-            let found = (
-                row[4].parse::<i64>().unwrap(),
-                row[5].parse::<i64>().unwrap(),
-                row[6].parse::<usize>().unwrap(),
-            );
-            assert_eq!(found, expected, "case {id}, point {i}");
-            checked += 1;
-            last_point_differs += usize::from(ours != theirs);
-        }
-    }
-    // Every point compared; the last-point difference seen often.
-    assert_eq!(checked, 16_586);
-    assert!(last_point_differs > 100, "{last_point_differs}");
 }
