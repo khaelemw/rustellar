@@ -5,7 +5,7 @@
 use rustellar_core::LightCurve;
 
 use super::Random;
-use crate::fit::{Points, Position, Sum, chi2_shapes, fit, fit_shapes};
+use crate::fit::{Points, Position, Sum, chi2_shapes, fit, fit_shapes, gain};
 use crate::template::Template;
 
 fn points(time: Vec<f64>, residual: Vec<f64>, weight: Vec<f64>) -> Points {
@@ -250,4 +250,81 @@ fn in_transit_counts_the_points_the_template_covers() {
         .count();
     assert_eq!(got.in_transit, covered);
     assert_eq!(covered, 90);
+}
+
+/// The gain from every point, the way it was before the transits' runs.
+fn gain_everywhere(points: &Points, template: &Template, position: Position) -> f64 {
+    let (mut rs, mut ss) = (Sum::default(), Sum::default());
+    for ((&t, &r), &w) in points.time.iter().zip(&points.residual).zip(&points.weight) {
+        let s = template.shape(position.x(t));
+        if s > 0.0 {
+            rs.add(w * r * s);
+            ss.add(w * s * s);
+        }
+    }
+    let (rs, ss) = (rs.value(), ss.value());
+    if rs > 0.0 { rs * (rs / ss) } else { 0.0 }
+}
+
+#[test]
+fn the_gain_visits_only_the_transits_points_and_agrees() {
+    let template = Template::tls_default();
+    let mut random = Random::new(41);
+    for cadence in [1.0 / 48.0, 1.0 / 720.0] {
+        let time: Vec<f64> = (0..)
+            .map(|i| 3.0 + f64::from(i) * cadence)
+            .take_while(|&t| t < 30.0)
+            .collect();
+        let n = time.len();
+        let points = Points {
+            residual: (0..n).map(|_| random.between(-1e-3, 3e-3)).collect(),
+            weight: (0..n).map(|_| random.between(0.5, 2.0)).collect(),
+            time,
+        };
+        let mut positions = vec![
+            // Transits centred before the first time and after the last.
+            Position {
+                period: 5.0,
+                duration: 0.2,
+                t0: 2.95,
+            },
+            Position {
+                period: 27.5,
+                duration: 0.3,
+                t0: 30.05,
+            },
+            // Durations as long as the period, and longer.
+            Position {
+                period: 0.2,
+                duration: 0.2,
+                t0: 3.1,
+            },
+            Position {
+                period: 0.2,
+                duration: 0.5,
+                t0: 3.1,
+            },
+        ];
+        for _ in 0..50 {
+            let period = random.between(0.3, 15.0);
+            positions.push(Position {
+                period,
+                duration: random.between(0.01, 0.2) * period,
+                t0: random.between(-20.0, 50.0),
+            });
+        }
+        for position in positions {
+            let ours = gain(&points, &template, position);
+            let everywhere = gain_everywhere(&points, &template, position);
+            assert!(
+                (ours - everywhere).abs() <= 1e-12 * everywhere,
+                "{position:?}: {ours} {everywhere}"
+            );
+            let exact = points.flat_chi2() - fit(&points, &template, position).chi2;
+            assert!(
+                (ours - exact).abs() <= 1e-9 * points.flat_chi2(),
+                "{position:?}"
+            );
+        }
+    }
 }

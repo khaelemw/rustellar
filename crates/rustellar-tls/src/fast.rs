@@ -38,7 +38,7 @@ impl Table {
     }
 
     /// The number of intervals, as a double.
-    fn intervals(&self) -> f64 {
+    pub(crate) fn intervals(&self) -> f64 {
         #[expect(clippy::cast_precision_loss, reason = "a sample count")]
         let intervals = (self.values.len() - 1) as f64;
         intervals
@@ -50,7 +50,7 @@ impl Table {
     }
 
     /// The template at `u` samples from `x = -1/2`, interpolated.
-    fn at_sample(&self, u: f64) -> f64 {
+    pub(crate) fn at_sample(&self, u: f64) -> f64 {
         if !(u > 0.0 && u < self.intervals()) {
             return 0.0;
         }

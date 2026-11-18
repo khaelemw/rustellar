@@ -4,7 +4,7 @@
 use std::f64::consts::PI;
 
 use super::Random;
-use crate::durations::{Constants, FRACTION_MAX, Planet, Stars, grid, t14};
+use crate::durations::{Constants, FRACTION_MAX, Planet, Stars, grid, grid_days, t14};
 
 const IAU: Constants = Constants::IAU;
 
@@ -73,6 +73,55 @@ fn the_grid_steps_evenly_from_shortest_to_longest() {
         let ratio = durations[n - 1] / durations[n - 2];
         assert!(ratio > 1.0 && ratio <= step, "{ratio}");
     }
+}
+
+#[test]
+fn the_grid_in_days_steps_evenly_from_shortest_to_longest() {
+    for (short, long, span, step) in [
+        (0.5, 13.5, 27.0, 1.1),
+        (0.3, 40.0, 81.0, 1.05),
+        (1.0, 2.0, 10.0, 1.3),
+    ] {
+        let durations = grid_days(IAU, Stars::TLS, short, long, span, step);
+        let orbits = span / long;
+        assert_eq!(durations[0], Stars::TLS.shortest(IAU, short) * short);
+        assert_eq!(
+            *durations.last().unwrap(),
+            Stars::TLS.longest(IAU, long) * long * (orbits + 1.0) / orbits
+        );
+        let n = durations.len();
+        for pair in durations[..n - 1].windows(2) {
+            assert_eq!(pair[1], pair[0] * step);
+        }
+        let ratio = durations[n - 1] / durations[n - 2];
+        assert!(ratio > 1.0 && ratio <= step, "{ratio}");
+    }
+}
+
+#[test]
+fn the_grid_in_days_stays_below_the_longest_period() {
+    // A light curve far shorter than the longest period: widened by
+    // (n + 1) / n for n = 0.01 orbits, the longest transit would pass the
+    // period; it stops just below.
+    let durations = grid_days(IAU, Stars::TLS, 1.0, 100.0, 1.0, 1.1);
+    let last = *durations.last().unwrap();
+    assert!(
+        last < 100.0 && f64::from_bits(last.to_bits() + 1) == 100.0,
+        "{last}"
+    );
+}
+
+#[test]
+fn a_grid_in_days_whose_longest_is_shorter_has_one_duration() {
+    // Stars whose longest transit is shorter than their shortest.
+    let stars = Stars {
+        r_min: 2.0,
+        r_max: 0.5,
+        m_min: 1.0,
+        m_max: 1.0,
+    };
+    let durations = grid_days(IAU, stars, 3.0, 3.0, 27.0, 1.1);
+    assert_eq!(durations, vec![stars.shortest(IAU, 3.0) * 3.0]);
 }
 
 #[test]

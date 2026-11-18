@@ -14,6 +14,11 @@
     not(test),
     allow(dead_code, reason = "used by the tests until the public API")
 )]
+mod cells;
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the public API")
+)]
 mod durations;
 #[cfg_attr(
     not(test),

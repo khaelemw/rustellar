@@ -121,3 +121,37 @@ pub(crate) fn grid(
     durations.push(longest);
     durations
 }
+
+/// The same grid in days, for searches that keep each duration across
+/// periods: from the shortest transit at the shortest period to the longest
+/// at the longest period, widened by `(n + 1) / n` for `n` the periods in
+/// `span` (as the searches widen it at each period) and kept below the
+/// longest period, each `step` times the one before, the longest added at
+/// the end.
+///
+/// `step` must be greater than 1, the periods and `span` positive and
+/// finite, with `shortest_period <= longest_period`.
+pub(crate) fn grid_days(
+    constants: Constants,
+    stars: Stars,
+    shortest_period: f64,
+    longest_period: f64,
+    span: f64,
+    step: f64,
+) -> Vec<f64> {
+    debug_assert!(step > 1.0 && shortest_period <= longest_period && span > 0.0);
+    let orbits = span / longest_period;
+    let longest = (stars.longest(constants, longest_period) * longest_period * (orbits + 1.0)
+        / orbits)
+        .min(f64::from_bits(longest_period.to_bits() - 1));
+    let mut duration = stars.shortest(constants, shortest_period) * shortest_period;
+    let mut durations = vec![duration];
+    while duration * step < longest {
+        duration *= step;
+        durations.push(duration);
+    }
+    if longest > duration {
+        durations.push(longest);
+    }
+    durations
+}

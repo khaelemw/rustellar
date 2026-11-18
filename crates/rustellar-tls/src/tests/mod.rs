@@ -3,6 +3,7 @@
 use crate::fit::{Points, Position};
 use crate::template::Template;
 
+mod cells;
 mod durations;
 mod exact;
 mod fast;

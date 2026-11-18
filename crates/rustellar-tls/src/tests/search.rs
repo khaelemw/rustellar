@@ -11,7 +11,7 @@ use rustellar_model::{
 
 use super::Random;
 use crate::fit::{Points, Position, fit};
-use crate::search::{Options, peaks, run};
+use crate::search::{Method, Options, peaks, run};
 
 /// 27 days at 30 minutes, a transit of radius ratio `k` (from the model
 /// crate, not the template), noise `noise`.
@@ -50,12 +50,19 @@ fn periods(lc: &LightCurve) -> Vec<f64> {
 
 #[test]
 fn an_injected_transit_is_recovered() {
+    for method in [Method::Fold, Method::Cells] {
+        recovered(method);
+    }
+}
+
+fn recovered(method: Method) {
     let mut random = Random::new(51);
     for (k, period, t0) in [(0.04, 3.7, 1.3), (0.03, 5.9, 4.4), (0.05, 1.37, 0.2)] {
         let lc = injected(&mut random, k, period, t0, 4e-4);
         let grid = periods(&lc);
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
+        options.method = method;
         let outcome = run(&lc, &grid, options);
         let best = outcome.best.unwrap();
         let spectra = outcome.spectra.unwrap();
@@ -77,10 +84,14 @@ fn nothing_to_fit_gives_no_spectra() {
     // Every flux above 1: no depth anywhere.
     let time: Vec<f64> = (0..500).map(|i| f64::from(i) / 20.0).collect();
     let lc = LightCurve::from_btjd(time, vec![1.001; 500], vec![1e-3; 500]).unwrap();
-    let outcome = run(&lc, &[1.0, 1.5, 2.0, 3.0], Options::tls());
-    assert!(outcome.spectra.is_none() && outcome.best.is_none());
-    assert_eq!(outcome.period_uncertainty, f64::INFINITY);
-    assert!(outcome.periods.iter().all(|p| p.depth == 0.0));
+    for method in [Method::Fold, Method::Cells] {
+        let mut options = Options::tls();
+        options.method = method;
+        let outcome = run(&lc, &[1.0, 1.5, 2.0, 3.0], options);
+        assert!(outcome.spectra.is_none() && outcome.best.is_none());
+        assert_eq!(outcome.period_uncertainty, f64::INFINITY);
+        assert!(outcome.periods.iter().all(|p| p.depth == 0.0));
+    }
 }
 
 #[test]
@@ -112,11 +123,14 @@ fn the_same_outcome_on_any_number_of_threads() {
     let mut random = Random::new(53);
     let lc = injected(&mut random, 0.04, 3.1, 0.9, 5e-4);
     let grid: Vec<f64> = periods(&lc).into_iter().step_by(7).collect();
-    let base = run(&lc, &grid, Options::tls());
-    for threads in [2, 5] {
+    for method in [Method::Fold, Method::Cells] {
         let mut options = Options::tls();
-        options.threads = NonZeroUsize::new(threads).unwrap();
-        assert_eq!(run(&lc, &grid, options), base, "{threads}");
+        options.method = method;
+        let base = run(&lc, &grid, options);
+        for threads in [2, 5] {
+            options.threads = NonZeroUsize::new(threads).unwrap();
+            assert_eq!(run(&lc, &grid, options), base, "{method:?} {threads}");
+        }
     }
 }
 
@@ -227,6 +241,12 @@ const TLS_INJECTED: [Injection; 8] = [
 
 #[test]
 fn against_tls_on_injected_transits() {
+    for method in [Method::Fold, Method::Cells] {
+        against_tls_on_injected_transits_with(method);
+    }
+}
+
+fn against_tls_on_injected_transits_with(method: Method) {
     let noise = 4e-4;
     // Sums of the errors, ours and TLS's: T0 in minutes, depth and
     // duration relative to the injected transit's (1 - F(b) and T14).
@@ -258,6 +278,7 @@ fn against_tls_on_injected_transits() {
         let lc = LightCurve::from_btjd(time, flux, vec![noise; n]).unwrap();
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
+        options.method = method;
         let outcome = run(&lc, &periods(&lc), options);
         let best = outcome.best.unwrap();
         let ours = best.position;
@@ -276,18 +297,18 @@ fn against_tls_on_injected_transits() {
         };
         assert!(
             best.fit.chi2 < fit(&points, &options.template, tls).chi2,
-            "{seed}"
+            "{method:?} {seed}"
         );
         // Both find the period.
         assert!(
             (ours.period / period - 1.0).abs() < 3e-3,
-            "{seed}: {ours:?}"
+            "{method:?} {seed}: {ours:?}"
         );
-        assert!((tls_p / period - 1.0).abs() < 3e-3, "{seed}");
+        assert!((tls_p / period - 1.0).abs() < 3e-3, "{method:?} {seed}");
         // The SDE about the same: the same signal, the same noise.
         assert!(
             (ours_sde / tls_sde - 1.0).abs() < 0.1,
-            "{seed}: {ours_sde} {tls_sde}"
+            "{method:?} {seed}: {ours_sde} {tls_sde}"
         );
         for (total, ours, theirs) in [
             (&mut t0_error, off(ours.t0), off(tls_t0)),
@@ -311,12 +332,12 @@ fn against_tls_on_injected_transits() {
     }
     // On these 8 (3 with a gap): T0 40 against 98 minutes in all, closer
     // on 7; depth 26% against 36%; duration 45% against 81%.
-    assert!(closer_t0 >= 6, "{closer_t0}");
-    assert!(t0_error.0 < 0.5 * t0_error.1, "{t0_error:?}");
-    assert!(depth_error.0 < depth_error.1, "{depth_error:?}");
+    assert!(closer_t0 >= 6, "{method:?} {closer_t0}");
+    assert!(t0_error.0 < 0.5 * t0_error.1, "{method:?} {t0_error:?}");
+    assert!(depth_error.0 < depth_error.1, "{method:?} {depth_error:?}");
     assert!(
         duration_error.0 < 0.7 * duration_error.1,
-        "{duration_error:?}"
+        "{method:?} {duration_error:?}"
     );
 }
 
@@ -408,6 +429,12 @@ const TLS_HARDER: [Harder; 6] = [
 
 #[test]
 fn against_tls_on_shallower_noisier_and_sparse_transits() {
+    for method in [Method::Fold, Method::Cells] {
+        against_tls_on_shallower_noisier_and_sparse_transits_with(method);
+    }
+}
+
+fn against_tls_on_shallower_noisier_and_sparse_transits_with(method: Method) {
     let template = Options::tls().template;
     let (mut depth_error, mut duration_error) = ((0.0, 0.0), (0.0, 0.0));
     for (seed, k, period, t0, noise, sparse, tls_p, tls_t0, tls_depth, tls_duration, tls_sde) in
@@ -438,6 +465,7 @@ fn against_tls_on_shallower_noisier_and_sparse_transits() {
         let lc = LightCurve::from_btjd(time, flux, vec![noise; n]).unwrap();
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
+        options.method = method;
         let outcome = run(&lc, &periods(&lc), options);
         let best = outcome.best.unwrap();
         let ours = best.position;
@@ -446,12 +474,12 @@ fn against_tls_on_shallower_noisier_and_sparse_transits() {
         let ours_sde = outcome.spectra.unwrap().sde;
         assert!(
             (ours.period / period - 1.0).abs() < 5e-3,
-            "{seed}: {ours:?}"
+            "{method:?} {seed}: {ours:?}"
         );
-        assert!((tls_p / period - 1.0).abs() < 5e-3, "{seed}");
+        assert!((tls_p / period - 1.0).abs() < 5e-3, "{method:?} {seed}");
         assert!(
             (ours_sde / tls_sde - 1.0).abs() < 0.1,
-            "{seed}: {ours_sde} {tls_sde}"
+            "{method:?} {seed}: {ours_sde} {tls_sde}"
         );
         // The least chi-squared of ours, the truth's and TLS's ephemeris
         // and duration (each with this template and its least-squares
@@ -469,8 +497,11 @@ fn against_tls_on_shallower_noisier_and_sparse_transits() {
             )
             .chi2
         };
-        assert!(best.fit.chi2 < chi2(period, t14, t0), "{seed}");
-        assert!(best.fit.chi2 < chi2(tls_p, tls_duration, tls_t0), "{seed}");
+        assert!(best.fit.chi2 < chi2(period, t14, t0), "{method:?} {seed}");
+        assert!(
+            best.fit.chi2 < chi2(tls_p, tls_duration, tls_t0),
+            "{method:?} {seed}"
+        );
         for (total, ours, theirs) in [
             (
                 &mut depth_error,
@@ -489,9 +520,12 @@ fn against_tls_on_shallower_noisier_and_sparse_transits() {
     }
     // On these 6: depth 69% against 69%, duration 56% against 107%. T0 is
     // not compared: TLS's is nearer the truth on 4, by noise, not fit.
-    assert!(depth_error.0 < 1.05 * depth_error.1, "{depth_error:?}");
+    assert!(
+        depth_error.0 < 1.05 * depth_error.1,
+        "{method:?} {depth_error:?}"
+    );
     assert!(
         duration_error.0 < 0.7 * duration_error.1,
-        "{duration_error:?}"
+        "{method:?} {duration_error:?}"
     );
 }

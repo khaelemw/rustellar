@@ -143,14 +143,41 @@ pub(crate) fn chi2_shapes(points: &Points, shapes: &[f64], depth: f64) -> f64 {
 /// The gain over the flat model of the template at `position`, `S_rs² /
 /// S_ss` (0 where `S_rs <= 0`): the flat model's chi-squared less the best
 /// fit's, without the second pass.
+///
+/// Only the points within half a duration of a transit can be in it, so
+/// with the times increasing and the duration shorter than the period,
+/// each transit's run of points is found by bisection and the rest are
+/// not visited: about `N D / P` points, not `N`.
 pub(crate) fn gain(points: &Points, template: &Template, position: Position) -> f64 {
     let (mut rs, mut ss) = (Sum::default(), Sum::default());
-    for ((&t, &r), &w) in points.time.iter().zip(&points.residual).zip(&points.weight) {
-        let s = template.shape(position.x(t));
+    let mut add = |i: usize| {
+        let s = template.shape(position.x(points.time[i]));
         if s > 0.0 {
-            rs.add(w * r * s);
+            let w = points.weight[i];
+            rs.add(w * points.residual[i] * s);
             ss.add(w * s * s);
         }
+    };
+    let time = &points.time;
+    let Position {
+        period,
+        duration,
+        t0,
+    } = position;
+    if duration < period {
+        let half = 0.5 * duration;
+        let (first, last) = (time[0], time[time.len() - 1]);
+        let mut centre = period.mul_add(((first - half - t0) / period).floor(), t0);
+        let mut from = 0;
+        while centre - half <= last {
+            let lo = from + time[from..].partition_point(|&t| t < centre - half);
+            let hi = lo + time[lo..].partition_point(|&t| t <= centre + half);
+            (lo..hi).for_each(&mut add);
+            from = hi;
+            centre += period;
+        }
+    } else {
+        (0..time.len()).for_each(add);
     }
     let (rs, ss) = (rs.value(), ss.value());
     if rs > 0.0 { rs * (rs / ss) } else { 0.0 }
