@@ -10,6 +10,7 @@ use rustellar_model::{
 };
 
 use super::Random;
+use crate::fit::{Points, Position, fit};
 use crate::search::{Options, peaks, run};
 
 /// 27 days at 30 minutes, a transit of radius ratio `k` (from the model
@@ -267,6 +268,16 @@ fn against_tls_on_injected_transits() {
             d.min(period - d) * 1440.0
         };
         let ours_sde = outcome.spectra.unwrap().sde;
+        let points = Points::new(&lc);
+        let tls = Position {
+            period: tls_p,
+            duration: tls_duration,
+            t0: tls_t0,
+        };
+        assert!(
+            best.fit.chi2 < fit(&points, &options.template, tls).chi2,
+            "{seed}"
+        );
         // Both find the period.
         assert!(
             (ours.period / period - 1.0).abs() < 3e-3,
@@ -303,6 +314,182 @@ fn against_tls_on_injected_transits() {
     assert!(closer_t0 >= 6, "{closer_t0}");
     assert!(t0_error.0 < 0.5 * t0_error.1, "{t0_error:?}");
     assert!(depth_error.0 < depth_error.1, "{depth_error:?}");
+    assert!(
+        duration_error.0 < 0.7 * duration_error.1,
+        "{duration_error:?}"
+    );
+}
+
+// transitleastsquares 1.32 (one thread, defaults) on shallower, noisier
+// transits, some sparse: seed, k, period, t0, noise, sparse (after each
+// point's noise one more uniform, the point dropped below 0.25); then TLS's
+// period, T0, depth, duration and SDE.
+type Harder = (u64, f64, f64, f64, f64, bool, f64, f64, f64, f64, f64);
+const TLS_HARDER: [Harder; 6] = [
+    (
+        201,
+        0.02,
+        3.3,
+        1.1,
+        0.0004,
+        false,
+        3.299_750_241_527_508_6,
+        1.094_399_679_301_711_2,
+        0.000_505_189_873_590_494_7,
+        0.093_245_625_963_735_85,
+        7.596_524_863_667_848,
+    ),
+    (
+        202,
+        0.025,
+        6.4,
+        2.0,
+        0.0006,
+        false,
+        6.388_527_974_574_47,
+        2.015_396_935_905_27,
+        0.000_938_272_770_568_016_1,
+        0.169_537_501_752_247_02,
+        10.307_934_386_581_776,
+    ),
+    (
+        203,
+        0.03,
+        2.7,
+        0.4,
+        0.0008,
+        false,
+        2.700_133_330_225_079,
+        0.396_431_478_186_899_1,
+        0.000_956_704_748_115_266_8,
+        0.082_056_150_848_087_55,
+        9.427_302_688_224_088,
+    ),
+    (
+        204,
+        0.03,
+        4.1,
+        3.0,
+        0.0004,
+        true,
+        4.098_806_425_296_886,
+        3.006_653_056_008_470_3,
+        0.001_114_310_376_579_497,
+        0.069_514_881_595_413_9,
+        13.076_079_417_170_307,
+    ),
+    (
+        205,
+        0.02,
+        1.6,
+        0.7,
+        0.0003,
+        true,
+        1.600_212_872_769_931_8,
+        0.699_509_894_757_587_2,
+        0.000_471_823_558_755_746_2,
+        0.032_621_980_971_767_16,
+        12.368_871_555_982_349,
+    ),
+    (
+        206,
+        0.04,
+        8.3,
+        5.1,
+        0.0008,
+        true,
+        8.284_089_067_560_107,
+        5.112_646_040_464_226,
+        0.001_464_937_354_960_671_5,
+        0.164_643_646_656_991_8,
+        9.645_970_750_682_729,
+    ),
+];
+
+#[test]
+fn against_tls_on_shallower_noisier_and_sparse_transits() {
+    let template = Options::tls().template;
+    let (mut depth_error, mut duration_error) = ((0.0, 0.0), (0.0, 0.0));
+    for (seed, k, period, t0, noise, sparse, tls_p, tls_t0, tls_depth, tls_duration, tls_sde) in
+        TLS_HARDER
+    {
+        let mut random = Random::new(seed);
+        let params = TransitParams::new(
+            Epoch::from_btjd(t0).unwrap(),
+            TimeDelta::from_days(period).unwrap(),
+            RadiusRatio::new(k).unwrap(),
+            ScaledSemiMajorAxis::new(12.0).unwrap(),
+            ImpactParameter::new(0.2).unwrap(),
+            LimbDarkening::quadratic(0.4804, 0.1867).unwrap(),
+        )
+        .unwrap();
+        let (mut time, mut flux) = (vec![], vec![]);
+        for i in 0..1296 {
+            let t = f64::from(i) / 48.0;
+            let f = params.flux_at(Epoch::from_btjd(t).unwrap());
+            let n: f64 = (0..4).map(|_| random.uniform() - 0.5).sum::<f64>() * 3_f64.sqrt();
+            if sparse && random.uniform() < 0.25 {
+                continue;
+            }
+            time.push(t);
+            flux.push(f + noise * n);
+        }
+        let n = time.len();
+        let lc = LightCurve::from_btjd(time, flux, vec![noise; n]).unwrap();
+        let mut options = Options::tls();
+        options.threads = NonZeroUsize::new(4).unwrap();
+        let outcome = run(&lc, &periods(&lc), options);
+        let best = outcome.best.unwrap();
+        let ours = best.position;
+        let depth = 1.0 - params.flux_at(Epoch::from_btjd(t0).unwrap());
+        let t14 = params.t14().unwrap().as_days();
+        let ours_sde = outcome.spectra.unwrap().sde;
+        assert!(
+            (ours.period / period - 1.0).abs() < 5e-3,
+            "{seed}: {ours:?}"
+        );
+        assert!((tls_p / period - 1.0).abs() < 5e-3, "{seed}");
+        assert!(
+            (ours_sde / tls_sde - 1.0).abs() < 0.1,
+            "{seed}: {ours_sde} {tls_sde}"
+        );
+        // The least chi-squared of ours, the truth's and TLS's ephemeris
+        // and duration (each with this template and its least-squares
+        // depth): at this signal to noise the least is not the truth.
+        let points = Points::new(&lc);
+        let chi2 = |period, duration, t0| {
+            fit(
+                &points,
+                &template,
+                Position {
+                    period,
+                    duration,
+                    t0,
+                },
+            )
+            .chi2
+        };
+        assert!(best.fit.chi2 < chi2(period, t14, t0), "{seed}");
+        assert!(best.fit.chi2 < chi2(tls_p, tls_duration, tls_t0), "{seed}");
+        for (total, ours, theirs) in [
+            (
+                &mut depth_error,
+                (best.fit.depth / depth - 1.0).abs(),
+                (tls_depth / depth - 1.0).abs(),
+            ),
+            (
+                &mut duration_error,
+                (ours.duration / t14 - 1.0).abs(),
+                (tls_duration / t14 - 1.0).abs(),
+            ),
+        ] {
+            total.0 += ours;
+            total.1 += theirs;
+        }
+    }
+    // On these 6: depth 69% against 69%, duration 56% against 107%. T0 is
+    // not compared: TLS's is nearer the truth on 4, by noise, not fit.
+    assert!(depth_error.0 < 1.05 * depth_error.1, "{depth_error:?}");
     assert!(
         duration_error.0 < 0.7 * duration_error.1,
         "{duration_error:?}"

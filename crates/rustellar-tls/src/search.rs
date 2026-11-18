@@ -12,6 +12,10 @@ use crate::refine::{Reach, Refined, refine};
 use crate::spectra::{Spectra, period_uncertainty, spectra};
 use crate::template::Template;
 
+/// How many grid periods either way of a peak its refinement also starts
+/// from.
+const NEIGHBOURS: usize = 3;
+
 /// How the search is run.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Options {
@@ -119,9 +123,20 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
     let spectra = spectra(&chi2, options.oversampling);
     let uncertainty = period_uncertainty(periods, &spectra.power);
 
-    let best = peaks(&spectra.power, options.refine_peaks)
+    // Each peak refined from its own grid period and a few either side, each
+    // from its own best duration and mid-transit time: at low signal to
+    // noise the chi-squared has basins a little apart in period and
+    // duration together, which no search along one parameter at a time
+    // crosses.
+    let mut starts: Vec<usize> = peaks(&spectra.power, options.refine_peaks)
         .into_iter()
+        .flat_map(|i| i.saturating_sub(NEIGHBOURS)..=(i + NEIGHBOURS).min(periods.len() - 1))
         .filter(|&i| found[i].depth > 0.0)
+        .collect();
+    starts.sort_unstable();
+    starts.dedup();
+    let best = starts
+        .into_iter()
         .map(|i| {
             let p = found[i];
             // Reach the neighbouring periods, the neighbouring durations
