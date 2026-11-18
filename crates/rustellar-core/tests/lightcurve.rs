@@ -298,3 +298,30 @@ fn fold_equal_phases_keep_time_order() {
     assert_eq!(folded.phase(), &[0.25, 0.25]);
     assert_eq!(folded.flux(), &[1.0, 2.0]);
 }
+
+// Times a few doubles either side of each half-period boundary, for awkward
+// periods and epochs: `rem_euclid` of a tiny negative could round up to 1
+// and give phase +0.5, outside the documented range.
+#[test]
+fn fold_phases_stay_in_range_at_half_period_edges() {
+    for period in [0.3, 1.7, 3.1, 7.77, 13.3] {
+        for t0 in [0.0, 0.1, 1234.567] {
+            let mut time = Vec::new();
+            for k in -3..4 {
+                let edge: f64 = t0 + (f64::from(k) + 0.5) * period;
+                let first = edge.to_bits() - 4;
+                time.extend((first..first + 9).map(f64::from_bits));
+            }
+            time.sort_by(f64::total_cmp);
+            time.dedup();
+            let folded = lc_from_times(time).fold(days(period), btjd(t0)).unwrap();
+
+            for &p in folded.phase() {
+                assert!(
+                    (-0.5..0.5).contains(&p),
+                    "period {period}, t0 {t0}: phase {p} is outside [-0.5, 0.5)"
+                );
+            }
+        }
+    }
+}
