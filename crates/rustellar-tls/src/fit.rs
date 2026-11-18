@@ -139,3 +139,19 @@ pub(crate) fn chi2_shapes(points: &Points, shapes: &[f64], depth: f64) -> f64 {
     }
     sum.value()
 }
+
+/// The gain over the flat model of the template at `position`, `S_rs² /
+/// S_ss` (0 where `S_rs <= 0`): the flat model's chi-squared less the best
+/// fit's, without the second pass.
+pub(crate) fn gain(points: &Points, template: &Template, position: Position) -> f64 {
+    let (mut rs, mut ss) = (Sum::default(), Sum::default());
+    for ((&t, &r), &w) in points.time.iter().zip(&points.residual).zip(&points.weight) {
+        let s = template.shape(position.x(t));
+        if s > 0.0 {
+            rs.add(w * r * s);
+            ss.add(w * s * s);
+        }
+    }
+    let (rs, ss) = (rs.value(), ss.value());
+    if rs > 0.0 { rs * (rs / ss) } else { 0.0 }
+}

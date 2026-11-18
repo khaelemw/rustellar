@@ -33,6 +33,11 @@ mod fit;
     not(test),
     expect(dead_code, reason = "used by the tests until the search")
 )]
+mod refine;
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "used by the tests until the search")
+)]
 mod template;
 
 #[cfg(test)]

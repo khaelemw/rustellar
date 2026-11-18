@@ -7,6 +7,7 @@ mod durations;
 mod exact;
 mod fast;
 mod fit;
+mod refine;
 mod template;
 
 /// A small, fast pseudo-random generator (SplitMix64), so the tests need no
