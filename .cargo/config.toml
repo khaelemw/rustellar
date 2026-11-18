@@ -13,3 +13,12 @@ gpu-coverage = [
     "llvm-cov", "--release", "-p", "rustellar-bls", "--features", "cuda",
     "--summary-only",
 ]
+# The same for rustellar-tls.
+gpu-test-tls = [
+    "test", "--release", "-p", "rustellar-tls", "--features", "cuda",
+    "--config", "env.RUSTELLAR_REQUIRE_GPU='1'",
+]
+gpu-coverage-tls = [
+    "llvm-cov", "--release", "-p", "rustellar-tls", "--features", "cuda",
+    "--summary-only",
+]

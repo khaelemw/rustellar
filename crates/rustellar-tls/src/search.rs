@@ -9,10 +9,10 @@ use rustellar_core::LightCurve;
 use crate::cells::{self, CELLS_PER_STEP};
 use crate::durations::{self, Constants, Stars};
 use crate::fast::{self, PeriodBest, Settings, Table};
-use crate::fit::{Points, Position};
+use crate::fit::{Points, Position, fit};
 use crate::refine::{Reach, Refined, refine};
 use crate::spectra::{Spectra, period_uncertainty, spectra};
-use crate::template::Template;
+use crate::template::{SAMPLED_INTERVALS, Sampled, Template};
 
 /// How many grid periods either way of a peak its refinement also starts
 /// from.
@@ -27,6 +27,16 @@ pub(crate) enum Method {
     /// The search turned round: the template's sums once per duration (in
     /// days) at a grid of times, each period summing its transits'.
     Cells,
+}
+
+/// Where the cells search's periodic stage runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Device {
+    Cpu,
+    /// The GPU of this index (0 for the first) where it can be used, and
+    /// otherwise the CPU: the same results either way.
+    #[cfg(feature = "cuda")]
+    Gpu(usize),
 }
 
 /// How the search is run.
@@ -49,6 +59,7 @@ pub(crate) struct Options {
     pub(crate) refine_peaks: usize,
     pub(crate) threads: NonZeroUsize,
     pub(crate) method: Method,
+    pub(crate) device: Device,
 }
 
 impl Options {
@@ -67,6 +78,7 @@ impl Options {
             refine_peaks: 5,
             threads: NonZeroUsize::MIN,
             method: Method::Fold,
+            device: Device::Cpu,
         }
     }
 }
@@ -139,6 +151,13 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
                 span,
                 options.duration_step,
             );
+            #[cfg(feature = "cuda")]
+            let gpu = match options.device {
+                Device::Cpu => None,
+                Device::Gpu(index) => crate::cuda::Gpu::new(index).ok(),
+            };
+            #[cfg(not(feature = "cuda"))]
+            let Device::Cpu = options.device;
             cells::Search {
                 points: &points,
                 table: &table,
@@ -148,6 +167,8 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
                 flat_chi2: points.flat_chi2(),
                 origin,
                 span,
+                #[cfg(feature = "cuda")]
+                gpu: gpu.as_ref(),
             }
             .periods(periods, options.threads)
         }
@@ -177,6 +198,9 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
         .collect();
     starts.sort_unstable();
     starts.dedup();
+    // Refined against the template sampled densely (within 2e-10 of
+    // it), the best then fitted again with the template itself.
+    let sampled = Sampled::new(&options.template, SAMPLED_INTERVALS);
     let refine_at = |i: usize| {
         let p = found[i];
         // Reach the neighbouring periods, the neighbouring durations
@@ -194,7 +218,7 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
             duration: p.duration,
             t0: p.t0,
         };
-        refine(&points, &options.template, start, reach)
+        refine(&points, &sampled, start, reach)
     };
     // The starts refined on the threads, in order, so the best (the first
     // of equals) is the same on any number.
@@ -211,7 +235,11 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
     });
     let best = refined
         .into_iter()
-        .min_by(|a, b| a.fit.chi2.total_cmp(&b.fit.chi2));
+        .min_by(|a, b| a.fit.chi2.total_cmp(&b.fit.chi2))
+        .map(|r| Refined {
+            position: r.position,
+            fit: fit(&points, &options.template, r.position),
+        });
 
     Outcome {
         periods: found,

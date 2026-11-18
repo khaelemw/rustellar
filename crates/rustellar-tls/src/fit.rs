@@ -15,7 +15,7 @@
 
 use rustellar_core::LightCurve;
 
-use crate::template::Template;
+use crate::template::Shape;
 
 /// A sum of doubles with Neumaier's compensation: the rounding error of
 /// each addition is kept and added back at the end, so the result is as if
@@ -101,7 +101,7 @@ pub(crate) struct Fit {
 }
 
 /// The template at `position`, fitted to `points`.
-pub(crate) fn fit(points: &Points, template: &Template, position: Position) -> Fit {
+pub(crate) fn fit(points: &Points, template: &impl Shape, position: Position) -> Fit {
     let shapes: Vec<f64> = points
         .time
         .iter()
@@ -148,7 +148,7 @@ pub(crate) fn chi2_shapes(points: &Points, shapes: &[f64], depth: f64) -> f64 {
 /// with the times increasing and the duration shorter than the period,
 /// each transit's run of points is found by bisection and the rest are
 /// not visited: about `N D / P` points, not `N`.
-pub(crate) fn gain(points: &Points, template: &Template, position: Position) -> f64 {
+pub(crate) fn gain(points: &Points, template: &impl Shape, position: Position) -> f64 {
     let (mut rs, mut ss) = (Sum::default(), Sum::default());
     let mut add = |i: usize| {
         let s = template.shape(position.x(points.time[i]));

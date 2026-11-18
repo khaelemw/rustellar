@@ -7,7 +7,7 @@ use rustellar_model::{
 };
 
 use super::Random;
-use crate::template::Template;
+use crate::template::{SAMPLED_INTERVALS, Sampled, Shape, Template};
 
 fn tls_templates() -> [Template; 3] {
     [
@@ -205,5 +205,37 @@ fn close_to_tls_resampled_templates() {
     let template = Template::tls_box();
     for i in 1..10 {
         assert_eq!(template.shape(f64::from(i) / 10.0 - 0.5), 1.0);
+    }
+}
+
+// The sampled template against the template itself, at 2^16 intervals in
+// each part: within 1.8e-10, 9.8e-11 and 1.9e-10 for TLS's default, grazing
+// and box templates, the worst at second contact. Sampled evenly in time it
+// was 1.1e-7 there (the shape goes as a distance to the power 3/2).
+#[test]
+fn the_sampled_template_is_close_to_the_template() {
+    let mut random = Random::new(61);
+    for template in [
+        Template::tls_default(),
+        Template::tls_grazing(),
+        Template::tls_box(),
+    ] {
+        let sampled = Sampled::new(&template, SAMPLED_INTERVALS);
+        let mut worst: f64 = 0.0;
+        for i in 0..200_000 {
+            let x = if i % 2 == 0 {
+                random.between(-0.5, 0.5)
+            } else {
+                // Near the contacts.
+                random.between(0.45, 0.5) * if i % 4 == 1 { 1.0 } else { -1.0 }
+            };
+            worst = worst.max((sampled.shape(x) - template.shape(x)).abs());
+        }
+        assert!(worst < 3e-10, "{worst}");
+        assert_eq!(sampled.shape(0.0), 1.0);
+        for x in [0.5, -0.5, 0.7, -3.0, f64::NAN, f64::INFINITY] {
+            assert_eq!(sampled.shape(x), 0.0, "{x}");
+        }
+        assert_eq!(sampled.shape(0.123), sampled.shape(-0.123));
     }
 }

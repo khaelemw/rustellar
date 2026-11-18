@@ -4,6 +4,8 @@ use crate::fit::{Points, Position};
 use crate::template::Template;
 
 mod cells;
+#[cfg(feature = "cuda")]
+mod cuda;
 mod durations;
 mod exact;
 mod fast;

@@ -12,9 +12,15 @@ categories = ["science", "algorithms"]
 # benchmarks stay in the source.
 exclude = ["/tests/", "/benches/"]
 
+[features]
+# The cells search's periodic stage on an NVIDIA GPU where there is one:
+# needs the CUDA driver and NVRTC at run time, or searches on the CPU.
+cuda = ["dep:cudarc"]
+
 [dependencies]
 rustellar-core.workspace = true
 rustellar-model.workspace = true
+cudarc = { version = "0.19.10", optional = true, default-features = false, features = ["std", "driver", "nvrtc", "dynamic-loading", "cuda-version-from-build-system", "fallback-latest"] }
 
 [dev-dependencies]
 rustellar-bls.workspace = true

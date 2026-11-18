@@ -9,7 +9,7 @@
 //! equally and the two barely trade off.
 
 use crate::fit::{Fit, Points, Position, fit, gain};
-use crate::template::Template;
+use crate::template::Shape;
 
 /// The most rounds of searches; far more than a peak needs.
 const MAX_ROUNDS: usize = 100;
@@ -71,7 +71,7 @@ fn golden(mut f: impl FnMut(f64) -> f64, start: f64, mut a: f64, mut b: f64) -> 
 /// empty.
 pub(crate) fn refine(
     points: &Points,
-    template: &Template,
+    template: &impl Shape,
     start: Position,
     reach: Reach,
 ) -> Refined {

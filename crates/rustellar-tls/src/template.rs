@@ -7,6 +7,8 @@
 //! stretched to each duration. The flux is `rustellar-model`'s, evaluated
 //! where it is needed, never resampled.
 
+use std::f64::consts::FRAC_PI_2;
+
 use rustellar_model::{LimbDarkening, RadiusRatio, flux};
 
 /// A transit's shape `s(x)`, for `x` the time from mid-transit over the
@@ -102,5 +104,115 @@ impl Template {
     /// is the dimming of the planet it was made from.
     pub(crate) fn depth(&self) -> f64 {
         self.depth
+    }
+}
+
+/// A template's shape at `x`, the time from mid-transit over the duration.
+pub(crate) trait Shape {
+    fn shape(&self, x: f64) -> f64;
+}
+
+impl Shape for Template {
+    fn shape(&self, x: f64) -> f64 {
+        Template::shape(self, x)
+    }
+}
+
+/// A template sampled densely, for the many fits of refinement.
+///
+/// Near first and second contact the shape goes as a distance to the
+/// power 3/2, on both sides of second contact (the limb darkening's own
+/// square root at the limb inside it), which linear interpolation in time
+/// follows only to about `h^1.5`. So the shape is sampled in angles that
+/// make it smooth there: inside the disc evenly in `φ`, with
+/// `z = b + (1 - k - b) sin φ`, `φ` in `[0, π/2]`; across ingress evenly in
+/// `θ`, with `z = 1 + k cos θ`. At each contact the distance goes as the
+/// square of the angle's. With 2^16 intervals each it is within 2e-10 of the
+/// template (measured in the tests), against the exact template's
+/// microsecond a call.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Sampled {
+    b: f64,
+    k: f64,
+    chord: f64,
+    /// `z` at second contact, `1 - k`, or `b` for a grazing transit (which
+    /// has no inside).
+    inner_z: f64,
+    /// The shape at `φ = j (π / 2) / M`, and `M / (π / 2)`.
+    inner: Vec<f64>,
+    inner_scale: f64,
+    /// The shape at `θ = j θ_max / M` (`θ_max` where `z = max(b, 1 - k)`),
+    /// and `M / θ_max`.
+    ingress: Vec<f64>,
+    ingress_scale: f64,
+}
+
+/// Intervals in each part of a [`Sampled`].
+pub(crate) const SAMPLED_INTERVALS: usize = 1 << 16;
+
+/// Linear interpolation in `values` at `u` samples from the first, `u` in
+/// `[0, len - 1]`.
+fn interpolate(values: &[f64], u: f64) -> f64 {
+    #[expect(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "0 <= u <= len - 1"
+    )]
+    let j = (u as usize).min(values.len() - 2);
+    #[expect(clippy::cast_precision_loss, reason = "a sample index")]
+    let f = u - j as f64;
+    f.mul_add(values[j + 1] - values[j], values[j])
+}
+
+impl Template {
+    /// The shape where the planet's centre is `z` from the star's.
+    fn shape_at(&self, z: f64) -> f64 {
+        ((1.0 - flux(z, self.k, self.ld)) / self.depth).clamp(0.0, 1.0)
+    }
+}
+
+impl Sampled {
+    /// `template` at `intervals` intervals in each part.
+    pub(crate) fn new(template: &Template, intervals: usize) -> Self {
+        let (b, k, chord) = (template.b, template.k.get(), template.chord);
+        let inner_z = b.max(1.0 - k);
+        let theta_max = ((inner_z - 1.0) / k).clamp(-1.0, 1.0).acos();
+        #[expect(clippy::cast_precision_loss, reason = "a sample count")]
+        let m = intervals as f64;
+        #[expect(clippy::cast_precision_loss, reason = "a sample index")]
+        let inner = (0..=intervals)
+            .map(|j| template.shape_at((inner_z - b).mul_add((FRAC_PI_2 * j as f64 / m).sin(), b)))
+            .collect();
+        #[expect(clippy::cast_precision_loss, reason = "a sample index")]
+        let ingress = (0..=intervals)
+            .map(|j| template.shape_at(k.mul_add((theta_max * j as f64 / m).cos(), 1.0)))
+            .collect();
+        Self {
+            b,
+            k,
+            chord,
+            inner_z,
+            inner,
+            inner_scale: m / FRAC_PI_2,
+            ingress,
+            ingress_scale: m / theta_max,
+        }
+    }
+}
+
+impl Shape for Sampled {
+    /// 0 for `|x| >= 1/2` (and NaN).
+    fn shape(&self, x: f64) -> f64 {
+        let v = 2.0 * x.abs();
+        if v.is_nan() || v >= 1.0 {
+            return 0.0;
+        }
+        let z = self.b.mul_add(self.b, self.chord * v * v).sqrt();
+        if z < self.inner_z {
+            let phi = ((z - self.b) / (self.inner_z - self.b)).min(1.0).asin();
+            return interpolate(&self.inner, phi * self.inner_scale);
+        }
+        let theta = ((z - 1.0) / self.k).clamp(-1.0, 1.0).acos();
+        interpolate(&self.ingress, theta * self.ingress_scale)
     }
 }

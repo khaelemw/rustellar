@@ -15,6 +15,12 @@
     allow(dead_code, reason = "used by the tests until the public API")
 )]
 mod cells;
+#[cfg(feature = "cuda")]
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the public API")
+)]
+mod cuda;
 #[cfg_attr(
     not(test),
     allow(dead_code, reason = "used by the tests until the public API")

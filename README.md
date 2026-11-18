@@ -58,6 +58,13 @@ coverage of `rustellar-bls`, its GPU code included:
 cargo gpu-coverage
 ```
 
+The same for `rustellar-tls`:
+
+```sh
+cargo gpu-test-tls
+cargo gpu-coverage-tls
+```
+
 Run the benchmarks:
 
 ```sh

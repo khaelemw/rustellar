@@ -37,6 +37,12 @@ impl Table {
         Self { values }
     }
 
+    /// The samples, `intervals + 1` of them from `x = -1/2` to `1/2`.
+    #[cfg(feature = "cuda")]
+    pub(crate) fn values(&self) -> &[f64] {
+        &self.values
+    }
+
     /// The number of intervals, as a double.
     pub(crate) fn intervals(&self) -> f64 {
         #[expect(clippy::cast_precision_loss, reason = "a sample count")]
