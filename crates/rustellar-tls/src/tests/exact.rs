@@ -1,42 +1,10 @@
 // The oracle: noiseless transits found to rounding wherever they sit in
 // the fold (across its ends too), and never beaten by a far denser grid.
 
-use super::Random;
+use super::{Random, light_curve};
 use crate::exact::best;
 use crate::fit::{Points, Position, fit};
 use crate::template::Template;
-
-/// Points every `cadence` days from `start` for `span` days, with a
-/// transit of `depth` at `position` and Gaussian-ish noise of `noise`.
-fn light_curve(
-    random: &mut Random,
-    template: &Template,
-    position: Position,
-    depth: f64,
-    noise: f64,
-    (start, span, cadence): (f64, f64, f64),
-) -> Points {
-    let mut time = Vec::new();
-    let mut t = start;
-    while t < start + span {
-        time.push(t);
-        t += cadence;
-    }
-    let residual = time
-        .iter()
-        .map(|&t| {
-            // The sum of four uniforms, scaled to unit variance.
-            let n: f64 = (0..4).map(|_| random.uniform() - 0.5).sum::<f64>() * 3_f64.sqrt();
-            depth * template.shape(position.x(t)) - noise * n
-        })
-        .collect();
-    let weight = vec![1.0 / (noise * noise).max(1e-12); time.len()];
-    Points {
-        time,
-        residual,
-        weight,
-    }
-}
 
 /// The distance between two mid-transit times on a period.
 fn apart(a: f64, b: f64, period: f64) -> f64 {

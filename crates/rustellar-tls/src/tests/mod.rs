@@ -1,7 +1,11 @@
 // Unit tests, one file per module.
 
+use crate::fit::{Points, Position};
+use crate::template::Template;
+
 mod durations;
 mod exact;
+mod fast;
 mod fit;
 mod template;
 
@@ -30,5 +34,37 @@ impl Random {
     /// Uniform in `[low, high)`.
     pub(super) fn between(&mut self, low: f64, high: f64) -> f64 {
         low + (high - low) * self.uniform()
+    }
+}
+
+/// Points every `cadence` days from `start` for `span` days, with a
+/// transit of `depth` at `position` and Gaussian-ish noise of `noise`.
+pub(super) fn light_curve(
+    random: &mut Random,
+    template: &Template,
+    position: Position,
+    depth: f64,
+    noise: f64,
+    (start, span, cadence): (f64, f64, f64),
+) -> Points {
+    let mut time = Vec::new();
+    let mut t = start;
+    while t < start + span {
+        time.push(t);
+        t += cadence;
+    }
+    let residual = time
+        .iter()
+        .map(|&t| {
+            // The sum of four uniforms, scaled to unit variance.
+            let n: f64 = (0..4).map(|_| random.uniform() - 0.5).sum::<f64>() * 3_f64.sqrt();
+            depth * template.shape(position.x(t)) - noise * n
+        })
+        .collect();
+    let weight = vec![1.0 / (noise * noise).max(1e-12); time.len()];
+    Points {
+        time,
+        residual,
+        weight,
     }
 }
