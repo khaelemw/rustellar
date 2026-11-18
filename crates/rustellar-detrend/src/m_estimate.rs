@@ -194,14 +194,18 @@ fn solve_with<P: Psi, V: Isa>(v: V, sorted: &[f64], scratch: &mut Scratch, c: f6
     let mut at_t = sums.cheap(t);
     if !at_t.certain() {
         // The sums cannot tell the residual from zero here: Newton's method
-        // on the double-double residual (the slope as last found: near the
-        // root it hardly changes), while it shrinks.
+        // on the double-double residual, while it shrinks. The first step
+        // takes the slope as last found; then the secant through the last
+        // two residuals, as the sums' slope can be off (a point at the edge
+        // of a cut counted on the wrong side) and near a root at zero, where
+        // the doubles are dense, a slow approach would stop far from it.
         at_t = Estimate::exact(sums.precise(t));
+        let mut slope = here.slope;
         for _ in 0..NEWTON_STEPS {
-            if here.slope <= 0.0 || at_t.value == 0.0 {
+            if slope <= 0.0 || !slope.is_finite() || at_t.value == 0.0 {
                 break;
             }
-            let next = t + at_t.value / here.slope;
+            let next = t + at_t.value / slope;
             if (next - t).abs() <= 2.0 * gap(t) {
                 break;
             }
@@ -209,6 +213,7 @@ fn solve_with<P: Psi, V: Isa>(v: V, sorted: &[f64], scratch: &mut Scratch, c: f6
             if at_next.abs() >= at_t.value.abs() {
                 break;
             }
+            slope = (at_t.value - at_next) / (next - t);
             (t, at_t) = (next, Estimate::exact(at_next));
         }
     }
