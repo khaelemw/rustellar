@@ -7,3 +7,18 @@
 //! the spectrum, and its peak the best candidate.
 //!
 //! **Status:** in development. Nothing is public yet.
+
+// Only the tests use these until the search is built on them.
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "used by the tests until the search")
+)]
+mod durations;
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "used by the tests until the search")
+)]
+mod template;
+
+#[cfg(test)]
+mod tests;
