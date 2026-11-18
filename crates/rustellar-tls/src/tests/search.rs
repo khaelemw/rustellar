@@ -1,6 +1,8 @@
 // The whole search: an injected transit recovered from Ofir's period grid,
-// nothing to fit, the peaks it refines, and threads.
+// nothing to fit, the peaks it refines, threads, and against TLS on even
+// and uneven light curves.
 
+use std::f64::consts::PI;
 use std::num::NonZeroUsize;
 
 use rustellar_bls::OfirPeriod;
@@ -520,4 +522,257 @@ fn against_tls_on_shallower_noisier_and_sparse_transits() {
         duration_error.0 < 0.7 * duration_error.1,
         "{method:?} {duration_error:?}"
     );
+}
+
+// transitleastsquares 1.32 (one thread, defaults, given the errors) on
+// uneven light curves: seed, k, period, t0, noise; then TLS's period, T0,
+// depth, duration and SDE. Mixed cadence: 13.5 days at 30 minutes, then
+// from day 14 at 10 minutes with errors sqrt(3) larger (the same precision
+// per unit time). Varying errors: 27 days at 30 minutes, errors
+// noise (2 - cos(2 pi t / 13.5)), from 1 to 3 times noise. Each the first
+// six of 200 that both recover.
+type Uneven = (u64, f64, f64, f64, f64, f64, f64, f64, f64, f64);
+const TLS_MIXED: [Uneven; 6] = [
+    (
+        2000,
+        0.033_382_301_215_446_62,
+        8.455_420_933_866_634,
+        1.274_399_988_520_075,
+        0.000_493_123_845_350_846_8,
+        8.456_952_671_664_641,
+        1.275_976_730_251_069_8,
+        0.001_154_387_901_870_945_8,
+        0.177_043_616_726_419_25,
+        13.068_719_479_980_697,
+    ),
+    (
+        2001,
+        0.026_997_899_181_132_094,
+        7.871_199_674_220_626,
+        1.155_930_952_334_575,
+        0.000_544_906_181_756_190_1,
+        7.873_473_061_001_296,
+        1.149_635_467_972_518_3,
+        0.000_882_811_960_081_331_1,
+        0.146_317_038_616_875_4,
+        11.941_637_580_322_968,
+    ),
+    (
+        2002,
+        0.019_112_668_858_696_84,
+        1.359_375_866_663_073_8,
+        0.260_175_632_927_864_66,
+        0.000_313_411_108_501_357,
+        1.359_811_934_951_399_3,
+        0.254_669_142_639_908_36,
+        0.000_423_402_392_230_931_57,
+        0.024_184_634_482_128_157,
+        13.238_822_291_474_012,
+    ),
+    (
+        2004,
+        0.029_662_447_268_763_79,
+        1.165_712_143_317_366,
+        0.213_222_482_173_234_25,
+        0.000_754_558_456_747_037_3,
+        1.166_455_097_420_633_4,
+        0.205_205_505_205_220_57,
+        0.001_058_840_647_091_385_8,
+        0.017_380_261_934_695_05,
+        11.920_497_393_980_181,
+    ),
+    (
+        2005,
+        0.042_696_445_229_643_76,
+        1.943_954_024_423_093_5,
+        1.437_852_093_019_428_7,
+        0.000_584_306_679_273_314_1,
+        1.942_991_845_604_620_2,
+        1.447_597_401_054_914_9,
+        0.001_961_913_512_111_168_6,
+        0.038_004_425_614_772_824,
+        17.482_689_078_304_8,
+    ),
+    (
+        2006,
+        0.039_899_741_665_330_46,
+        8.010_719_784_298_303,
+        4.399_328_689_938_431,
+        0.000_350_144_481_532_505_1,
+        8.006_692_134_580_83,
+        4.405_753_291_072_397,
+        0.001_949_250_987_648_976,
+        0.121_135_158_938_783_65,
+        14.715_895_152_455_127,
+    ),
+];
+const TLS_VARYING: [Uneven; 6] = [
+    (
+        3000,
+        0.027_503_610_192_387_635,
+        5.655_211_655_651_549_5,
+        3.818_851_061_375_670_3,
+        0.000_378_819_428_986_153_5,
+        5.652_650_674_234_365,
+        3.821_301_715_546_546,
+        0.000_996_154_929_136_849_9,
+        0.149_193_001_541_977_37,
+        10.848_661_882_915_449,
+    ),
+    (
+        3001,
+        0.024_477_521_934_854_91,
+        8.236_476_229_257_64,
+        4.761_278_840_496_468,
+        0.000_398_442_120_757_876_94,
+        8.276_739_848_590_491,
+        4.722_072_737_285_428,
+        0.000_807_360_740_791_240_9,
+        0.226_050_002_336_329_35,
+        6.634_857_295_068_678,
+    ),
+    (
+        3004,
+        0.033_111_756_008_141_91,
+        2.864_108_800_775_504_4,
+        1.389_401_247_985_954_3,
+        0.000_692_489_700_002_986,
+        2.864_713_104_478_716_4,
+        1.386_774_589_487_404_4,
+        0.001_074_175_612_460_592_8,
+        0.091_173_500_942_319_52,
+        6.524_286_199_278_212,
+    ),
+    (
+        3005,
+        0.037_634_949_089_691_29,
+        2.224_761_121_484_644_6,
+        1.268_484_400_978_510_8,
+        0.000_404_474_815_922_269_57,
+        2.223_800_509_664_458_4,
+        1.277_091_581_064_955_5,
+        0.001_679_395_242_268_233_4,
+        0.068_380_125_706_739_64,
+        17.174_100_236_484_563,
+    ),
+    (
+        3006,
+        0.032_791_233_060_799_26,
+        1.291_104_375_011_761,
+        0.926_217_250_378_607_2,
+        0.000_346_549_368_800_090_7,
+        1.290_395_877_795_182_3,
+        0.932_287_608_684_799_1,
+        0.001_327_515_982_200_933,
+        0.039_074_357_546_708_356,
+        19.611_510_873_464_837,
+    ),
+    (
+        3007,
+        0.032_515_134_773_630_175,
+        4.295_134_024_739_159,
+        0.718_801_538_675_302_2,
+        0.000_506_751_475_125_066_2,
+        4.286_549_713_228_742,
+        0.736_362_497_210_774,
+        0.001_458_522_470_884_404_7,
+        0.117_223_072_640_125_1,
+        10.992_179_264_198_116,
+    ),
+];
+
+/// A light curve of the uneven sets, and its transit.
+fn uneven(
+    mixed: bool,
+    seed: u64,
+    k: f64,
+    period: f64,
+    t0: f64,
+    noise: f64,
+) -> (LightCurve, TransitParams) {
+    let (time, dy): (Vec<f64>, Vec<f64>) = if mixed {
+        (0..648)
+            .map(|i| (f64::from(i) / 48.0, noise))
+            .chain((0..1872).map(|i| (14.0 + f64::from(i) / 144.0, noise * 3_f64.sqrt())))
+            .unzip()
+    } else {
+        (0..1296)
+            .map(|i| {
+                let t = f64::from(i) / 48.0;
+                (t, noise * (2.0 - (2.0 * PI * t / 13.5).cos()))
+            })
+            .unzip()
+    };
+    let params = TransitParams::new(
+        Epoch::from_btjd(t0).unwrap(),
+        TimeDelta::from_days(period).unwrap(),
+        RadiusRatio::new(k).unwrap(),
+        ScaledSemiMajorAxis::new(12.0).unwrap(),
+        ImpactParameter::new(0.2).unwrap(),
+        LimbDarkening::quadratic(0.4804, 0.1867).unwrap(),
+    )
+    .unwrap();
+    let mut random = Random::new(seed);
+    let flux: Vec<f64> = time
+        .iter()
+        .zip(&dy)
+        .map(|(&t, &e)| {
+            let n: f64 = (0..4).map(|_| random.uniform() - 0.5).sum::<f64>() * 3_f64.sqrt();
+            params.flux_at(Epoch::from_btjd(t).unwrap()) + e * n
+        })
+        .collect();
+    (LightCurve::from_btjd(time, flux, dy).unwrap(), params)
+}
+
+// Where TLS's own assumptions break: with mixed cadence it takes the
+// sampling as even, and with varying errors its depth is an unweighted
+// mean. On 200 of each: mixed, durations closer on 151 of 160 (median 4.8%
+// against 34%), timing on 109; varying, depths closer on 77 of 124 (median
+// 8.3% against 10.3%), timing on 79. Here: recovered, fitted better than at
+// TLS's position, and the totals.
+#[test]
+fn against_tls_on_mixed_cadence_and_varying_errors() {
+    let template = Options::tls().template;
+    for (mixed, cases) in [(true, TLS_MIXED), (false, TLS_VARYING)] {
+        let (mut depth_error, mut duration_error) = ((0.0, 0.0), (0.0, 0.0));
+        for (seed, k, period, t0, noise, tls_p, tls_t0, tls_depth, tls_duration, _) in cases {
+            let (lc, params) = uneven(mixed, seed, k, period, t0, noise);
+            let mut options = Options::tls();
+            options.threads = NonZeroUsize::new(4).unwrap();
+            let best = run(&lc, &periods(&lc), options).best.unwrap();
+            let ours = best.position;
+            assert!(
+                (ours.period / period - 1.0).abs() < 1e-2,
+                "{seed}: {ours:?}"
+            );
+            let points = Points::new(&lc);
+            let at_tls = fit(
+                &points,
+                &template,
+                Position {
+                    period: tls_p,
+                    duration: tls_duration,
+                    t0: tls_t0,
+                },
+            );
+            assert!(best.fit.chi2 < at_tls.chi2, "{seed}");
+            let depth = 1.0 - params.flux_at(Epoch::from_btjd(t0).unwrap());
+            let t14 = params.t14().unwrap().as_days();
+            depth_error.0 += (best.fit.depth / depth - 1.0).abs();
+            depth_error.1 += (tls_depth / depth - 1.0).abs();
+            duration_error.0 += (ours.duration / t14 - 1.0).abs();
+            duration_error.1 += (tls_duration / t14 - 1.0).abs();
+        }
+        // Mixed: duration 39% against 203%, depth 24% against 36%. Varying:
+        // depth 33% against 54%, duration 20% against 50%.
+        let (depth_bound, duration_bound) = if mixed { (0.8, 0.3) } else { (0.8, 0.6) };
+        assert!(
+            depth_error.0 < depth_bound * depth_error.1,
+            "{mixed} {depth_error:?}"
+        );
+        assert!(
+            duration_error.0 < duration_bound * duration_error.1,
+            "{mixed} {duration_error:?}"
+        );
+    }
 }
