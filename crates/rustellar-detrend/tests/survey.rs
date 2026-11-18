@@ -1,8 +1,8 @@
 //! Survey-scale light curves (a TESS sector at 2-minute cadence, a fast
 //! rotator, counts, a faint star, a Kepler quarter) with spots, drift,
 //! flares, noise and transits: the trend at sampled points against the
-//! biweight root at 50 digits and against wotan's, and the transits found
-//! after detrending, ours and wotan's. Heavy: run with
+//! biweight and Huber roots at 50 digits and against wotan's, and the
+//! transits found after detrending, ours and wotan's. Heavy: run with
 //! `cargo test --release -p rustellar-detrend --test survey -- --ignored`.
 
 use std::num::NonZeroUsize;
@@ -10,6 +10,7 @@ use std::time::Instant;
 
 use rustellar_bls::{Bls, Durations, Objective, OfirPeriod, SearchOptions};
 use rustellar_core::{LightCurve, TimeDelta};
+use rustellar_detrend::Method;
 
 #[path = "common/recipe.rs"]
 mod recipe;
@@ -18,6 +19,7 @@ use recipe::{Built, Curve, curves, fingerprint};
 
 const WINDOWS: &str = include_str!("reference/survey_windows.csv");
 const WOTAN: &str = include_str!("reference/survey_wotan.csv");
+const HUBER: &str = include_str!("reference/survey_huber.csv");
 
 /// Each curve built and checked against the generator's fingerprint.
 fn built() -> Vec<(Curve, Built)> {
@@ -168,6 +170,77 @@ fn the_survey_trend_at_fifty_digits() {
         seen > 1_000 && certain * 100 >= seen * 99,
         "{certain} of {seen}"
     );
+}
+
+/// Huber's M-estimator (c = 1.28) at the same sampled points: ours within
+/// half a unit (plus the roundings' doubt) of its root at 50 digits, and the
+/// nearest double wherever that doubt is small. wotan's `huber_psi` (c 1.28)
+/// is one step from the median, so it is measured against its own window's
+/// root, and is never nearer where the windows agree.
+#[test]
+#[ignore = "heavy: survey-scale light curves"]
+fn the_survey_huber_at_fifty_digits() {
+    let (mut seen, mut certain, mut nearest) = (0, 0, 0);
+    let (mut wotan_nearest, mut wotan_rel) = (0, 0.0f64);
+    for (curve, b) in built() {
+        let lc = curve.light_curve(&b.time, &b.flux);
+        let trend = curve
+            .detrend()
+            .with_method(Method::Huber { c: 1.28 })
+            .trend(&lc, None)
+            .unwrap();
+        let mut ours_worst = 0.0f64;
+        for line in HUBER.lines().filter(|l| !l.starts_with('#')).skip(1) {
+            let f: Vec<&str> = line.split(',').collect();
+            if f[0] != curve.name {
+                continue;
+            }
+            let x = |k: usize| f[k].parse::<f64>().unwrap();
+            let i: usize = f[1].parse().unwrap();
+            let e: i32 = f[2].parse().unwrap();
+            let (hi, lo, sensitivity, wotan) = (x(3), x(4), x(6), x(7));
+            let scale = 2f64.powi(-e);
+            let ours = trend[i].expect("a trend at every point");
+            let error = |t: f64| ((t * scale - hi) - lo).abs();
+            let unit = ulp(hi);
+            let rounding = ROUNDINGS * f64::EPSILON * f64::EPSILON * sensitivity;
+            assert!(
+                error(ours) <= 0.5 * unit + rounding,
+                "{} point {i}: {:.3} ulp",
+                curve.name,
+                error(ours) / unit
+            );
+            seen += 1;
+            nearest += usize::from(error(ours) <= 0.5 * unit);
+            if rounding <= 0.01 * unit {
+                certain += 1;
+                assert!(error(ours) <= 0.5 * unit, "{} point {i}", curve.name);
+            }
+            ours_worst = ours_worst.max(error(ours) / unit);
+            if f[8] == "1" {
+                assert!(
+                    error(wotan) >= error(ours),
+                    "{} point {i}: wotan nearer",
+                    curve.name
+                );
+            }
+            let (w_hi, w_lo) = (x(9), x(10));
+            let w_error = ((wotan * scale - w_hi) - w_lo).abs();
+            wotan_nearest += usize::from(w_error <= 0.5 * ulp(w_hi));
+            wotan_rel = wotan_rel.max(w_error / w_hi.abs());
+        }
+        eprintln!("{}: Huber worst {ours_worst:.3} ulp", curve.name);
+    }
+    eprintln!(
+        "Huber, {seen} windows: ours the nearest double at {nearest}, {certain} certain; \
+         wotan's huber_psi the nearest of its own window's root at {wotan_nearest}, \
+         worst {wotan_rel:.2e} relative"
+    );
+    assert!(
+        seen > 1_000 && certain * 100 >= seen * 99,
+        "{certain} of {seen}"
+    );
+    assert_eq!(wotan_nearest, 0);
 }
 
 // The search's durations, days.

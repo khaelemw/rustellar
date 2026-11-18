@@ -70,11 +70,21 @@ with the root of its own window:
 | wotan 1.10, counts | 0 | 2.4e-11 |
 | wotan 1.10, faint star | 0 | 4.6e-5 |
 
+Huber's M-estimator (c 1.28) at the same points: this crate's the nearest
+double at all 1,477; wotan's `huber_psi`, one step from the median, at
+none, worst 3.2e-4 relative to its own window's root.
+
 **Reference windows.** 909 biweight windows and 1,599 windows of the other
 methods, at 50 digits or exactly: every M-estimate within half a unit plus
 its rounding doubt, and the nearest double wherever that doubt is small
 (all but a few windows with roots very near zero, ties and multiple roots);
 the order estimators to the bit. wotan is never nearer.
+
+**wotan's `huber`.** At the same 1,477 points, wotan's `huber` against the
+exact solution of proposal 2's equations on its own window: the nearest
+double at 7, worst relative error 1.9e-9, up to 1.8e-6 of the scale
+(statsmodels stops at a tolerance of 1e-6 of the scale). It never fell back
+to the median there.
 
 **Detrend then search.** The five curves flattened by this crate's trend
 and by wotan's, then searched with rustellar-bls: both find every transit
@@ -104,10 +114,14 @@ Each method on the 2-minute sector, one thread (wotan's default settings):
 | Biweight | 0.185 | 0.095 |
 | Welsch | 0.331 | 0.216 |
 | Andrews' sine wave | 0.333 | 0.210 |
-| Huber | needs statsmodels | 0.076 |
+| Huber | 10.6 (proposal 2) | 0.076 |
 | Hodges-Lehmann | 9.76 | 0.97 |
 | Trimmed mean | 0.202 | 0.018 |
 | Winsorized mean | 0.202 | 0.021 |
+
+wotan's `huber` is a different estimator: statsmodels' proposal 2, which
+estimates the scale with the location (c 1.5); this crate's Huber uses a
+fixed scale, c times the MAD (c 1.28, as wotan's `huber_psi`).
 
 `cargo bench -p rustellar-detrend` runs these.
 
