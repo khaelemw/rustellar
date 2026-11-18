@@ -55,6 +55,14 @@ pub use grid::{Durations, Periods};
 pub use ofir::OfirPeriod;
 pub use search::{Bls, BlsResult, Device, Objective, Peak, SearchOptions};
 
+// Core's types, which this crate's API takes and returns: with them the
+// crate works on its own, without listing rustellar-core, and always with
+// the core it was built on. The same types, not copies.
+#[doc(no_inline)]
+pub use rustellar_core::{
+    Epoch, FoldedLightCurve, LightCurve, LightCurveError, TimeDelta, TimeError,
+};
+
 // The README's example, compiled and run as a doctest.
 #[cfg(doctest)]
 #[doc = include_str!("../README.md")]

@@ -8,6 +8,18 @@ averaging for long-cadence data (Kipping 2010).
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `model` feature.
 
+```toml
+[dependencies]
+# Through the umbrella, which most projects want:
+rustellar = { version = "0.1", features = ["model"] }
+# Or this crate alone:
+rustellar-model = "0.1"
+```
+
+On its own it re-exports the core types it takes and returns
+(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
+`rustellar-core` need not be listed, and the two always match.
+
 **Status:** in development, not yet released.
 
 ## Statement of need
@@ -23,9 +35,9 @@ accuracy measured against all three packages and an exact numerical integral.
 ## Quick start
 
 ```rust
-use rustellar_core::{Epoch, TimeDelta};
 use rustellar_model::{
-    ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    Epoch, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TimeDelta,
+    TransitParams,
 };
 
 let params = TransitParams::new(

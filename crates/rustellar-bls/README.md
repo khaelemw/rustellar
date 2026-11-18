@@ -7,6 +7,18 @@ highest peaks refitted exactly.
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate.
 
+```toml
+[dependencies]
+# Through the umbrella, which most projects want:
+rustellar = { version = "0.1", features = ["bls"] }
+# Or this crate alone:
+rustellar-bls = "0.1"
+```
+
+On its own it re-exports the core types it takes and returns
+(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
+`rustellar-core` need not be listed, and the two always match.
+
 **Status:** in development, not yet released.
 
 ## Statement of need
@@ -28,8 +40,7 @@ arithmetic, and every comparison runs in the test suite.
 ## Quick start
 
 ```rust
-use rustellar_bls::{Bls, Durations, Objective, OfirPeriod, SearchOptions};
-use rustellar_core::LightCurve;
+use rustellar_bls::{Bls, Durations, LightCurve, Objective, OfirPeriod, SearchOptions};
 
 // Every 30 minutes for 20 days, with a dip of 0.005 lasting 0.15 days
 // every 3 days.

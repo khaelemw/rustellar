@@ -11,9 +11,9 @@
 //! times:
 //!
 //! ```
-//! use rustellar_core::{Epoch, TimeDelta};
 //! use rustellar_model::{
-//!     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+//!     Epoch, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TimeDelta,
+//!     TransitParams,
 //! };
 //!
 //! let params = TransitParams::new(
@@ -63,8 +63,8 @@
 //!
 //! - Lengths are in stellar radii: the separation `z`, the radius ratio `k`,
 //!   the impact parameter `b`, and the semi-major axis `a_rs`.
-//! - Times are [`Epoch`](rustellar_core::Epoch)s (BJD_TDB) and
-//!   [`TimeDelta`](rustellar_core::TimeDelta)s, so units cannot be mixed up.
+//! - Times are [`Epoch`]s (BJD_TDB) and
+//!   [`TimeDelta`]s, so units cannot be mixed up.
 //! - Flux is relative to the star's flux out of transit: 1 out of transit,
 //!   and never outside `[0, 1]`.
 //! - Every input is checked by its type's constructor, which returns an error
@@ -117,3 +117,11 @@ pub use params::{
     Contacts, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
 };
 pub use uniform::flux_uniform;
+
+// Core's types, which this crate's API takes and returns: with them the
+// crate works on its own, without listing rustellar-core, and always with
+// the core it was built on. The same types, not copies.
+#[doc(no_inline)]
+pub use rustellar_core::{
+    Epoch, FoldedLightCurve, LightCurve, LightCurveError, TimeDelta, TimeError,
+};

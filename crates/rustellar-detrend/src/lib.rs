@@ -24,8 +24,7 @@
 //! # Examples
 //!
 //! ```
-//! use rustellar_core::{LightCurve, TimeDelta};
-//! use rustellar_detrend::Detrend;
+//! use rustellar_detrend::{Detrend, LightCurve, TimeDelta};
 //!
 //! let time: Vec<f64> = (0..720).map(|i| i as f64 / 720.0).collect();
 //! let flux: Vec<f64> = time.iter().map(|&t| 100.0 + 2.0 * t).collect();
@@ -55,6 +54,14 @@ mod tests;
 pub use detrend::{BreakTolerance, Detrend, Flattened, Method};
 pub use error::DetrendError;
 pub use window::Edges;
+
+// Core's types, which this crate's API takes and returns: with them the
+// crate works on its own, without listing rustellar-core, and always with
+// the core it was built on. The same types, not copies.
+#[doc(no_inline)]
+pub use rustellar_core::{
+    Epoch, FoldedLightCurve, LightCurve, LightCurveError, TimeDelta, TimeError,
+};
 
 // The README's example, compiled and run as a doctest.
 #[cfg(doctest)]

@@ -11,6 +11,18 @@ trimmed and winsorized means, the median and the mean are there too.
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `detrend` feature.
 
+```toml
+[dependencies]
+# Through the umbrella, which most projects want:
+rustellar = { version = "0.1", features = ["detrend"] }
+# Or this crate alone:
+rustellar-detrend = "0.1"
+```
+
+On its own it re-exports the core types it takes and returns
+(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
+`rustellar-core` need not be listed, and the two always match.
+
 **Status:** in development, not yet released.
 
 ## Statement of need
@@ -32,8 +44,7 @@ wotan.
 ## Quick start
 
 ```rust
-use rustellar_core::{LightCurve, TimeDelta};
-use rustellar_detrend::Detrend;
+use rustellar_detrend::{Detrend, LightCurve, TimeDelta};
 
 // Two days at 2-minute cadence: a slow drift and a 0.5% dip.
 let time: Vec<f64> = (0..1440).map(|i| f64::from(i) / 720.0).collect();
