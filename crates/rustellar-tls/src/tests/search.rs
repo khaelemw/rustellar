@@ -82,17 +82,28 @@ fn recovered(method: Method) {
         // and depth are the template's, not the planet's), every transit in
         // the 27 days found with a depth, odd and even alike.
         let errors = outcome.errors.unwrap();
-        assert!((p.period - period).abs() < 4.0 * errors.period, "{p:?} {errors:?}");
+        assert!(
+            (p.period - period).abs() < 4.0 * errors.period,
+            "{p:?} {errors:?}"
+        );
         let off = (p.t0 - t0) - ((p.t0 - t0) / period).round() * period;
         assert!(off.abs() < 4.0 * errors.t0, "{p:?} {errors:?}");
         assert!(errors.depth < 0.2 * best.fit.depth && errors.duration < 0.2 * p.duration);
         #[expect(clippy::cast_possible_truncation, reason = "a few transits")]
         let expected = (27.0 / period) as usize;
-        assert!(outcome.transits.len() >= expected, "{}", outcome.transits.len());
+        assert!(
+            outcome.transits.len() >= expected,
+            "{}",
+            outcome.transits.len()
+        );
         for t in &outcome.transits {
             assert!((t.depth - best.fit.depth).abs() < 4.0 * t.error, "{t:?}");
         }
-        assert!(outcome.odd_even.unwrap().sigma < 3.0, "{:?}", outcome.odd_even);
+        assert!(
+            outcome.odd_even.unwrap().sigma < 3.0,
+            "{:?}",
+            outcome.odd_even
+        );
     }
 }
 
