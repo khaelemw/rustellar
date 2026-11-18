@@ -38,6 +38,11 @@ mod refine;
     not(test),
     expect(dead_code, reason = "used by the tests until the search")
 )]
+mod spectra;
+#[cfg_attr(
+    not(test),
+    expect(dead_code, reason = "used by the tests until the search")
+)]
 mod template;
 
 #[cfg(test)]
