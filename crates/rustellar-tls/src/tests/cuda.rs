@@ -176,6 +176,36 @@ fn no_periods_find_nothing() {
     assert!(format!("{gpu:?}").starts_with("Gpu"));
 }
 
+// Where there is no CUDA library at all (RUSTELLAR_EXPECT_NO_CUDA, as on
+// CI), setting up a GPU is an error that says so, and the whole search runs
+// on the CPU.
+#[test]
+fn without_cuda_a_gpu_is_an_error() {
+    if std::env::var_os("RUSTELLAR_EXPECT_NO_CUDA").is_none() {
+        println!("skipped: RUSTELLAR_EXPECT_NO_CUDA is not set");
+        return;
+    }
+    let why = Gpu::new(0).unwrap_err();
+    assert!(why.contains("not installed"), "{why}");
+    let points = points(8, 10.0, 1.0 / 48.0);
+    let lc = LightCurve::from_btjd(
+        points.time.clone(),
+        points.residual.iter().map(|r| 1.0 - r).collect(),
+        vec![1e-3; points.time.len()],
+    )
+    .unwrap();
+    let periods = periods(50);
+    let options = |device| Options {
+        method: Method::Cells,
+        device,
+        ..Options::tls()
+    };
+    assert_eq!(
+        run(&lc, &periods, options(Device::Gpu(0))),
+        run(&lc, &periods, options(Device::Cpu))
+    );
+}
+
 // A GPU that is not there is an error, not a panic.
 #[test]
 fn a_missing_gpu_is_an_error() {

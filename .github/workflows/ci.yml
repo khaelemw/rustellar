@@ -47,6 +47,9 @@ jobs:
       - run: cargo test -p rustellar-bls --features cuda
         env:
           RUSTELLAR_EXPECT_NO_CUDA: "1"
+      - run: cargo test -p rustellar-tls --features cuda --lib cuda
+        env:
+          RUSTELLAR_EXPECT_NO_CUDA: "1"
 
   msrv:
     runs-on: ubuntu-latest
@@ -56,6 +59,17 @@ jobs:
         with:
           toolchain: "1.85"
       - uses: Swatinem/rust-cache@v2
-      # Every feature but rustellar-bls's `cuda`, which needs Rust 1.88.
+      # Every feature but the `cuda` ones, which need Rust 1.88.
       - run: cargo check --workspace --lib
       - run: cargo check -p rustellar --lib --all-features
+
+  # The `cuda` features on their own minimum Rust.
+  msrv-cuda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.88"
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check -p rustellar-bls -p rustellar-tls --lib --features rustellar-bls/cuda,rustellar-tls/cuda

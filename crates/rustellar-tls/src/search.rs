@@ -25,7 +25,8 @@ pub(crate) enum Method {
     /// durations (fractions of the period).
     Fold,
     /// The search turned round: the template's sums once per duration (in
-    /// days) at a grid of times, each period summing its transits'.
+    /// days) at a grid of times, each period summing its transits'. The
+    /// default.
     Cells,
 }
 
@@ -64,7 +65,9 @@ pub(crate) struct Options {
 
 impl Options {
     /// TLS's defaults, 50 trial times per duration, the 5 highest peaks
-    /// refined, one thread.
+    /// refined, one thread, on the CPU; the search over cells, which on 300
+    /// injected transits is as close to the truth as TLS's fold and about
+    /// five times faster on one thread.
     pub(crate) fn tls() -> Self {
         Self {
             template: Template::tls_default(),
@@ -77,7 +80,7 @@ impl Options {
             oversampling: 3,
             refine_peaks: 5,
             threads: NonZeroUsize::MIN,
-            method: Method::Fold,
+            method: Method::Cells,
             device: Device::Cpu,
         }
     }

@@ -11,6 +11,10 @@ Part of [rustellar](../../README.md). Use it on its own, or through the
 
 **Status:** in development, not yet released.
 
+Rust 1.85 or later; the `cuda` feature (the search on an NVIDIA GPU, with
+the CPU's results to the bit) needs Rust 1.88 or later, an NVIDIA driver
+and the CUDA NVRTC library at run time.
+
 ## References
 
 - Hippke, M. & Heller, R. 2019, A&A, 623, A39

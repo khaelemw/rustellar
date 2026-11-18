@@ -13,8 +13,9 @@ categories = ["science", "algorithms"]
 exclude = ["/tests/", "/benches/"]
 
 [features]
-# The cells search's periodic stage on an NVIDIA GPU where there is one:
-# needs the CUDA driver and NVRTC at run time, or searches on the CPU.
+# The cells search on an NVIDIA GPU where there is one: needs the CUDA
+# driver and NVRTC at run time, or searches on the CPU. Needs Rust 1.88 or
+# later (cudarc's libloading); the crate without it builds on 1.85.
 cuda = ["dep:cudarc"]
 
 [dependencies]

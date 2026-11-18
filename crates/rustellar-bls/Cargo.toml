@@ -14,7 +14,8 @@ exclude = ["/tests/", "/benches/"]
 
 [features]
 # The search on an NVIDIA GPU where there is one (`Device`): needs the CUDA
-# driver and NVRTC at run time, or searches on the CPU.
+# driver and NVRTC at run time, or searches on the CPU. Needs Rust 1.88 or
+# later (cudarc's libloading); the crate without it builds on 1.85.
 cuda = ["dep:cudarc"]
 
 [dependencies]

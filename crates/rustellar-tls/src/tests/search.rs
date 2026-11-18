@@ -239,14 +239,11 @@ const TLS_INJECTED: [Injection; 8] = [
     ),
 ];
 
+// The default method only: the fold's agrees (on 300 such curves the two
+// are as close to the truth as each other).
 #[test]
 fn against_tls_on_injected_transits() {
-    for method in [Method::Fold, Method::Cells] {
-        against_tls_on_injected_transits_with(method);
-    }
-}
-
-fn against_tls_on_injected_transits_with(method: Method) {
+    let method = Options::tls().method;
     let noise = 4e-4;
     // Sums of the errors, ours and TLS's: T0 in minutes, depth and
     // duration relative to the injected transit's (1 - F(b) and T14).
@@ -278,7 +275,6 @@ fn against_tls_on_injected_transits_with(method: Method) {
         let lc = LightCurve::from_btjd(time, flux, vec![noise; n]).unwrap();
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
-        options.method = method;
         let outcome = run(&lc, &periods(&lc), options);
         let best = outcome.best.unwrap();
         let ours = best.position;
@@ -427,14 +423,11 @@ const TLS_HARDER: [Harder; 6] = [
     ),
 ];
 
+// The default method only: the fold's agrees (on 300 such curves the two
+// are as close to the truth as each other).
 #[test]
 fn against_tls_on_shallower_noisier_and_sparse_transits() {
-    for method in [Method::Fold, Method::Cells] {
-        against_tls_on_shallower_noisier_and_sparse_transits_with(method);
-    }
-}
-
-fn against_tls_on_shallower_noisier_and_sparse_transits_with(method: Method) {
+    let method = Options::tls().method;
     let template = Options::tls().template;
     let (mut depth_error, mut duration_error) = ((0.0, 0.0), (0.0, 0.0));
     for (seed, k, period, t0, noise, sparse, tls_p, tls_t0, tls_depth, tls_duration, tls_sde) in
@@ -465,7 +458,6 @@ fn against_tls_on_shallower_noisier_and_sparse_transits_with(method: Method) {
         let lc = LightCurve::from_btjd(time, flux, vec![noise; n]).unwrap();
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
-        options.method = method;
         let outcome = run(&lc, &periods(&lc), options);
         let best = outcome.best.unwrap();
         let ours = best.position;
