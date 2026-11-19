@@ -40,8 +40,10 @@ the point's error, so both packages see the same light curves (the transit
 from batman in Python and `rustellar-model` here, which agree to a few
 parts in 10^8).
 
-A run over every set takes tens of minutes on a desktop CPU, most of it the
-two 2-minute sets; `--limit` makes a quick check.
+A run over every set takes about 4 minutes on 16 threads with the GPU (an
+AMD Ryzen 7 5700G and an RTX 3060 Ti), most of it the two 2-minute sets;
+`--limit` makes a quick check. The results are in `rustellar-tls`'s
+README.
 
 ## rustellar-bls against rustellar-tls on limb-darkened transits
 
@@ -62,4 +64,5 @@ family, by signal to noise and in all, then transitleastsquares 1.32 on the
 quarter of the curves it was run on (`rustellar-bls`'s
 `tests/reference/limb_tls.csv`). `--step N` takes every N-th block of eight
 curves (each family with a transit, then without). Every curve takes both
-searches on one thread each, about a second on these light curves.
+searches on one thread each; all 2,000 take about 8 minutes on the same
+machine.
