@@ -4,7 +4,7 @@
 use std::num::NonZeroUsize;
 use std::thread;
 
-use rustellar_bls::Device;
+use rustellar_core::Device;
 use rustellar_model::{LimbDarkening, RadiusRatio};
 
 use crate::TlsError;

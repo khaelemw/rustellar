@@ -1,5 +1,7 @@
 use std::fmt;
 
+use rustellar_core::GridError;
+
 /// Why a search's inputs could not be built.
 ///
 /// New variants may be added in minor releases, so a `match` on this type needs
@@ -8,11 +10,11 @@ use std::fmt;
 /// # Examples
 ///
 /// ```
-/// use rustellar_bls::{BlsError, Periods};
+/// use rustellar_bls::{BlsError, Durations};
 ///
-/// let err = Periods::from_days(&[1.0, -2.0]).unwrap_err();
-/// assert_eq!(err, BlsError::PeriodNotPositive);
-/// assert_eq!(err.to_string(), "periods must be greater than zero");
+/// let err = Durations::from_days(&[0.1, -0.2]).unwrap_err();
+/// assert_eq!(err, BlsError::DurationNotPositive);
+/// assert_eq!(err.to_string(), "durations must be greater than zero");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -26,8 +28,6 @@ pub enum BlsError {
     NoDurations,
     /// A duration is zero or negative.
     DurationNotPositive,
-    /// The list of periods is empty.
-    NoPeriods,
     /// A period is zero or negative.
     PeriodNotPositive,
     /// The longest duration is not shorter than the shortest period, so the
@@ -52,8 +52,6 @@ pub enum BlsError {
         /// Which setting, such as `"stellar_radius"`.
         name: &'static str,
     },
-    /// The grid would hold more than 100 million periods.
-    GridTooLarge,
     /// The search would need more than 1 million phase bins at its longest
     /// period: the longest period times `oversample`, over the shortest
     /// duration, is too large.
@@ -72,6 +70,10 @@ pub enum BlsError {
     /// missing, the `cuda` feature is off, or the GPU failed during the
     /// search.
     GpuUnavailable,
+    /// The periods could not be made: a [`Periods`](crate::Periods) list or
+    /// an [`OfirPeriod`](crate::OfirPeriod) grid failed, so `?` works on
+    /// them in a function returning `BlsError`.
+    Grid(GridError),
 }
 
 impl fmt::Display for BlsError {
@@ -80,7 +82,6 @@ impl fmt::Display for BlsError {
             Self::NonFinite { name } => write!(f, "{name} must be finite"),
             Self::NoDurations => write!(f, "at least one duration is needed"),
             Self::DurationNotPositive => write!(f, "durations must be greater than zero"),
-            Self::NoPeriods => write!(f, "at least one period is needed"),
             Self::PeriodNotPositive => write!(f, "periods must be greater than zero"),
             Self::DurationNotShorterThanPeriod => write!(
                 f,
@@ -111,10 +112,7 @@ impl fmt::Display for BlsError {
                 f,
                 "the weights 1 / flux_err^2, or sums built from them, are out of range for an f64"
             ),
-            Self::GridTooLarge => write!(
-                f,
-                "the period grid would hold more than 100 million periods"
-            ),
+            Self::Grid(error) => write!(f, "the periods: {error}"),
             Self::TooManyBins => write!(
                 f,
                 "the longest period would need more than 1 million phase bins"
@@ -123,4 +121,27 @@ impl fmt::Display for BlsError {
     }
 }
 
-impl std::error::Error for BlsError {}
+impl std::error::Error for BlsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Grid(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+/// # Examples
+///
+/// ```
+/// use rustellar_bls::{BlsError, GridError, Periods};
+///
+/// fn periods() -> Result<Periods, BlsError> {
+///     Ok(Periods::from_days(&[])?)
+/// }
+/// assert_eq!(periods(), Err(BlsError::Grid(GridError::NoPeriods)));
+/// ```
+impl From<GridError> for BlsError {
+    fn from(error: GridError) -> Self {
+        Self::Grid(error)
+    }
+}

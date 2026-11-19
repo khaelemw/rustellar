@@ -89,3 +89,69 @@ impl fmt::Display for TimeError {
 }
 
 impl std::error::Error for TimeError {}
+
+/// Why a [`Periods`](crate::Periods) list or an
+/// [`OfirPeriod`](crate::OfirPeriod) grid could not be made.
+///
+/// New variants may be added in minor releases, so a `match` on this type needs
+/// a wildcard arm.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_core::{GridError, Periods};
+///
+/// let err = Periods::from_days(&[1.0, -2.0]).unwrap_err();
+/// assert_eq!(err, GridError::PeriodNotPositive);
+/// assert_eq!(err.to_string(), "periods must be greater than zero");
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum GridError {
+    /// A value is NaN or infinite.
+    NonFinite {
+        /// Which input, such as `"period"` or `"stellar_radius"`.
+        name: &'static str,
+    },
+    /// The list of periods is empty.
+    NoPeriods,
+    /// A period is zero or negative.
+    PeriodNotPositive,
+    /// The light curve has a single time, so it spans no baseline to build a
+    /// period grid from.
+    NoBaseline,
+    /// [`OfirPeriod::minimum_n_transit`](crate::OfirPeriod::minimum_n_transit)
+    /// is below 2.
+    TooFewTransits,
+    /// The shortest period of a grid is above its longest.
+    PeriodRangeEmpty,
+    /// A setting that must be greater than zero is zero or negative.
+    NotPositive {
+        /// Which setting, such as `"stellar_radius"`.
+        name: &'static str,
+    },
+    /// The grid would hold more than 100 million periods.
+    GridTooLarge,
+}
+
+impl fmt::Display for GridError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NonFinite { name } => write!(f, "{name} must be finite"),
+            Self::NoPeriods => write!(f, "at least one period is needed"),
+            Self::PeriodNotPositive => write!(f, "periods must be greater than zero"),
+            Self::NoBaseline => write!(f, "the light curve must span more than one time"),
+            Self::TooFewTransits => write!(f, "minimum_n_transit must be at least 2"),
+            Self::PeriodRangeEmpty => {
+                write!(f, "the minimum period must not be above the maximum period")
+            }
+            Self::NotPositive { name } => write!(f, "{name} must be greater than zero"),
+            Self::GridTooLarge => write!(
+                f,
+                "the period grid would hold more than 100 million periods"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for GridError {}

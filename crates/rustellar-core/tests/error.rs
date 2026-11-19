@@ -1,5 +1,5 @@
 use rstest::rstest;
-use rustellar_core::{LightCurveError, TimeError};
+use rustellar_core::{GridError, LightCurveError, TimeError};
 
 #[rstest]
 #[case::empty(LightCurveError::Empty, "light curve has no points")]
@@ -28,4 +28,26 @@ fn lightcurve_error_display_message(#[case] error: LightCurveError, #[case] expe
 #[case::non_finite(TimeError::NonFinite, "time value must be finite")]
 fn time_error_display_message(#[case] error: TimeError, #[case] expected: &str) {
     assert_eq!(error.to_string(), expected);
+}
+
+#[rstest]
+#[case(GridError::NonFinite { name: "period" }, "period must be finite")]
+#[case(GridError::NoPeriods, "at least one period is needed")]
+#[case(GridError::PeriodNotPositive, "periods must be greater than zero")]
+#[case(GridError::NoBaseline, "the light curve must span more than one time")]
+#[case(GridError::TooFewTransits, "minimum_n_transit must be at least 2")]
+#[case(
+    GridError::PeriodRangeEmpty,
+    "the minimum period must not be above the maximum period"
+)]
+#[case(
+    GridError::NotPositive { name: "stellar_mass" },
+    "stellar_mass must be greater than zero"
+)]
+#[case(
+    GridError::GridTooLarge,
+    "the period grid would hold more than 100 million periods"
+)]
+fn grid_error_messages(#[case] error: GridError, #[case] message: &str) {
+    assert_eq!(error.to_string(), message);
 }

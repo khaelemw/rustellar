@@ -5,7 +5,7 @@
 use std::f64::consts::PI;
 use std::num::NonZeroUsize;
 
-use rustellar_bls::OfirPeriod;
+use rustellar_core::OfirPeriod;
 use rustellar_core::{Epoch, LightCurve, TimeDelta};
 use rustellar_model::{
     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,

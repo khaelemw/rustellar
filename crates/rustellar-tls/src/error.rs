@@ -1,5 +1,7 @@
 use std::fmt;
 
+use rustellar_core::GridError;
+
 /// Why a search could not be run.
 ///
 /// New variants may be added in minor releases, so a `match` on this type
@@ -48,6 +50,10 @@ pub enum TlsError {
     /// used: there is no such GPU, the CUDA driver or NVRTC library is
     /// missing, or the `cuda` feature is off.
     GpuUnavailable,
+    /// The periods could not be made: a [`Periods`](crate::Periods) list or
+    /// an [`OfirPeriod`](crate::OfirPeriod) grid failed, so `?` works on
+    /// them in a function returning `TlsError`.
+    Grid(GridError),
 }
 
 impl fmt::Display for TlsError {
@@ -63,8 +69,32 @@ impl fmt::Display for TlsError {
             }
             Self::TemplateNotTransiting => f.write_str("the template's planet does not transit"),
             Self::GpuUnavailable => f.write_str("the GPU asked for cannot be used"),
+            Self::Grid(error) => write!(f, "the periods: {error}"),
         }
     }
 }
 
-impl std::error::Error for TlsError {}
+impl std::error::Error for TlsError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Grid(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
+/// # Examples
+///
+/// ```
+/// use rustellar_tls::{GridError, Periods, TlsError};
+///
+/// fn periods() -> Result<Periods, TlsError> {
+///     Ok(Periods::from_days(&[])?)
+/// }
+/// assert_eq!(periods(), Err(TlsError::Grid(GridError::NoPeriods)));
+/// ```
+impl From<GridError> for TlsError {
+    fn from(error: GridError) -> Self {
+        Self::Grid(error)
+    }
+}

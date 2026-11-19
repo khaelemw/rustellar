@@ -23,7 +23,7 @@ pub(crate) struct Constants {
 }
 
 impl Constants {
-    /// IAU 2015 Resolution B3 nominal solar values (as `rustellar-bls`'s
+    /// IAU 2015 Resolution B3 nominal solar values (as `rustellar-core`'s
     /// Ofir grid), and Jupiter's mean radius, 69,911 km (as TLS).
     pub(crate) const IAU: Self = Self {
         gm_sun: 1.327_124_4e20,

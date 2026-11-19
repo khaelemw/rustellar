@@ -15,4 +15,6 @@ All notable changes to this crate are recorded here. The format follows
 - `TlsResult`: each period's fit, the spectra, and the best `Candidate`
   with standard errors (curvature and bootstrap), per-transit and odd/even depths, white and pink
   signal to noise, and its free transit shape.
-- `TlsError`.
+- `TlsError`, with `TlsError::Grid` for the period grid's errors.
+- The core types re-exported, and the period grid and `Device` from
+  `rustellar-core`: the crate no longer depends on `rustellar-bls`.

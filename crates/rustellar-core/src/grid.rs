@@ -1,15 +1,116 @@
-//! Ofir's (2014) optimal period grid: dense where transits are short, sparse
-//! where they are long, so it needs far fewer periods than an even frequency
-//! grid for the same sensitivity.
+//! Trial periods for a transit search: any list, checked once when built,
+//! or Ofir's (2014) optimal grid, dense where transits are short and sparse
+//! where they are long, so it needs far fewer periods than an even
+//! frequency grid for the same sensitivity.
 
 use std::f64::consts::{PI, TAU};
 
-use rustellar_core::{LightCurve, TimeDelta};
+use crate::{GridError, LightCurve, TimeDelta};
 
-use crate::{
-    BlsError,
-    grid::{Periods, positive_days},
-};
+/// The trial periods: at least one, each greater than zero.
+///
+/// Any list will do, in any order, such as a pipeline's own log-spaced grid
+/// or a zoom around a peak.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_core::Periods;
+///
+/// let periods = Periods::from_days(&[0.5, 1.0, 2.0, 4.0])?;
+/// assert_eq!(periods.min().as_days(), 0.5);
+/// # Ok::<(), rustellar_core::GridError>(())
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub struct Periods(Vec<TimeDelta>);
+
+impl Periods {
+    /// Checks and keeps the periods.
+    ///
+    /// # Errors
+    ///
+    /// - [`GridError::NoPeriods`] if `periods` is empty.
+    /// - [`GridError::PeriodNotPositive`] if any is zero or negative.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{GridError, Periods, TimeDelta};
+    ///
+    /// let periods = Periods::new(vec![TimeDelta::from_days(3.0)?])?;
+    /// assert_eq!(periods.as_slice().len(), 1);
+    /// assert_eq!(Periods::new(vec![]), Err(GridError::NoPeriods));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn new(periods: Vec<TimeDelta>) -> Result<Self, GridError> {
+        if periods.is_empty() {
+            return Err(GridError::NoPeriods);
+        }
+        if periods.iter().any(|period| period.as_days() <= 0.0) {
+            return Err(GridError::PeriodNotPositive);
+        }
+        Ok(Self(periods))
+    }
+
+    /// Periods from a list of days.
+    ///
+    /// # Errors
+    ///
+    /// - [`GridError::NonFinite`] (`name: "period"`) if any is NaN or infinite.
+    ///   Every value is checked for this first.
+    /// - Otherwise as [`Periods::new`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{GridError, Periods};
+    ///
+    /// assert!(Periods::from_days(&[1.0, 2.0]).is_ok());
+    /// assert_eq!(Periods::from_days(&[0.0]), Err(GridError::PeriodNotPositive));
+    /// ```
+    pub fn from_days(days: &[f64]) -> Result<Self, GridError> {
+        let periods = days
+            .iter()
+            .map(|&d| TimeDelta::from_days(d).map_err(|_| GridError::NonFinite { name: "period" }))
+            .collect::<Result<_, _>>()?;
+        Self::new(periods)
+    }
+
+    /// The periods, in the order given.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::Periods;
+    ///
+    /// let periods = Periods::from_days(&[3.0, 1.0])?;
+    /// assert_eq!(periods.as_slice()[1].as_days(), 1.0);
+    /// # Ok::<(), rustellar_core::GridError>(())
+    /// ```
+    #[must_use]
+    pub fn as_slice(&self) -> &[TimeDelta] {
+        &self.0
+    }
+
+    /// The shortest period.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::Periods;
+    ///
+    /// assert_eq!(Periods::from_days(&[3.0, 1.0])?.min().as_days(), 1.0);
+    /// # Ok::<(), rustellar_core::GridError>(())
+    /// ```
+    #[must_use]
+    pub fn min(&self) -> TimeDelta {
+        self.0
+            .iter()
+            .copied()
+            .reduce(|best, p| if p < best { p } else { best })
+            .expect("checked non-empty when built")
+    }
+}
 
 /// The Sun's mass parameter `G M`, IAU 2015 Resolution B3 nominal value, in
 /// m³ s⁻².
@@ -68,8 +169,7 @@ const MAXIMUM_COUNT: f64 = 1e8;
 /// # Examples
 ///
 /// ```
-/// use rustellar_bls::OfirPeriod;
-/// use rustellar_core::LightCurve;
+/// use rustellar_core::{LightCurve, OfirPeriod};
 ///
 /// // One TESS sector, a Sun-like star.
 /// let lc = LightCurve::from_btjd(vec![1325.293, 1353.177], vec![1.0; 2], vec![1e-3; 2])?;
@@ -119,23 +219,22 @@ impl OfirPeriod {
     ///
     /// In this order:
     ///
-    /// - [`BlsError::TooFewTransits`] if `minimum_n_transit` is below 2.
-    /// - [`BlsError::NonFinite`] or [`BlsError::NotPositive`] (`name`
+    /// - [`GridError::TooFewTransits`] if `minimum_n_transit` is below 2.
+    /// - [`GridError::NonFinite`] or [`GridError::NotPositive`] (`name`
     ///   `"stellar_radius"`, `"stellar_mass"` or `"oversampling_factor"`)
     ///   for a bad setting.
-    /// - [`BlsError::PeriodNotPositive`] if a set `minimum_period` or
+    /// - [`GridError::PeriodNotPositive`] if a set `minimum_period` or
     ///   `maximum_period` is zero or negative.
-    /// - [`BlsError::NoBaseline`] if the light curve has a single time.
-    /// - [`BlsError::PeriodRangeEmpty`] if the shortest period is above the
+    /// - [`GridError::NoBaseline`] if the light curve has a single time.
+    /// - [`GridError::PeriodRangeEmpty`] if the shortest period is above the
     ///   longest.
-    /// - [`BlsError::GridTooLarge`] if the grid would hold more than 100
+    /// - [`GridError::GridTooLarge`] if the grid would hold more than 100
     ///   million periods.
     ///
     /// # Examples
     ///
     /// ```
-    /// use rustellar_bls::{BlsError, OfirPeriod};
-    /// use rustellar_core::{LightCurve, TimeDelta};
+    /// use rustellar_core::{GridError, LightCurve, OfirPeriod, TimeDelta};
     ///
     /// let lc = LightCurve::from_btjd(vec![1325.293, 1353.177], vec![1.0; 2], vec![1e-3; 2])?;
     ///
@@ -148,12 +247,12 @@ impl OfirPeriod {
     /// assert_eq!(range.periods(&lc)?.as_slice().len(), 2835);
     ///
     /// let no_star = OfirPeriod { stellar_mass: 0.0, ..OfirPeriod::default() };
-    /// assert_eq!(no_star.periods(&lc), Err(BlsError::NotPositive { name: "stellar_mass" }));
+    /// assert_eq!(no_star.periods(&lc), Err(GridError::NotPositive { name: "stellar_mass" }));
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn periods(&self, lc: &LightCurve) -> Result<Periods, BlsError> {
+    pub fn periods(&self, lc: &LightCurve) -> Result<Periods, GridError> {
         if self.minimum_n_transit < 2 {
-            return Err(BlsError::TooFewTransits);
+            return Err(GridError::TooFewTransits);
         }
         let radius = positive(self.stellar_radius, "stellar_radius")?;
         let mass = positive(self.stellar_mass, "stellar_mass")?;
@@ -165,7 +264,7 @@ impl OfirPeriod {
         let time = lc.time();
         let baseline = (time[time.len() - 1] - time[0]).as_days();
         if baseline <= 0.0 {
-            return Err(BlsError::NoBaseline);
+            return Err(GridError::NoBaseline);
         }
 
         // SI units throughout: metres, seconds, hertz.
@@ -185,7 +284,7 @@ impl OfirPeriod {
             }
         };
         if minimum_frequency > maximum_frequency {
-            return Err(BlsError::PeriodRangeEmpty);
+            return Err(GridError::PeriodRangeEmpty);
         }
 
         // (2π)^(2/3) as the cube root of (2π)², and cube roots by `cbrt`,
@@ -194,7 +293,7 @@ impl OfirPeriod {
         let c = minimum_frequency.cbrt() - a / 3.0;
         let n_opt = (maximum_frequency.cbrt() - minimum_frequency.cbrt() + a / 3.0) * 3.0 / a;
         if n_opt.is_nan() || n_opt > MAXIMUM_COUNT {
-            return Err(BlsError::GridTooLarge);
+            return Err(GridError::GridTooLarge);
         }
 
         // At least one: with equal edges, rounding can put n_opt just below 1.
@@ -216,12 +315,21 @@ impl OfirPeriod {
     }
 }
 
-fn positive(value: f64, name: &'static str) -> Result<f64, BlsError> {
+fn positive(value: f64, name: &'static str) -> Result<f64, GridError> {
     if !value.is_finite() {
-        return Err(BlsError::NonFinite { name });
+        return Err(GridError::NonFinite { name });
     }
     if value <= 0.0 {
-        return Err(BlsError::NotPositive { name });
+        return Err(GridError::NotPositive { name });
     }
     Ok(value)
+}
+
+// A set period in days, which must be greater than zero.
+fn positive_days(period: TimeDelta) -> Result<f64, GridError> {
+    let days = period.as_days();
+    if days <= 0.0 {
+        return Err(GridError::PeriodNotPositive);
+    }
+    Ok(days)
 }

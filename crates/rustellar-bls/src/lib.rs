@@ -35,7 +35,6 @@ mod cuda;
 mod error;
 mod exact;
 mod grid;
-mod ofir;
 mod parallel;
 mod refine;
 mod search;
@@ -51,16 +50,16 @@ pub use autoperiod::AutoPeriod;
 pub use box_fit::{BoxFit, TransitBox};
 pub use error::BlsError;
 pub use exact::BestBox;
-pub use grid::{Durations, Periods};
-pub use ofir::OfirPeriod;
-pub use search::{Bls, BlsResult, Device, Objective, Peak, SearchOptions};
+pub use grid::Durations;
+pub use search::{Bls, BlsResult, Objective, Peak, SearchOptions};
 
 // Core's types, which this crate's API takes and returns: with them the
 // crate works on its own, without listing rustellar-core, and always with
 // the core it was built on. The same types, not copies.
 #[doc(no_inline)]
 pub use rustellar_core::{
-    Epoch, FoldedLightCurve, LightCurve, LightCurveError, TimeDelta, TimeError,
+    Device, Epoch, FoldedLightCurve, GridError, LightCurve, LightCurveError, OfirPeriod, Periods,
+    TimeDelta, TimeError,
 };
 
 // The README's example, compiled and run as a doctest.

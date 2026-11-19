@@ -5,8 +5,7 @@
 use std::f64::consts::{PI, TAU};
 
 use rstest::rstest;
-use rustellar_bls::{AutoPeriod, BlsError, Durations, OfirPeriod, Periods};
-use rustellar_core::{LightCurve, TimeDelta};
+use rustellar_core::{GridError, LightCurve, OfirPeriod, Periods, TimeDelta};
 
 // ==========================
 // Helper Functions
@@ -227,29 +226,6 @@ fn defaults_are_ofirs() {
     );
 }
 
-// The pipeline's range on one sector: astropy's even frequency grid needs
-// about 50 times as many periods.
-#[test]
-fn far_fewer_periods_than_astropys_grid() {
-    let (minimum_period, maximum_period) = (days(0.5), days(15.0));
-    let ofir = OfirPeriod {
-        minimum_period,
-        maximum_period,
-        ..OfirPeriod::default()
-    }
-    .periods(&sector())
-    .unwrap();
-    let astropy = AutoPeriod {
-        minimum_period,
-        maximum_period,
-        ..AutoPeriod::default()
-    }
-    .periods(&sector(), &Durations::from_days(&[0.01, 0.35]).unwrap())
-    .unwrap();
-    let (ofir, astropy) = (ofir.as_slice().len(), astropy.as_slice().len());
-    assert!(50 * ofir < astropy, "{ofir} vs {astropy}");
-}
-
 // A range of a single period gives just that period.
 #[test]
 fn equal_minimum_and_maximum() {
@@ -275,7 +251,7 @@ fn too_few_transits(#[case] minimum_n_transit: u32) {
         minimum_n_transit,
         ..OfirPeriod::default()
     };
-    assert_eq!(settings.periods(&sector()), Err(BlsError::TooFewTransits));
+    assert_eq!(settings.periods(&sector()), Err(GridError::TooFewTransits));
 }
 
 fn with(name: &str, value: f64) -> OfirPeriod {
@@ -294,9 +270,9 @@ fn bad_setting(
     #[values(f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 0.0, -1.0)] value: f64,
 ) {
     let error = if value.is_finite() {
-        BlsError::NotPositive { name }
+        GridError::NotPositive { name }
     } else {
-        BlsError::NonFinite { name }
+        GridError::NonFinite { name }
     };
     assert_eq!(with(name, value).periods(&sector()), Err(error));
 }
@@ -337,7 +313,7 @@ fn set_period_not_positive(
     };
     assert_eq!(
         settings.periods(&sector()),
-        Err(BlsError::PeriodNotPositive)
+        Err(GridError::PeriodNotPositive)
     );
 }
 
@@ -346,7 +322,7 @@ fn single_time_has_no_baseline() {
     let lc = LightCurve::from_btjd(vec![1325.0], vec![1.0], vec![1e-3]).unwrap();
     assert_eq!(
         OfirPeriod::default().periods(&lc),
-        Err(BlsError::NoBaseline)
+        Err(GridError::NoBaseline)
     );
 }
 
@@ -368,7 +344,7 @@ fn reversed_range(
     };
     assert_eq!(
         settings.periods(&light_curve(t_min, t_max)),
-        Err(BlsError::PeriodRangeEmpty)
+        Err(GridError::PeriodRangeEmpty)
     );
 }
 
@@ -379,5 +355,5 @@ fn grid_too_large() {
         stellar_radius: 1e-6,
         ..OfirPeriod::default()
     };
-    assert_eq!(settings.periods(&sector()), Err(BlsError::GridTooLarge));
+    assert_eq!(settings.periods(&sector()), Err(GridError::GridTooLarge));
 }

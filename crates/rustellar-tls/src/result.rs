@@ -1,7 +1,7 @@
 //! What a search found: the best fit at each period, the spectra, and the
 //! best candidate with what is known about it.
 
-use rustellar_bls::Device;
+use rustellar_core::Device;
 use rustellar_core::{Epoch, TimeDelta};
 
 /// A time in days as an [`Epoch`]; the light curve's times are finite, and

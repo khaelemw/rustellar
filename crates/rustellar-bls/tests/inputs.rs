@@ -2,7 +2,7 @@
 // are kept exactly as given.
 
 use rstest::rstest;
-use rustellar_bls::{BlsError, Durations, Periods};
+use rustellar_bls::{BlsError, Durations, GridError, Periods};
 use rustellar_core::TimeDelta;
 
 // ==========================
@@ -93,45 +93,22 @@ fn non_finite_is_found_before_sign() {
 // Periods
 // ==========================
 
+// A period list's or grid's error, wrapped: `?` works on them, the message
+// names the periods, and the grid's error is the source.
 #[test]
-fn periods_are_kept_in_order() {
-    let periods = Periods::new(days(&[3.0, 0.5, 10.0])).unwrap();
-    assert_eq!(periods.as_slice(), days(&[3.0, 0.5, 10.0]).as_slice());
-}
-
-#[test]
-fn periods_min() {
+fn grid_errors_are_wrapped() {
+    fn build() -> Result<Periods, BlsError> {
+        Ok(Periods::from_days(&[])?)
+    }
+    let error = build().unwrap_err();
+    assert_eq!(error, BlsError::Grid(GridError::NoPeriods));
     assert_eq!(
-        Periods::from_days(&[3.0, 0.5, 10.0])
-            .unwrap()
-            .min()
-            .as_days(),
-        0.5
+        error.to_string(),
+        "the periods: at least one period is needed"
     );
-}
-
-#[test]
-fn no_periods() {
-    assert_eq!(Periods::new(vec![]), Err(BlsError::NoPeriods));
-    assert_eq!(Periods::from_days(&[]), Err(BlsError::NoPeriods));
-}
-
-#[rstest]
-#[case::zero(0.0)]
-#[case::negative(-3.0)]
-fn period_not_positive(#[case] bad: f64) {
-    assert_eq!(
-        Periods::from_days(&[1.0, bad]),
-        Err(BlsError::PeriodNotPositive)
-    );
-}
-
-#[test]
-fn period_not_finite() {
-    assert_eq!(
-        Periods::from_days(&[f64::NAN]),
-        Err(BlsError::NonFinite { name: "period" })
-    );
+    let source = std::error::Error::source(&error).unwrap();
+    assert_eq!(source.to_string(), "at least one period is needed");
+    assert!(std::error::Error::source(&BlsError::NoDurations).is_none());
 }
 
 // ==========================
@@ -142,7 +119,6 @@ fn period_not_finite() {
 #[case(BlsError::NonFinite { name: "period" }, "period must be finite")]
 #[case(BlsError::NoDurations, "at least one duration is needed")]
 #[case(BlsError::DurationNotPositive, "durations must be greater than zero")]
-#[case(BlsError::NoPeriods, "at least one period is needed")]
 #[case(BlsError::PeriodNotPositive, "periods must be greater than zero")]
 #[case(
     BlsError::DurationNotShorterThanPeriod,
@@ -174,10 +150,6 @@ fn period_not_finite() {
 #[case(
     BlsError::OutOfRange,
     "the weights 1 / flux_err^2, or sums built from them, are out of range for an f64"
-)]
-#[case(
-    BlsError::GridTooLarge,
-    "the period grid would hold more than 100 million periods"
 )]
 #[case(
     BlsError::TooManyBins,

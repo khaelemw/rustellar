@@ -418,7 +418,6 @@ version = "0.0.0"
 dependencies = [
  "criterion",
  "cudarc",
- "rustellar-bls",
  "rustellar-core",
  "rustellar-model",
 ]

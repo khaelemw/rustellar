@@ -1,8 +1,8 @@
 //! The search: a light curve checked once, searched with any periods and
 //! options.
 
-use rustellar_bls::{Device, Periods};
 use rustellar_core::LightCurve;
+use rustellar_core::{Device, Periods};
 
 use crate::TlsError;
 use crate::durations::Constants;
@@ -136,7 +136,7 @@ impl Tls {
             }
             #[cfg(not(feature = "cuda"))]
             Device::Gpu(_) => return Err(TlsError::GpuUnavailable),
-            // The CPU, and anything a later rustellar-bls adds.
+            // The CPU, and anything a later rustellar-core adds.
             _ => search::Device::Cpu,
         };
         let internal = Options {

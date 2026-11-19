@@ -28,6 +28,13 @@ All notable changes to this crate are recorded here. The format follows
   `Peak::grid_objective`). Runs on all cores with the same results, to the
   bit, on any number; `search_into` reuses a result's memory.
 - `BlsError::TooManyBins`.
+
+### Changed
+
+- `Periods`, `OfirPeriod` and `Device` are now `rustellar-core`'s,
+  re-exported here unchanged, so every search shares one period grid.
+  Their errors come as `BlsError::Grid(GridError)`, which replaces
+  `BlsError::NoPeriods` and `BlsError::GridTooLarge`.
 - `Device`, `SearchOptions::device`, `BlsResult::device` and
   `BlsError::GpuUnavailable`; with the feature `cuda` (Rust 1.88),
   `Bls::search` runs its binned step and its refinement of the peaks on an

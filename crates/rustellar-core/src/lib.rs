@@ -5,6 +5,9 @@
 //! - [`TimeDelta`]: a length of time, such as a period or a duration.
 //! - [`LightCurve`]: matching time, flux and flux-error arrays, checked once
 //!   when built, which can be [folded](LightCurve::fold) on a period.
+//! - [`Periods`] and [`OfirPeriod`]: the trial periods of a transit search,
+//!   any list or Ofir's (2014) optimal grid.
+//! - [`Device`]: where a search runs, the CPU or a GPU.
 //!
 //! Constructors check their input and return an error instead of panicking;
 //! once a value exists it is valid. There are no dependencies.
@@ -27,10 +30,14 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod device;
 mod error;
+mod grid;
 mod lightcurve;
 mod time;
 
-pub use error::{LightCurveError, TimeError};
+pub use device::Device;
+pub use error::{GridError, LightCurveError, TimeError};
+pub use grid::{OfirPeriod, Periods};
 pub use lightcurve::{FoldedLightCurve, LightCurve};
 pub use time::{Epoch, TimeDelta};

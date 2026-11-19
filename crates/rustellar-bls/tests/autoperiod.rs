@@ -3,7 +3,7 @@
 // carries on with a bad input.
 
 use rstest::rstest;
-use rustellar_bls::{AutoPeriod, BlsError, Durations, Periods};
+use rustellar_bls::{AutoPeriod, BlsError, Durations, OfirPeriod, Periods};
 use rustellar_core::{LightCurve, TimeDelta};
 
 // ==========================
@@ -320,4 +320,30 @@ fn equal_minimum_and_maximum() {
         .periods(&one_day_light_curve(), &durations(&[0.1]))
         .unwrap();
     assert_eq!(periods.as_slice(), [TimeDelta::from_days(0.7).unwrap()]);
+}
+
+// The pipeline's range on one sector: astropy's even frequency grid needs
+// about 50 times as many periods.
+#[test]
+fn far_fewer_periods_than_astropys_grid() {
+    let (minimum_period, maximum_period) = (days(0.5), days(15.0));
+    let ofir = OfirPeriod {
+        minimum_period,
+        maximum_period,
+        ..OfirPeriod::default()
+    }
+    .periods(&light_curve(1325.293, 1353.177))
+    .unwrap();
+    let astropy = AutoPeriod {
+        minimum_period,
+        maximum_period,
+        ..AutoPeriod::default()
+    }
+    .periods(
+        &light_curve(1325.293, 1353.177),
+        &Durations::from_days(&[0.01, 0.35]).unwrap(),
+    )
+    .unwrap();
+    let (ofir, astropy) = (ofir.as_slice().len(), astropy.as_slice().len());
+    assert!(50 * ofir < astropy, "{ofir} vs {astropy}");
 }

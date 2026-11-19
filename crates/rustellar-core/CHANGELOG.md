@@ -13,3 +13,5 @@ All notable changes to this crate are recorded here. The format follows
 - `LightCurve`: time, flux and flux error, checked once when built, and
   `fold` into a `FoldedLightCurve`.
 - `LightCurveError` and `TimeError`.
+- `Periods`, `OfirPeriod` (Ofir's 2014 optimal period grid) and
+  `GridError`, shared by the searches; `Device`, where a search runs.

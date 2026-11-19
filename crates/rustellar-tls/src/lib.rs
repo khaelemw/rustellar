@@ -67,7 +67,6 @@ pub use result::{
     Candidate, OddEven, PeriodFit, ShapeUncertainties, SignalToNoise, Spectra, TlsResult,
     TransitDepth, TransitShape, Uncertainties,
 };
-pub use rustellar_bls::{Device, OfirPeriod, Periods};
 pub use tls::Tls;
 
 // Core's types, which this crate's API takes and returns: with them the
@@ -75,7 +74,8 @@ pub use tls::Tls;
 // the core it was built on. The same types, not copies.
 #[doc(no_inline)]
 pub use rustellar_core::{
-    Epoch, FoldedLightCurve, LightCurve, LightCurveError, TimeDelta, TimeError,
+    Device, Epoch, FoldedLightCurve, GridError, LightCurve, LightCurveError, OfirPeriod, Periods,
+    TimeDelta, TimeError,
 };
 
 // The README's example, compiled and run as a doctest.

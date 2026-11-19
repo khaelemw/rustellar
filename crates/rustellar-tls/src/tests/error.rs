@@ -1,6 +1,6 @@
 // Every error says what is wrong.
 
-use crate::TlsError;
+use crate::{GridError, Periods, TlsError};
 
 #[test]
 fn each_error_says_what_is_wrong() {
@@ -42,4 +42,22 @@ fn each_error_says_what_is_wrong() {
         let boxed: Box<dyn std::error::Error> = Box::new(error);
         assert!(boxed.source().is_none());
     }
+}
+
+// A period list's or grid's error, wrapped: `?` works on them, and the
+// grid's error is the source.
+#[test]
+fn grid_errors_are_wrapped() {
+    fn build() -> Result<Periods, TlsError> {
+        Ok(Periods::from_days(&[])?)
+    }
+    let error = build().unwrap_err();
+    assert_eq!(error, TlsError::Grid(GridError::NoPeriods));
+    assert_eq!(
+        error.to_string(),
+        "the periods: at least one period is needed"
+    );
+    let source = std::error::Error::source(&error).unwrap();
+    assert_eq!(source.to_string(), "at least one period is needed");
+    assert!(std::error::Error::source(&TlsError::NoBaseline).is_none());
 }

@@ -6,12 +6,12 @@ use std::num::NonZeroUsize;
 use std::sync::{Arc, PoisonError};
 use std::thread;
 
-use rustellar_core::{Epoch, LightCurve, TimeDelta};
+use rustellar_core::{Device, Epoch, LightCurve, Periods, TimeDelta};
 
 #[cfg(feature = "cuda")]
 use crate::cuda::{CudaError, Gpu, GpuCache};
 use crate::{
-    BestBox, BlsError, BoxFit, Durations, Periods, TransitBox,
+    BestBox, BlsError, BoxFit, Durations, TransitBox,
     binned::{Scratch, best_binned, bin_count},
     box_fit::Weighted,
     grid::check_durations_fit,
@@ -57,7 +57,7 @@ impl Objective {
     ///
     /// ```
     /// use rustellar_bls::{Objective, TransitBox};
-    /// use rustellar_core::{Epoch, LightCurve, TimeDelta};
+    /// use rustellar_core::{Device, Epoch, LightCurve, Periods, TimeDelta};
     ///
     /// let lc = LightCurve::from_btjd(
     ///     vec![0.0, 1.0, 2.0, 3.0],
@@ -100,63 +100,6 @@ impl Objective {
 /// See [`Objective::beat`].
 const BEAT_MARGIN: f64 = 1e-6;
 
-/// Where a search runs.
-///
-/// On an NVIDIA GPU (with the `cuda` feature, the CUDA driver and the NVRTC
-/// library), the binned step and the refinement of the peaks run on the
-/// GPU, and the results are the CPU's with the binned step's power and
-/// boxes known to within a rounding error of the sums at most periods:
-///
-/// - The GPU finds each period's best box from the same bins as the CPU
-///   (every point is put in the bin the CPU puts it in), with the bins'
-///   sums held exactly in 64-bit fixed point. The box is then built on the
-///   CPU from the points it holds: its middle is the CPU's to the bit, and
-///   its fit's sums are over the same points, added in another order.
-/// - At every period whose power could be among the highest peaks or the
-///   highest power, and the periods next to them, the binned step is run on
-///   the CPU, so the peaks and [`BlsResult::best`] are the CPU's to the bit.
-/// - The peaks are refined on the GPU, a batch of folds at once: each fold
-///   is made with the CPU's arithmetic in the CPU's order, and every run of
-///   points scored as the CPU scores it, so each refined box is the CPU's
-///   to the bit. A fold the GPU does not take (more than 2^25 orbits, or a
-///   score that could overflow) is refined on the CPU.
-///
-/// The power elsewhere differs from the CPU's by about 1e-14 of itself
-/// (4e-14 at most, measured on 1 and 13 TESS sectors and 4 years of Kepler),
-/// and where two boxes score within that of each other the other may be
-/// reported. Periods the GPU does not take (bins narrower than 2^-14 days,
-/// more than 2^25 orbits, or a box longer than its shared memory holds) are
-/// searched on the CPU. Choose [`Device::Cpu`] for power that is the same to
-/// the bit on every machine.
-///
-/// A [`Bls`] sets up each GPU once, at its first search there (the kernels
-/// are compiled once a program, in about a quarter of a second), and its
-/// clones share it.
-///
-/// # Examples
-///
-/// ```
-/// use rustellar_bls::{Device, SearchOptions};
-///
-/// // The CPU whatever the features, for power the same to the bit.
-/// let options = SearchOptions::default().with_device(Device::Cpu);
-/// assert_eq!(options.device, Device::Cpu);
-/// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[non_exhaustive]
-pub enum Device {
-    /// The first GPU where the `cuda` feature is on and the GPU can be
-    /// used, and otherwise the CPU, with no error: a GPU that cannot be set
-    /// up, or fails during the search, leaves the search to the CPU.
-    #[default]
-    Auto,
-    /// The CPU.
-    Cpu,
-    /// The GPU of this index (0 for the first), or
-    /// [`BlsError::GpuUnavailable`] where it cannot be used.
-    Gpu(usize),
-}
-
 /// How to run a search.
 ///
 /// Start from [`SearchOptions::default`] and change what you need with the
@@ -193,6 +136,37 @@ pub struct SearchOptions {
     pub threads: NonZeroUsize,
     /// Where the search runs. Default [`Device::Auto`]: an NVIDIA GPU if
     /// the `cuda` feature is on and one can be used, otherwise the CPU.
+    ///
+    /// On an NVIDIA GPU (with the `cuda` feature, the CUDA driver and the NVRTC
+    /// library), the binned step and the refinement of the peaks run on the
+    /// GPU, and the results are the CPU's with the binned step's power and
+    /// boxes known to within a rounding error of the sums at most periods:
+    ///
+    /// - The GPU finds each period's best box from the same bins as the CPU
+    ///   (every point is put in the bin the CPU puts it in), with the bins'
+    ///   sums held exactly in 64-bit fixed point. The box is then built on the
+    ///   CPU from the points it holds: its middle is the CPU's to the bit, and
+    ///   its fit's sums are over the same points, added in another order.
+    /// - At every period whose power could be among the highest peaks or the
+    ///   highest power, and the periods next to them, the binned step is run on
+    ///   the CPU, so the peaks and [`BlsResult::best`] are the CPU's to the bit.
+    /// - The peaks are refined on the GPU, a batch of folds at once: each fold
+    ///   is made with the CPU's arithmetic in the CPU's order, and every run of
+    ///   points scored as the CPU scores it, so each refined box is the CPU's
+    ///   to the bit. A fold the GPU does not take (more than 2^25 orbits, or a
+    ///   score that could overflow) is refined on the CPU.
+    ///
+    /// The power elsewhere differs from the CPU's by about 1e-14 of itself
+    /// (4e-14 at most, measured on 1 and 13 TESS sectors and 4 years of Kepler),
+    /// and where two boxes score within that of each other the other may be
+    /// reported. Periods the GPU does not take (bins narrower than 2^-14 days,
+    /// more than 2^25 orbits, or a box longer than its shared memory holds) are
+    /// searched on the CPU. Choose [`Device::Cpu`] for power that is the same to
+    /// the bit on every machine.
+    ///
+    /// A [`Bls`] sets up each GPU once, at its first search there (the kernels
+    /// are compiled once a program, in about a quarter of a second), and its
+    /// clones share it.
     pub device: Device,
 }
 
@@ -615,7 +589,6 @@ impl Bls {
         result: &mut BlsResult,
     ) -> Result<(), BlsError> {
         match options.device {
-            Device::Cpu => {}
             Device::Auto => {
                 #[cfg(feature = "cuda")]
                 if let Some(gpu) = self.gpu(0) {
@@ -644,6 +617,8 @@ impl Bls {
                     return Err(BlsError::GpuUnavailable);
                 }
             }
+            // The CPU, and any device a later core adds.
+            _ => {}
         }
         self.search_on_cpu(periods, durations, options, result)
     }

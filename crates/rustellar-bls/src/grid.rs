@@ -7,7 +7,7 @@
 //! negative value is an error, and the duration check runs when a search is
 //! set up ([`check_durations_fit`]).
 
-use rustellar_core::TimeDelta;
+use rustellar_core::{Periods, TimeDelta};
 
 use crate::BlsError;
 
@@ -40,7 +40,7 @@ impl Durations {
     ///
     /// ```
     /// use rustellar_bls::{BlsError, Durations};
-    /// use rustellar_core::TimeDelta;
+    /// use rustellar_core::{Periods, TimeDelta};
     ///
     /// let durations = Durations::new(vec![TimeDelta::from_hours(3.0)?])?;
     /// assert_eq!(durations.as_slice().len(), 1);
@@ -123,99 +123,6 @@ impl Durations {
     #[must_use]
     pub fn max(&self) -> TimeDelta {
         extreme(&self.0, |a, b| b > a)
-    }
-}
-
-/// The trial periods: at least one, each greater than zero.
-///
-/// Any list will do, in any order, such as a pipeline's own log-spaced grid
-/// or a zoom around a peak.
-///
-/// # Examples
-///
-/// ```
-/// use rustellar_bls::Periods;
-///
-/// let periods = Periods::from_days(&[0.5, 1.0, 2.0, 4.0])?;
-/// assert_eq!(periods.min().as_days(), 0.5);
-/// # Ok::<(), rustellar_bls::BlsError>(())
-/// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct Periods(pub(crate) Vec<TimeDelta>);
-
-impl Periods {
-    /// Checks and keeps the periods.
-    ///
-    /// # Errors
-    ///
-    /// - [`BlsError::NoPeriods`] if `periods` is empty.
-    /// - [`BlsError::PeriodNotPositive`] if any is zero or negative.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rustellar_bls::{BlsError, Periods};
-    /// use rustellar_core::TimeDelta;
-    ///
-    /// let periods = Periods::new(vec![TimeDelta::from_days(3.0)?])?;
-    /// assert_eq!(periods.as_slice().len(), 1);
-    /// assert_eq!(Periods::new(vec![]), Err(BlsError::NoPeriods));
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    pub fn new(periods: Vec<TimeDelta>) -> Result<Self, BlsError> {
-        check_positive(&periods, BlsError::NoPeriods, BlsError::PeriodNotPositive)?;
-        Ok(Self(periods))
-    }
-
-    /// Periods from a list of days.
-    ///
-    /// # Errors
-    ///
-    /// - [`BlsError::NonFinite`] (`name: "period"`) if any is NaN or infinite.
-    ///   Every value is checked for this first.
-    /// - Otherwise as [`Periods::new`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rustellar_bls::{BlsError, Periods};
-    ///
-    /// assert!(Periods::from_days(&[1.0, 2.0]).is_ok());
-    /// assert_eq!(Periods::from_days(&[0.0]), Err(BlsError::PeriodNotPositive));
-    /// ```
-    pub fn from_days(days: &[f64]) -> Result<Self, BlsError> {
-        Self::new(to_time_deltas(days, "period")?)
-    }
-
-    /// The periods, in the order given.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rustellar_bls::Periods;
-    ///
-    /// let periods = Periods::from_days(&[3.0, 1.0])?;
-    /// assert_eq!(periods.as_slice()[1].as_days(), 1.0);
-    /// # Ok::<(), rustellar_bls::BlsError>(())
-    /// ```
-    #[must_use]
-    pub fn as_slice(&self) -> &[TimeDelta] {
-        &self.0
-    }
-
-    /// The shortest period.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rustellar_bls::Periods;
-    ///
-    /// assert_eq!(Periods::from_days(&[3.0, 1.0])?.min().as_days(), 1.0);
-    /// # Ok::<(), rustellar_bls::BlsError>(())
-    /// ```
-    #[must_use]
-    pub fn min(&self) -> TimeDelta {
-        extreme(&self.0, |a, b| b < a)
     }
 }
 

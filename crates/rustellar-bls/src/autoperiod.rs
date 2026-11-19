@@ -1,12 +1,9 @@
 //! astropy's automatic period grid (`BoxLeastSquares.autoperiod`), computed
 //! the same way, so the periods are the same to the last bit.
 
-use rustellar_core::{LightCurve, TimeDelta};
+use rustellar_core::{LightCurve, Periods, TimeDelta};
 
-use crate::{
-    BlsError, Durations,
-    grid::{Periods, positive_days},
-};
+use crate::{BlsError, Durations, grid::positive_days};
 
 /// Settings for astropy's automatic period grid.
 ///
@@ -178,6 +175,6 @@ impl AutoPeriod {
             })
             .collect();
 
-        Ok(Periods(periods))
+        Ok(Periods::new(periods).expect("periods between two positive edges"))
     }
 }

@@ -244,7 +244,7 @@ pub(crate) fn refine_with(
             .into_iter()
             .zip(&jobs)
             .map(|(found, &(peak, period, _, _, _))| {
-                Ok(found?.map(|(centre, duration, fit)| Refined {
+                Ok::<_, BlsError>(found?.map(|(centre, duration, fit)| Refined {
                     peak,
                     period,
                     days: periods[period],
