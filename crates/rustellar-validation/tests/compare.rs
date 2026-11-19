@@ -1,0 +1,47 @@
+// The compare binary: a table for each set asked for, and the usage for
+// anything else.
+
+use std::process::Command;
+
+fn compare(args: &[&str]) -> (bool, String, String) {
+    let out = Command::new(env!("CARGO_BIN_EXE_compare"))
+        .args(args)
+        .output()
+        .unwrap();
+    (
+        out.status.success(),
+        String::from_utf8(out.stdout).unwrap(),
+        String::from_utf8(out.stderr).unwrap(),
+    )
+}
+
+#[test]
+fn a_table_for_each_set() {
+    let (ok, table, _) = compare(&["many", "short", "--limit", "1", "--threads", "2", "--cpu"]);
+    assert!(ok);
+    assert!(table.contains("### many (1 curves)"), "{table}");
+    assert!(table.contains("### short (1 curves)"), "{table}");
+}
+
+#[test]
+fn every_set_by_default() {
+    let (ok, table, _) = compare(&["--limit", "0"]);
+    assert!(ok);
+    for set in ["many", "mixed", "varying", "short", "sectors"] {
+        assert!(table.contains(&format!("### {set} (0 curves)")), "{table}");
+    }
+}
+
+#[test]
+fn the_usage_otherwise() {
+    for args in [
+        &["none"][..],
+        &["--limit"],
+        &["--limit", "x"],
+        &["--threads", "0"],
+    ] {
+        let (ok, _, usage) = compare(args);
+        assert!(!ok, "{args:?}");
+        assert!(usage.starts_with("compare [SET...]"), "{usage}");
+    }
+}

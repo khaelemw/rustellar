@@ -1,0 +1,18 @@
+[package]
+name = "rustellar-validation"
+description = "Cross-package comparisons of the rustellar crates with their Python references"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+# Never published: it depends on the libraries, never the reverse.
+publish = false
+
+[features]
+# The TLS search on an NVIDIA GPU where there is one.
+cuda = ["rustellar-tls/cuda"]
+
+[dependencies]
+rustellar-core.workspace = true
+rustellar-model.workspace = true
+rustellar-tls.workspace = true
