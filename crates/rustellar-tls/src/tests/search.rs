@@ -104,6 +104,22 @@ fn recovered(method: Method) {
             "{:?}",
             outcome.odd_even
         );
+        // White noise: the pink signal to noise near the white, both
+        // strong, the white noise the injected 4e-4.
+        let snr = outcome.snr.unwrap();
+        assert!(snr.white > 10.0 && snr.pink > 0.8 * snr.white, "{snr:?}");
+        assert!((snr.white_noise / 4e-4 - 1.0).abs() < 0.1, "{snr:?}");
+        // The free shape: at 30 minutes ingress is not resolved, so k and b
+        // trade (a grazing larger planet dims as a central smaller one),
+        // but the depth, period and time agree with the template's fit.
+        let shape = outcome.shape.unwrap();
+        assert!(
+            (shape.depth / best.fit.depth - 1.0).abs() < 0.3,
+            "{shape:?}"
+        );
+        assert!((shape.period / p.period - 1.0).abs() < 1e-3, "{shape:?}");
+        let off = (shape.t0 - p.t0) - ((shape.t0 - p.t0) / period).round() * period;
+        assert!(off.abs() < 0.01, "{shape:?}");
     }
 }
 
@@ -118,7 +134,8 @@ fn nothing_to_fit_gives_no_spectra() {
         let outcome = run(&lc, &[1.0, 1.5, 2.0, 3.0], options);
         assert!(outcome.spectra.is_none() && outcome.best.is_none());
         assert!(outcome.errors.is_none() && outcome.transits.is_empty());
-        assert!(outcome.odd_even.is_none());
+        assert!(outcome.odd_even.is_none() && outcome.snr.is_none());
+        assert!(outcome.shape.is_none());
         assert_eq!(outcome.period_uncertainty, f64::INFINITY);
         assert!(outcome.periods.iter().all(|p| p.depth == 0.0));
     }

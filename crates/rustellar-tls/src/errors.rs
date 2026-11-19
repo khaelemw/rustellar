@@ -104,10 +104,10 @@ pub(crate) fn errors(
 
 /// The inverse of a symmetric positive definite matrix, by Cholesky; `None`
 /// if it is not positive definite.
-fn invert(a: [[f64; 4]; 4]) -> Option<[[f64; 4]; 4]> {
+pub(crate) fn invert<const N: usize>(a: [[f64; N]; N]) -> Option<[[f64; N]; N]> {
     // a = l lᵀ, l lower triangular.
-    let mut l = [[0.0; 4]; 4];
-    for i in 0..4 {
+    let mut l = [[0.0; N]; N];
+    for i in 0..N {
         for j in 0..=i {
             let sum = a[i][j] - (0..j).map(|k| l[i][k] * l[j][k]).sum::<f64>();
             if i == j {
@@ -121,16 +121,16 @@ fn invert(a: [[f64; 4]; 4]) -> Option<[[f64; 4]; 4]> {
         }
     }
     // Each column of the inverse: l lᵀ x = e.
-    let mut inverse = [[0.0; 4]; 4];
-    for c in 0..4 {
-        let mut y = [0.0; 4];
-        for i in 0..4 {
+    let mut inverse = [[0.0; N]; N];
+    for c in 0..N {
+        let mut y = [0.0; N];
+        for i in 0..N {
             let e = if i == c { 1.0 } else { 0.0 };
             y[i] = (e - (0..i).map(|k| l[i][k] * y[k]).sum::<f64>()) / l[i][i];
         }
-        let mut x = [0.0; 4];
-        for i in (0..4).rev() {
-            x[i] = (y[i] - (i + 1..4).map(|k| l[k][i] * x[k]).sum::<f64>()) / l[i][i];
+        let mut x = [0.0; N];
+        for i in (0..N).rev() {
+            x[i] = (y[i] - (i + 1..N).map(|k| l[k][i] * x[k]).sum::<f64>()) / l[i][i];
         }
         for (row, &v) in inverse.iter_mut().zip(&x) {
             row[c] = v;

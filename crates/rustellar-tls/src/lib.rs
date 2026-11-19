@@ -50,12 +50,22 @@ mod fit;
     not(test),
     allow(dead_code, reason = "used by the tests until the public API")
 )]
+mod noise;
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the public API")
+)]
 mod refine;
 #[cfg_attr(
     not(test),
     allow(dead_code, reason = "used by the tests until the public API")
 )]
 mod search;
+#[cfg_attr(
+    not(test),
+    allow(dead_code, reason = "used by the tests until the public API")
+)]
+mod shape;
 #[cfg_attr(
     not(test),
     allow(dead_code, reason = "used by the tests until the public API")

@@ -100,6 +100,11 @@ impl Template {
         (dimming / self.depth).clamp(0.0, 1.0)
     }
 
+    /// The limb darkening of the star the template was made for.
+    pub(crate) fn ld(&self) -> LimbDarkening {
+        self.ld
+    }
+
     /// The depth at mid-transit, `1 - F(b)`: the template's shape times this
     /// is the dimming of the planet it was made from.
     pub(crate) fn depth(&self) -> f64 {

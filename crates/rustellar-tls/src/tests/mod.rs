@@ -11,8 +11,10 @@ mod errors;
 mod exact;
 mod fast;
 mod fit;
+mod noise;
 mod refine;
 mod search;
+mod shape;
 mod spectra;
 mod template;
 

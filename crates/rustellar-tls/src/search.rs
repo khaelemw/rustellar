@@ -11,7 +11,9 @@ use crate::durations::{self, Constants, Stars};
 use crate::errors::{Errors, OddEven, Transit, errors, odd_even, transits};
 use crate::fast::{self, PeriodBest, Settings, Table};
 use crate::fit::{Points, Position, fit};
+use crate::noise::{Snr, snr};
 use crate::refine::{Reach, Refined, refine};
+use crate::shape::{Shape, shape};
 use crate::spectra::{Spectra, period_uncertainty, spectra};
 use crate::template::{SAMPLED_INTERVALS, Sampled, Template};
 
@@ -103,6 +105,11 @@ pub(crate) struct Outcome {
     pub(crate) transits: Vec<Transit>,
     /// The best fit's odd and even transits compared.
     pub(crate) odd_even: Option<OddEven>,
+    /// The best fit's signal to noise, white and pink.
+    pub(crate) snr: Option<Snr>,
+    /// The best fit's transit with its radius ratio and impact parameter
+    /// free.
+    pub(crate) shape: Option<Shape>,
 }
 
 /// Indices of the `count` highest local maxima of `power`, highest first.
@@ -193,6 +200,8 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
             errors: None,
             transits: Vec::new(),
             odd_even: None,
+            snr: None,
+            shape: None,
         };
     }
     let chi2: Vec<f64> = found.iter().map(|p| p.chi2).collect();
@@ -261,6 +270,12 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
         )
     });
     let odd_even = odd_even(&transits);
+    let snr = best.and_then(|b| snr(&points, &options.template, b.position));
+    let shape = best.and_then(|b| {
+        // The template is 1 at mid-transit, so its fitted depth is the
+        // dimming there.
+        shape(&points, b.position, b.fit.depth, options.template.ld())
+    });
     Outcome {
         periods: found,
         spectra: Some(spectra),
@@ -269,5 +284,7 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
         errors,
         transits,
         odd_even,
+        snr,
+        shape,
     }
 }
