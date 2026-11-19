@@ -21,6 +21,14 @@ jobs:
       - run: cargo doc --workspace --no-deps --all-features
         env:
           RUSTDOCFLAGS: -D warnings
+      # Without the `cuda` feature no GPU code is built: cudarc is not in
+      # the dependency tree of any tool, `full` included.
+      - name: no GPU code without cuda
+        run: |
+          if cargo tree -p rustellar --features full -e normal -i cudarc 2>/dev/null; then
+            echo "cudarc is built without the cuda feature"
+            exit 1
+          fi
 
   test:
     strategy:
