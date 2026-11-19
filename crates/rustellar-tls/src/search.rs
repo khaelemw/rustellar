@@ -4,8 +4,6 @@
 use std::num::NonZeroUsize;
 use std::thread;
 
-use rustellar_core::LightCurve;
-
 use crate::cells::{self, CELLS_PER_STEP};
 use crate::durations::{self, Constants, Stars};
 use crate::errors::{Errors, OddEven, Transit, errors, odd_even, transits};
@@ -71,6 +69,7 @@ impl Options {
     /// refined, one thread, on the CPU; the search over cells, which on 300
     /// injected transits is as close to the truth as TLS's fold and about
     /// five times faster on one thread.
+    #[cfg(test)]
     pub(crate) fn tls() -> Self {
         Self {
             template: Template::tls_default(),
@@ -110,6 +109,8 @@ pub(crate) struct Outcome {
     /// The best fit's transit with its radius ratio and impact parameter
     /// free.
     pub(crate) shape: Option<Shape>,
+    /// The GPU the cells search was set up on, if one.
+    pub(crate) gpu: Option<usize>,
 }
 
 /// Indices of the `count` highest local maxima of `power`, highest first.
@@ -125,10 +126,9 @@ pub(crate) fn peaks(power: &[f64], count: usize) -> Vec<usize> {
     found
 }
 
-/// The search of `lc` over `periods` (in days, increasing, positive). The
-/// light curve must span more than zero time.
-pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome {
-    let points = Points::new(lc);
+/// The search of `points` over `periods` (in days, increasing, positive).
+/// The points must span more than zero time.
+pub(crate) fn run(points: &Points, periods: &[f64], options: Options) -> Outcome {
     let origin = points.time[0];
     let span = points.time[points.time.len() - 1] - origin;
     let table = Table::new(&options.template, options.table_samples);
@@ -139,7 +139,7 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
         constants: options.constants,
     };
     let (shortest, longest) = (periods[0], periods[periods.len() - 1]);
-    let found = match options.method {
+    let (found, gpu_used) = match options.method {
         Method::Fold => {
             let fractions = durations::grid(
                 options.constants,
@@ -148,8 +148,8 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
                 longest,
                 options.duration_step,
             );
-            fast::Search {
-                points: &points,
+            let found = fast::Search {
+                points,
                 table: &table,
                 fractions: &fractions,
                 settings,
@@ -157,7 +157,8 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
                 origin,
                 span,
             }
-            .periods(periods, options.threads)
+            .periods(periods, options.threads);
+            (found, None)
         }
         Method::Cells => {
             let days = durations::grid_days(
@@ -173,10 +174,15 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
                 Device::Cpu => None,
                 Device::Gpu(index) => crate::cuda::Gpu::new(index).ok(),
             };
+            #[cfg(feature = "cuda")]
+            let used = match (options.device, &gpu) {
+                (Device::Gpu(index), Some(_)) => Some(index),
+                _ => None,
+            };
             #[cfg(not(feature = "cuda"))]
-            let Device::Cpu = options.device;
-            cells::Search {
-                points: &points,
+            let (Device::Cpu, used) = (options.device, None);
+            let found = cells::Search {
+                points,
                 table: &table,
                 durations: &days,
                 cells_per_step: CELLS_PER_STEP,
@@ -187,7 +193,8 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
                 #[cfg(feature = "cuda")]
                 gpu: gpu.as_ref(),
             }
-            .periods(periods, options.threads)
+            .periods(periods, options.threads);
+            (found, used)
         }
     };
 
@@ -202,6 +209,7 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
             odd_even: None,
             snr: None,
             shape: None,
+            gpu: gpu_used,
         };
     }
     let chi2: Vec<f64> = found.iter().map(|p| p.chi2).collect();
@@ -240,7 +248,7 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
             duration: p.duration,
             t0: p.t0,
         };
-        refine(&points, &sampled, start, reach)
+        refine(points, &sampled, start, reach)
     };
     // The starts refined on the threads, in order, so the best (the first
     // of equals) is the same on any number.
@@ -260,21 +268,21 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
         .min_by(|a, b| a.fit.chi2.total_cmp(&b.fit.chi2))
         .map(|r| Refined {
             position: r.position,
-            fit: fit(&points, &options.template, r.position),
+            fit: fit(points, &options.template, r.position),
         });
 
     let (errors, transits) = best.map_or((None, Vec::new()), |b| {
         (
-            errors(&points, &options.template, b.position, b.fit.depth),
-            transits(&points, &options.template, b.position),
+            errors(points, &options.template, b.position, b.fit.depth),
+            transits(points, &options.template, b.position),
         )
     });
     let odd_even = odd_even(&transits);
-    let snr = best.and_then(|b| snr(&points, &options.template, b.position));
+    let snr = best.and_then(|b| snr(points, &options.template, b.position));
     let shape = best.and_then(|b| {
         // The template is 1 at mid-transit, so its fitted depth is the
         // dimming there.
-        shape(&points, b.position, b.fit.depth, options.template.ld())
+        shape(points, b.position, b.fit.depth, options.template.ld())
     });
     Outcome {
         periods: found,
@@ -286,5 +294,6 @@ pub(crate) fn run(lc: &LightCurve, periods: &[f64], options: Options) -> Outcome
         odd_even,
         snr,
         shape,
+        gpu: gpu_used,
     }
 }

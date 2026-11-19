@@ -7,16 +7,19 @@ mod cells;
 #[cfg(feature = "cuda")]
 mod cuda;
 mod durations;
+mod error;
 mod errors;
 mod exact;
 mod fast;
 mod fit;
 mod noise;
+mod options;
 mod refine;
 mod search;
 mod shape;
 mod spectra;
 mod template;
+mod tls;
 
 /// A small, fast pseudo-random generator (SplitMix64), so the tests need no
 /// dependency and give the same cases every run.

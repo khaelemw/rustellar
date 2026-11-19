@@ -183,6 +183,7 @@ impl Search<'_> {
     }
 
     /// The durations searched at `period`, increasing.
+    #[cfg(test)]
     pub(crate) fn durations_at(&self, period: f64) -> impl Iterator<Item = f64> + '_ {
         self.durations
             .iter()

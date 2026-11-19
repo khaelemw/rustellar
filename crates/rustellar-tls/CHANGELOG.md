@@ -8,4 +8,11 @@ All notable changes to this crate are recorded here. The format follows
 
 ### Added
 
-- The crate, empty so far.
+- `Tls`: transit least squares over any periods, with TLS's templates,
+  durations, spectra and defaults, the highest peaks refined.
+- `SearchOptions`, `Template`, `Stars`, `Method` (`Cells`, the default,
+  or TLS's `Fold`), and `Device` with the `cuda` feature's GPU search.
+- `TlsResult`: each period's fit, the spectra, and the best `Candidate`
+  with standard errors, per-transit and odd/even depths, white and pink
+  signal to noise, and its free transit shape.
+- `TlsError`.

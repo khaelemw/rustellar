@@ -107,6 +107,7 @@ impl Template {
 
     /// The depth at mid-transit, `1 - F(b)`: the template's shape times this
     /// is the dimming of the planet it was made from.
+    #[cfg(test)]
     pub(crate) fn depth(&self) -> f64 {
         self.depth
     }

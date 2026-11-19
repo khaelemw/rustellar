@@ -65,7 +65,7 @@ fn recovered(method: Method) {
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
         options.method = method;
-        let outcome = run(&lc, &grid, options);
+        let outcome = run(&Points::new(&lc), &grid, options);
         let best = outcome.best.unwrap();
         let spectra = outcome.spectra.unwrap();
         let p = best.position;
@@ -131,7 +131,7 @@ fn nothing_to_fit_gives_no_spectra() {
     for method in [Method::Fold, Method::Cells] {
         let mut options = Options::tls();
         options.method = method;
-        let outcome = run(&lc, &[1.0, 1.5, 2.0, 3.0], options);
+        let outcome = run(&Points::new(&lc), &[1.0, 1.5, 2.0, 3.0], options);
         assert!(outcome.spectra.is_none() && outcome.best.is_none());
         assert!(outcome.errors.is_none() && outcome.transits.is_empty());
         assert!(outcome.odd_even.is_none() && outcome.snr.is_none());
@@ -150,7 +150,7 @@ fn one_period_is_refined_within_rounding_of_it() {
     // The peak at the first period and at the last: refined within the
     // neighbouring period, and to the true one.
     for grid in [[2.5, 2.6], [2.4, 2.5]] {
-        let best = run(&lc, &grid, options).best.unwrap();
+        let best = run(&Points::new(&lc), &grid, options).best.unwrap();
         assert!((best.position.period - 2.5).abs() < 1e-3, "{best:?}");
     }
 }
@@ -173,10 +173,14 @@ fn the_same_outcome_on_any_number_of_threads() {
     for method in [Method::Fold, Method::Cells] {
         let mut options = Options::tls();
         options.method = method;
-        let base = run(&lc, &grid, options);
+        let base = run(&Points::new(&lc), &grid, options);
         for threads in [2, 5] {
             options.threads = NonZeroUsize::new(threads).unwrap();
-            assert_eq!(run(&lc, &grid, options), base, "{method:?} {threads}");
+            assert_eq!(
+                run(&Points::new(&lc), &grid, options),
+                base,
+                "{method:?} {threads}"
+            );
         }
     }
 }
@@ -322,7 +326,7 @@ fn against_tls_on_injected_transits() {
         let lc = LightCurve::from_btjd(time, flux, vec![noise; n]).unwrap();
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
-        let outcome = run(&lc, &periods(&lc), options);
+        let outcome = run(&Points::new(&lc), &periods(&lc), options);
         let best = outcome.best.unwrap();
         let ours = best.position;
         let depth = 1.0 - params.flux_at(Epoch::from_btjd(t0).unwrap());
@@ -505,7 +509,7 @@ fn against_tls_on_shallower_noisier_and_sparse_transits() {
         let lc = LightCurve::from_btjd(time, flux, vec![noise; n]).unwrap();
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
-        let outcome = run(&lc, &periods(&lc), options);
+        let outcome = run(&Points::new(&lc), &periods(&lc), options);
         let best = outcome.best.unwrap();
         let ours = best.position;
         let depth = 1.0 - params.flux_at(Epoch::from_btjd(t0).unwrap());
@@ -784,7 +788,7 @@ fn against_tls_on_mixed_cadence_and_varying_errors() {
             let (lc, params) = uneven(mixed, seed, k, period, t0, noise);
             let mut options = Options::tls();
             options.threads = NonZeroUsize::new(4).unwrap();
-            let best = run(&lc, &periods(&lc), options).best.unwrap();
+            let best = run(&Points::new(&lc), &periods(&lc), options).best.unwrap();
             let ours = best.position;
             assert!(
                 (ours.period / period - 1.0).abs() < 1e-2,

@@ -13,7 +13,7 @@ use crate::cuda::{FAIL_NEXT, Gpu};
 use crate::durations::{self, Constants, Stars};
 use crate::fast::{PeriodBest, Settings, Table};
 use crate::fit::{Points, Position};
-use crate::search::{Device, Method, Options, run};
+use crate::search::{Device, Method, Options, Outcome, run};
 use crate::template::Template;
 
 // ==========================
@@ -200,9 +200,10 @@ fn without_cuda_a_gpu_is_an_error() {
         device,
         ..Options::tls()
     };
+    // No GPU set up: the CPU's search, and said so.
     assert_eq!(
-        run(&lc, &periods, options(Device::Gpu(0))),
-        run(&lc, &periods, options(Device::Cpu))
+        run(&Points::new(&lc), &periods, options(Device::Gpu(0))),
+        run(&Points::new(&lc), &periods, options(Device::Cpu))
     );
 }
 
@@ -232,7 +233,13 @@ fn the_whole_search_is_the_cpus() {
         device,
         ..Options::tls()
     };
-    let cpu = run(&lc, &periods, options(Device::Cpu));
-    assert_eq!(run(&lc, &periods, options(Device::Gpu(0))), cpu);
-    assert_eq!(run(&lc, &periods, options(Device::Gpu(4096))), cpu);
+    let cpu = run(&Points::new(&lc), &periods, options(Device::Cpu));
+    let gpu = run(&Points::new(&lc), &periods, options(Device::Gpu(0)));
+    assert_eq!(gpu.gpu, Some(0));
+    assert_eq!(Outcome { gpu: None, ..gpu }, cpu);
+    // No such GPU: the CPU, and said so.
+    assert_eq!(
+        run(&Points::new(&lc), &periods, options(Device::Gpu(4096))),
+        cpu
+    );
 }

@@ -51,6 +51,7 @@ impl Table {
     }
 
     /// The template at `x`, interpolated: 0 for `|x| >= 1/2`.
+    #[cfg(test)]
     pub(crate) fn at(&self, x: f64) -> f64 {
         self.at_sample((x + 0.5) * self.intervals())
     }
