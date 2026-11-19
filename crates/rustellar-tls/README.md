@@ -7,7 +7,19 @@ depth by weighted least squares, and the best fit's chi-squared gives the
 spectrum.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
-`rustellar` crate with the `tls` feature.
+`rustellar` crate.
+
+```toml
+[dependencies]
+# Through the umbrella, which most projects want:
+rustellar = { version = "0.1", features = ["tls"] }
+# Or this crate alone:
+rustellar-tls = "0.1"
+```
+
+On its own it re-exports the core types it takes and returns
+(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
+`rustellar-core` need not be listed, and the two always match.
 
 **Status:** in development, not yet released.
 
@@ -18,16 +30,24 @@ and the CUDA NVRTC library at run time.
 ## Example
 
 ```rust
-use rustellar_tls::{OfirPeriod, SearchOptions, Tls};
-use rustellar_core::LightCurve;
+use rustellar_tls::{LightCurve, OfirPeriod, SearchOptions, Tls};
 
-let lc = LightCurve::from_btjd(time, flux, flux_err)?;
+// Every 30 minutes for 12 days, with a dip of 0.005 lasting 0.1 days every
+// 3 days.
+let time: Vec<f64> = (0..576).map(|i| f64::from(i) / 48.0).collect();
+let flux = time
+    .iter()
+    .map(|&t| if (t - 0.7).rem_euclid(3.0) < 0.1 { 0.995 } else { 1.0 })
+    .collect();
+let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 576])?;
+
+// Ofir's (2014) optimal period grid for a Sun-like star.
 let periods = OfirPeriod::default().periods(&lc)?;
 let result = Tls::new(&lc)?.search(&periods, &SearchOptions::default())?;
-
-if let Some(best) = result.best() {
-    println!("P = {} d, SDE {}", best.period.as_days(), result.spectra().unwrap().sde);
-}
+let best = result.best().expect("there is a dip");
+println!("P = {} d, SDE {}", best.period.as_days(), result.spectra().unwrap().sde);
+assert!((best.period.as_days() - 3.0).abs() < 0.01);
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 `SearchOptions::default()` is TLS's defaults: its template, durations for

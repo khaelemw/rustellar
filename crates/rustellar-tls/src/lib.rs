@@ -17,8 +17,7 @@
 //! # Examples
 //!
 //! ```
-//! use rustellar_tls::{OfirPeriod, SearchOptions, Tls};
-//! use rustellar_core::LightCurve;
+//! use rustellar_tls::{LightCurve, OfirPeriod, SearchOptions, Tls};
 //!
 //! // 12 days at 30 minutes with a 0.5% transit every 3 days.
 //! let time: Vec<f64> = (0..576).map(|i| f64::from(i) / 48.0).collect();
@@ -70,3 +69,16 @@ pub use result::{
 };
 pub use rustellar_bls::{Device, OfirPeriod, Periods};
 pub use tls::Tls;
+
+// Core's types, which this crate's API takes and returns: with them the
+// crate works on its own, without listing rustellar-core, and always with
+// the core it was built on. The same types, not copies.
+#[doc(no_inline)]
+pub use rustellar_core::{
+    Epoch, FoldedLightCurve, LightCurve, LightCurveError, TimeDelta, TimeError,
+};
+
+// The README's example, compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

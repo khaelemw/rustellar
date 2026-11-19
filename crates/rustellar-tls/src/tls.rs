@@ -28,7 +28,7 @@ const TABLE_SAMPLES: usize = 4096;
 ///
 /// ```
 /// use rustellar_tls::{Periods, SearchOptions, Tls};
-/// use rustellar_core::LightCurve;
+/// use rustellar_tls::LightCurve;
 ///
 /// // 10 days at 30 minutes with a 1% transit, 0.1 days long, every 2.5
 /// // days from day 1.
@@ -71,7 +71,7 @@ impl Tls {
     ///
     /// ```
     /// use rustellar_tls::{Tls, TlsError};
-    /// use rustellar_core::LightCurve;
+    /// use rustellar_tls::LightCurve;
     ///
     /// let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-200, 1e-3])?;
     /// assert_eq!(Tls::new(&lc).unwrap_err(), TlsError::OutOfRange);
