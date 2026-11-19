@@ -6,9 +6,11 @@
 //! fit's chi-squared at each period gives the spectrum, and its highest
 //! peaks, refined, the best candidate.
 //!
-//! Beyond TLS, the candidate comes with standard errors, each transit's
-//! depth, odd and even transits compared, a signal to noise for correlated
-//! noise, and its shape with the planet's size and impact parameter free.
+//! Beyond TLS, the candidate comes with standard errors (from the fit's
+//! curvature, and by bootstrap, which hold where the signal is weak), each
+//! transit's depth, odd and even transits compared, a signal to noise for
+//! correlated noise, and its shape with the planet's size and impact
+//! parameter free.
 //! The search runs on every core, or on an NVIDIA GPU with the `cuda`
 //! feature, with the same results to the bit.
 //!

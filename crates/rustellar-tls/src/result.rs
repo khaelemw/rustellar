@@ -209,10 +209,11 @@ pub struct Candidate {
     /// model plus its residuals resampled in blocks a transit long
     /// ([`SearchOptions::bootstrap`](crate::SearchOptions::bootstrap)
     /// times). The curvature's where the signal is strong; where it is weak
-    /// or the noise is correlated, the fit's real scatter (on injected
-    /// transits, the truth within 2 of them 91% to 95% of the time, against
-    /// 86% to 88% for the curvature's). `None` without the curvature's or
-    /// resamples.
+    /// or the noise is correlated, the fit's real scatter. On injected
+    /// transits at signal to noise 8 to 12, the truth is within 2 of them
+    /// 91% to 98% of the time, against 81% to 94% for the curvature's; in
+    /// noise correlated over hours 95% to 97%, against 68% to 85%. `None`
+    /// without the curvature's or resamples.
     pub bootstrap_errors: Option<Uncertainties>,
     /// Each transit with points, in time order.
     pub transits: Vec<TransitDepth>,
