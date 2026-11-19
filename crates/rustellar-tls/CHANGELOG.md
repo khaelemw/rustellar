@@ -13,6 +13,6 @@ All notable changes to this crate are recorded here. The format follows
 - `SearchOptions`, `Template`, `Stars`, `Method` (`Cells`, the default,
   or TLS's `Fold`), and `Device` with the `cuda` feature's GPU search.
 - `TlsResult`: each period's fit, the spectra, and the best `Candidate`
-  with standard errors, per-transit and odd/even depths, white and pink
+  with standard errors (curvature and bootstrap), per-transit and odd/even depths, white and pink
   signal to noise, and its free transit shape.
 - `TlsError`.

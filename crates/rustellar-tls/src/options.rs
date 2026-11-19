@@ -214,6 +214,11 @@ pub struct SearchOptions {
     /// if the `cuda` feature is on and one can be used, otherwise the CPU,
     /// with the same results to the bit.
     pub device: Device,
+    /// How many times the best fit's residuals are resampled and the fit
+    /// repeated for [`Candidate::bootstrap_errors`](crate::Candidate::bootstrap_errors).
+    /// Default 100; below 2, none. The resamples are seeded: the same on
+    /// every run and any number of threads.
+    pub bootstrap: usize,
 }
 
 impl Default for SearchOptions {
@@ -229,6 +234,7 @@ impl Default for SearchOptions {
             method: Method::Cells,
             threads: thread::available_parallelism().unwrap_or(NonZeroUsize::MIN),
             device: Device::Auto,
+            bootstrap: 100,
         }
     }
 }
@@ -395,6 +401,23 @@ impl SearchOptions {
     #[must_use]
     pub fn with_device(mut self, device: Device) -> Self {
         self.device = device;
+        self
+    }
+
+    /// With the bootstrap's errors from `count` resamples; below 2, none.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_tls::SearchOptions;
+    ///
+    /// // A survey's first pass: the curvature's errors only.
+    /// let options = SearchOptions::default().with_bootstrap(0);
+    /// assert_eq!(options.bootstrap, 0);
+    /// ```
+    #[must_use]
+    pub fn with_bootstrap(mut self, count: usize) -> Self {
+        self.bootstrap = count;
         self
     }
 

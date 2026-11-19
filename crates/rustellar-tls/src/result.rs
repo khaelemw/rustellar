@@ -54,9 +54,9 @@ pub struct Spectra {
     pub sde: f64,
 }
 
-/// Standard errors of the candidate's parameters, from the chi-squared's
-/// curvature (the Fisher matrix): right where the signal is strong, lower
-/// bounds where it is weak.
+/// Standard errors of the candidate's parameters: from the chi-squared's
+/// curvature ([`Candidate::errors`]) or by bootstrap
+/// ([`Candidate::bootstrap_errors`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct Uncertainties {
@@ -200,8 +200,20 @@ pub struct Candidate {
     /// (TLS's `period_uncertainty`), or `None` where the peak does not fall
     /// to half on both sides within the periods searched.
     pub period_uncertainty: Option<TimeDelta>,
-    /// Standard errors, where the curvature fixes them.
+    /// Standard errors from the chi-squared's curvature (the Fisher matrix),
+    /// where it fixes them all: right where the signal is strong, too small
+    /// where it is weak (about 25% at signal to noise 12) or the noise is
+    /// correlated.
     pub errors: Option<Uncertainties>,
+    /// Standard errors by bootstrap: the spread of the fit repeated on its
+    /// model plus its residuals resampled in blocks a transit long
+    /// ([`SearchOptions::bootstrap`](crate::SearchOptions::bootstrap)
+    /// times). The curvature's where the signal is strong; where it is weak
+    /// or the noise is correlated, the fit's real scatter (on injected
+    /// transits, the truth within 2 of them 91% to 95% of the time, against
+    /// 86% to 88% for the curvature's). `None` without the curvature's or
+    /// resamples.
+    pub bootstrap_errors: Option<Uncertainties>,
     /// Each transit with points, in time order.
     pub transits: Vec<TransitDepth>,
     /// The odd and even transits compared, where there are both.

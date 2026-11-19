@@ -39,7 +39,10 @@ is one.
 
 The best candidate also comes with:
 
-- standard errors of period, transit time, duration and depth;
+- standard errors of period, transit time, duration and depth, from the
+  chi-squared's curvature and by a moving block bootstrap; the bootstrap's
+  hold where the signal is weak or the noise correlated over hours, where
+  the curvature's are too small;
 - each transit's own depth, and odd against even transits;
 - a signal to noise for noise correlated over hours (Pont, Zucker & Queloz
   2006) beside TLS's white one;

@@ -119,6 +119,7 @@ fn the_result_is_the_searchs() {
             &days,
             Options {
                 threads: options.threads,
+                bootstrap: options.bootstrap,
                 method: match method {
                     Method::Cells => search::Method::Cells,
                     Method::Fold => search::Method::Fold,
@@ -161,6 +162,11 @@ fn the_result_is_the_searchs() {
         assert_eq!(e.transit_time.as_days(), ie.t0);
         assert_eq!(e.duration.as_days(), ie.duration);
         assert_eq!(e.depth, ie.depth);
+        let (e, ie) = (best.bootstrap_errors.unwrap(), inside.bootstrap.unwrap());
+        assert_eq!(e.period.as_days(), ie.period);
+        assert_eq!(e.transit_time.as_days(), ie.t0);
+        assert_eq!(e.duration.as_days(), ie.duration);
+        assert_eq!(e.depth, ie.depth);
         assert_eq!(best.transits.len(), inside.transits.len());
         for (t, it) in best.transits.iter().zip(&inside.transits) {
             assert_eq!((t.number, t.time.as_btjd()), (it.number, it.time));
@@ -199,6 +205,22 @@ fn the_result_is_the_searchs() {
             ihe
         );
         days.truncate(60);
+    }
+}
+
+// Fewer than two resamples: no bootstrap errors, the curvature's still.
+#[test]
+fn without_resamples_no_bootstrap() {
+    let lc = light_curve();
+    let periods = Periods::from_days(&grid(2.9, 20)).unwrap();
+    for count in [0, 1] {
+        let result = Tls::new(&lc)
+            .unwrap()
+            .search(&periods, &cpu().with_bootstrap(count))
+            .unwrap();
+        let best = result.best().unwrap();
+        assert!(best.errors.is_some());
+        assert!(best.bootstrap_errors.is_none());
     }
 }
 

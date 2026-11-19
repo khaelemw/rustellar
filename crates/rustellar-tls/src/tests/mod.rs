@@ -3,6 +3,7 @@
 use crate::fit::{Points, Position};
 use crate::template::Template;
 
+mod bootstrap;
 mod cells;
 #[cfg(feature = "cuda")]
 mod cuda;

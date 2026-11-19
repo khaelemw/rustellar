@@ -33,6 +33,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod bootstrap;
 mod cells;
 #[cfg(feature = "cuda")]
 mod cuda;

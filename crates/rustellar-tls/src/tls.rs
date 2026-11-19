@@ -155,6 +155,7 @@ impl Tls {
                 Method::Fold => search::Method::Fold,
             },
             device,
+            bootstrap: options.bootstrap,
         };
         let mut days: Vec<f64> = periods.as_slice().iter().map(|p| p.as_days()).collect();
         days.sort_by(f64::total_cmp);
@@ -195,6 +196,12 @@ fn result(outcome: search::Outcome) -> TlsResult {
             .is_finite()
             .then(|| span(outcome.period_uncertainty)),
         errors: outcome.errors.map(|e| Uncertainties {
+            period: span(e.period),
+            transit_time: span(e.t0),
+            duration: span(e.duration),
+            depth: e.depth,
+        }),
+        bootstrap_errors: outcome.bootstrap.map(|e| Uncertainties {
             period: span(e.period),
             transit_time: span(e.t0),
             duration: span(e.duration),

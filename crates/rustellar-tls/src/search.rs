@@ -4,6 +4,7 @@
 use std::num::NonZeroUsize;
 use std::thread;
 
+use crate::bootstrap::{Spread, bootstrap};
 use crate::cells::{self, CELLS_PER_STEP};
 use crate::durations::{self, Constants, Stars};
 use crate::errors::{Errors, OddEven, Transit, errors, odd_even, transits};
@@ -62,6 +63,8 @@ pub(crate) struct Options {
     pub(crate) threads: NonZeroUsize,
     pub(crate) method: Method,
     pub(crate) device: Device,
+    /// Resamples for the bootstrap's errors; fewer than 2, none.
+    pub(crate) bootstrap: usize,
 }
 
 impl Options {
@@ -84,6 +87,7 @@ impl Options {
             threads: NonZeroUsize::MIN,
             method: Method::Cells,
             device: Device::Cpu,
+            bootstrap: 0,
         }
     }
 }
@@ -111,6 +115,9 @@ pub(crate) struct Outcome {
     pub(crate) shape: Option<Shape>,
     /// The GPU the cells search was set up on, if one.
     pub(crate) gpu: Option<usize>,
+    /// The best fit's standard errors by bootstrap, where the curvature
+    /// gives the errors to start from and resamples are asked for.
+    pub(crate) bootstrap: Option<Spread>,
 }
 
 /// Indices of the `count` highest local maxima of `power`, highest first.
@@ -210,6 +217,7 @@ pub(crate) fn run(points: &Points, periods: &[f64], options: Options) -> Outcome
             snr: None,
             shape: None,
             gpu: gpu_used,
+            bootstrap: None,
         };
     }
     let chi2: Vec<f64> = found.iter().map(|p| p.chi2).collect();
@@ -278,6 +286,21 @@ pub(crate) fn run(points: &Points, periods: &[f64], options: Options) -> Outcome
         )
     });
     let odd_even = odd_even(&transits);
+    let spread = best
+        .zip(errors)
+        .filter(|_| options.bootstrap >= 2)
+        .map(|(b, e)| {
+            bootstrap(
+                points,
+                &sampled,
+                &options.template,
+                b.position,
+                b.fit.depth,
+                [e.period, e.t0, e.duration],
+                options.bootstrap,
+                options.threads,
+            )
+        });
     let snr = best.and_then(|b| snr(points, &options.template, b.position));
     let shape = best.and_then(|b| {
         // The template is 1 at mid-transit, so its fitted depth is the
@@ -295,5 +318,6 @@ pub(crate) fn run(points: &Points, periods: &[f64], options: Options) -> Outcome
         snr,
         shape,
         gpu: gpu_used,
+        bootstrap: spread,
     }
 }
