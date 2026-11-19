@@ -9,10 +9,11 @@ license.workspace = true
 publish = false
 
 [features]
-# The TLS search on an NVIDIA GPU where there is one.
-cuda = ["rustellar-tls/cuda"]
+# The searches on an NVIDIA GPU where there is one.
+cuda = ["rustellar-bls/cuda", "rustellar-tls/cuda"]
 
 [dependencies]
+rustellar-bls.workspace = true
 rustellar-core.workspace = true
 rustellar-model.workspace = true
 rustellar-tls.workspace = true

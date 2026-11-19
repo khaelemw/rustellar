@@ -42,3 +42,24 @@ parts in 10^8).
 
 A run over every set takes tens of minutes on a desktop CPU, most of it the
 two 2-minute sets; `--limit` makes a quick check.
+
+## rustellar-bls against rustellar-tls on limb-darkened transits
+
+```sh
+cargo run --release -p rustellar-validation --bin compare -- limb
+cargo run --release -p rustellar-validation --bin compare -- limb --step 10
+```
+
+Box-shaped injections favour any BLS; real transits are rounded by limb
+darkening, which TLS's template models. `limb` runs both searches on the
+curves of `rustellar-bls`'s limb-darkened study: 1,000 transits (quadratic
+limb darkening u = 0.4, 0.26, a Sun-like star, impact parameter uniform in
+[0, 1)) in four survey families' noise, and 1,000 curves of noise alone. A
+search detects a transit when its SDE beats all but 1% of its own
+noise-only curves, so both run at the same false-alarm rate, and recovers it
+within 1% of its period. The table gives recovery and median errors by
+family, by signal to noise and in all, then transitleastsquares 1.32 on the
+quarter of the curves it was run on (`rustellar-bls`'s
+`tests/reference/limb_tls.csv`). `--step N` takes every N-th block of eight
+curves (each family with a transit, then without). Every curve takes both
+searches on one thread each, about a second on these light curves.

@@ -426,6 +426,7 @@ dependencies = [
 name = "rustellar-validation"
 version = "0.0.0"
 dependencies = [
+ "rustellar-bls",
  "rustellar-core",
  "rustellar-model",
  "rustellar-tls",

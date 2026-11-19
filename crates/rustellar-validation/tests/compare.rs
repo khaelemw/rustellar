@@ -24,12 +24,25 @@ fn a_table_for_each_set() {
 }
 
 #[test]
+fn the_limb_darkened_study() {
+    let (ok, table, _) = compare(&["limb", "--step", "250", "--threads", "4", "--cpu"]);
+    assert!(ok);
+    assert!(
+        table.contains("rustellar-bls against rustellar-tls"),
+        "{table}"
+    );
+    assert!(table.contains("(8 curves,"), "{table}");
+    assert!(table.contains("| transitleastsquares 1.32 |"), "{table}");
+}
+
+#[test]
 fn every_set_by_default() {
-    let (ok, table, _) = compare(&["--limit", "0"]);
+    let (ok, table, _) = compare(&["--limit", "0", "--step", "250", "--cpu"]);
     assert!(ok);
     for set in ["many", "mixed", "varying", "short", "sectors"] {
         assert!(table.contains(&format!("### {set} (0 curves)")), "{table}");
     }
+    assert!(table.contains("(8 curves,"), "{table}");
 }
 
 #[test]
@@ -39,6 +52,7 @@ fn the_usage_otherwise() {
         &["--limit"],
         &["--limit", "x"],
         &["--threads", "0"],
+        &["--step", "0"],
     ] {
         let (ok, _, usage) = compare(args);
         assert!(!ok, "{args:?}");

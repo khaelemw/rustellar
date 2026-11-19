@@ -24,6 +24,10 @@ const TABLE_SAMPLES: usize = 4096;
 /// the spectra, refines the highest peaks, and describes the best
 /// candidate.
 ///
+/// The flux must be normalised, 1 out of transit (detrended, as
+/// transitleastsquares expects): the template dims from 1, so a light curve
+/// around any other level fits nothing.
+///
 /// # Examples
 ///
 /// ```

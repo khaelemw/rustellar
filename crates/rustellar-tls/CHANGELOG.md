@@ -16,5 +16,6 @@ All notable changes to this crate are recorded here. The format follows
   with standard errors (curvature and bootstrap), per-transit and odd/even depths, white and pink
   signal to noise, and its free transit shape.
 - `TlsError`, with `TlsError::Grid` for the period grid's errors.
+- Docs: the flux must be normalised to 1 out of transit.
 - The core types re-exported, and the period grid and `Device` from
   `rustellar-core`: the crate no longer depends on `rustellar-bls`.

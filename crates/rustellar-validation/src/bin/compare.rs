@@ -1,27 +1,31 @@
 //! Prints the comparisons as Markdown tables.
 //!
 //! ```text
-//! cargo run --release -p rustellar-validation --bin compare -- [SET...] [--limit N] [--threads N] [--cpu]
+//! cargo run --release -p rustellar-validation --bin compare -- [SET...] [--limit N] [--step N] [--threads N] [--cpu]
 //! ```
 //!
-//! SET is many, mixed, varying, short or sectors (default all). `--limit`
-//! searches only each set's first N curves; `--threads` sets the threads per
-//! search (default all cores); `--cpu` keeps the search off the GPU with the
-//! `cuda` feature.
+//! SET is many, mixed, varying, short or sectors (rustellar-tls against
+//! transitleastsquares), or limb (rustellar-bls against rustellar-tls on
+//! limb-darkened transits); default all. `--limit` searches only each TLS
+//! set's first N curves; `--step` only every N-th curve of limb; `--threads`
+//! sets the threads (default all cores); `--cpu` keeps the searches off the
+//! GPU with the `cuda` feature.
 
 use std::num::NonZeroUsize;
 use std::process::ExitCode;
+use std::thread;
 use std::time::Instant;
 
 use rustellar_tls::{Device, SearchOptions};
-use rustellar_validation::{Kind, tls};
+use rustellar_validation::{Kind, limb, tls};
 
-const HELP: &str = "compare [SET...] [--limit N] [--threads N] [--cpu]
-  SET: many, mixed, varying, short or sectors (default all)";
+const HELP: &str = "compare [SET...] [--limit N] [--step N] [--threads N] [--cpu]
+  SET: many, mixed, varying, short, sectors or limb (default all)";
 
 fn main() -> ExitCode {
-    let mut kinds = vec![];
-    let mut limit = usize::MAX;
+    let (mut kinds, mut with_limb) = (vec![], false);
+    let (mut limit, mut step) = (usize::MAX, NonZeroUsize::MIN);
+    let mut threads = thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
     let mut options = SearchOptions::default().with_bootstrap(0);
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -31,26 +35,46 @@ fn main() -> ExitCode {
                 Some(n) => limit = n,
                 None => return usage(),
             },
+            "--step" => match number().and_then(NonZeroUsize::new) {
+                Some(n) => step = n,
+                None => return usage(),
+            },
             "--threads" => match number().and_then(NonZeroUsize::new) {
-                Some(n) => options = options.with_threads(n),
+                Some(n) => threads = n,
                 None => return usage(),
             },
             "--cpu" => options = options.with_device(Device::Cpu),
+            "limb" => with_limb = true,
             name => match Kind::from_name(name) {
                 Some(kind) => kinds.push(kind),
                 None => return usage(),
             },
         }
     }
-    if kinds.is_empty() {
+    if kinds.is_empty() && !with_limb {
         kinds = Kind::ALL.to_vec();
+        with_limb = true;
     }
-    println!("## rustellar-tls against transitleastsquares 1.32\n");
+    if !kinds.is_empty() {
+        println!("## rustellar-tls against transitleastsquares 1.32\n");
+    }
+    let per_search = options.with_threads(threads);
     for kind in kinds {
         let start = Instant::now();
-        let curves = tls::run(kind, limit, &options);
+        let curves = tls::run(kind, limit, &per_search);
         print!("{}", tls::report(kind, &curves));
         println!("\n({:.0} s)\n", start.elapsed().as_secs_f64());
+    }
+    if with_limb {
+        let start = Instant::now();
+        let cases = limb::cases(step.get());
+        let hits = limb::search_all(&cases, &options, threads);
+        print!("{}", limb::report(&cases, &hits));
+        println!(
+            "\n({} curves, {:.0} s)",
+            cases.len(),
+            start.elapsed().as_secs_f64()
+        );
     }
     ExitCode::SUCCESS
 }

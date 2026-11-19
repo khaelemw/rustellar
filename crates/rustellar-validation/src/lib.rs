@@ -5,10 +5,14 @@
 //! - [`tls`]: `rustellar-tls` against transitleastsquares 1.32 on injected
 //!   transits ([`Kind`] names the sets), rebuilt here from the seeds the
 //!   references were run on.
+//! - [`limb`]: `rustellar-bls` against `rustellar-tls` on limb-darkened
+//!   transits, each at its own 1% false-alarm rate, with
+//!   transitleastsquares 1.32 on a subset.
 //!
 //! Run `cargo run --release -p rustellar-validation --bin compare -- --help`.
 
 mod curves;
+pub mod limb;
 mod random;
 mod stats;
 pub mod tls;
