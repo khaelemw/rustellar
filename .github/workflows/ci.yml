@@ -73,3 +73,4 @@ jobs:
           toolchain: "1.88"
       - uses: Swatinem/rust-cache@v2
       - run: cargo check -p rustellar-bls -p rustellar-tls --lib --features rustellar-bls/cuda,rustellar-tls/cuda
+      - run: cargo check -p rustellar --lib --features bls,tls,cuda

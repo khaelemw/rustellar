@@ -20,6 +20,10 @@ bls = ["dep:rustellar-bls"]
 detrend = ["dep:rustellar-detrend"]
 model = ["dep:rustellar-model"]
 tls = ["dep:rustellar-tls"]
+# The searches on an NVIDIA GPU, for whichever of `bls` and `tls` is on: needs
+# Rust 1.88 or later, and the CUDA driver and NVRTC at run time (without
+# them the searches run on the CPU). Not in `full`, which builds on 1.85.
+cuda = ["rustellar-bls?/cuda", "rustellar-tls?/cuda"]
 
 [dependencies]
 rustellar-bls = { workspace = true, optional = true }

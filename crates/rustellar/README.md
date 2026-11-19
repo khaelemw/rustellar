@@ -16,6 +16,7 @@ rustellar = { version = "0.0", features = ["model"] }
 | `model` | `rustellar-model` | Transit light curves (Mandel & Agol 2002), exposure averaging |
 | `tls` | `rustellar-tls` | Transit least squares: a limb-darkened template search (in development) |
 | `full` | | Every tool |
+| `cuda` | | The `bls` and `tls` searches on an NVIDIA GPU where there is one (Rust 1.88 or later) |
 
 The shared types from `rustellar-core` (`LightCurve`, `Epoch`, `TimeDelta`)
 are always included. Each new tool will be added as a feature; see the

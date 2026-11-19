@@ -14,3 +14,5 @@ All notable changes to this crate are recorded here. The format follows
   `full` for every tool.
 - The `bls` feature (box least squares, from `rustellar-bls`; in
   development).
+- The `cuda` feature: the `bls` and `tls` searches on an NVIDIA GPU where
+  there is one (Rust 1.88 or later; not in `full`).

@@ -12,6 +12,7 @@
 //! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
 //! | `tls` | [`tls`] | Transit least squares: a limb-darkened template search (in development) |
 //! | `full` | | Every tool |
+//! | `cuda` | | The `bls` and `tls` searches on an NVIDIA GPU where there is one (Rust 1.88 or later) |
 //!
 //! No feature is on by default. In `Cargo.toml`:
 //!
