@@ -23,7 +23,9 @@
 //!   [`Candidate`]'s transits, flatten again ([`Masking`], [`Masked`]);
 //! - an autoregressive model of a flattened light curve and what it misses,
 //!   [`Autoregressive::whiten`] ([`Order`], [`Whitened`]): correlated noise
-//!   made white before a search.
+//!   made white before a search, or the light curve filtered for the
+//!   matched search of a box in that noise ([`Whitened::matched`],
+//!   [`Matched`], with `rustellar-bls`'s `Bls::search_whitened`).
 //!
 //! The biweight is solved to full double precision (correctly rounded
 //! wherever its defining sum's sign can be told from zero), the median and
@@ -67,7 +69,7 @@ mod window;
 mod tests;
 
 pub use around::{Candidate, MASK_PER_DURATION, MASKED_WINDOW_PER_DURATION, Masked, Masking};
-pub use autoregressive::{Autoregressive, MAX_ORDER, Order, Whitened};
+pub use autoregressive::{Autoregressive, MAX_ORDER, Matched, Order, Whitened};
 pub use detrend::{BreakTolerance, Detrend, Flattened, Method, WINDOW_PER_DURATION};
 pub use error::DetrendError;
 pub use mask::transit_mask;

@@ -53,3 +53,8 @@ All notable changes to this crate are recorded here. The format follows
   its order by AIC (as statsmodels' `ar_select_order`), and the light
   curve whitened by it; coefficients within 0.16 ulps of the
   prediction's largest term (statsmodels up to 4,122), 30 times faster. `DetrendError::TooFewPoints`.
+- `Whitened::matched` and `Matched`: the light curve filtered back through
+  the model and the information of a box of each duration, for
+  `rustellar-bls`'s matched search; checked against the filtered box
+  summed by hand. `DetrendError::LightCurveMismatch` and
+  `DetrendError::DegenerateModel`.

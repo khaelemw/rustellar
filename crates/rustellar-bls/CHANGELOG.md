@@ -30,6 +30,9 @@ All notable changes to this crate are recorded here. The format follows
 - `BlsError::TooManyBins`.
 - An unweighted search, documented: one error for every point (boxes and
   depths independent of its value, tested to the bit).
+- `Bls::search_whitened`: the matched search for a box in a whitened
+  light curve's noise, each box's statistics divided by the information
+  of its own duration (from `rustellar-detrend`'s `Matched`).
 
 ### Changed
 

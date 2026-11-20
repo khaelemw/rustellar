@@ -4,7 +4,7 @@
 //! correlated over a few cadences (which a sliding filter leaves) becomes
 //! white.
 
-use rustellar_core::LightCurve;
+use rustellar_core::{LightCurve, TimeDelta};
 
 use crate::DetrendError;
 use crate::double::{Double, accumulate, two_product};
@@ -110,7 +110,7 @@ impl Autoregressive {
     /// for the highest order tried.
     pub fn whiten(&self, lc: &LightCurve) -> Result<Whitened, DetrendError> {
         let flux = lc.flux();
-        let starts = runs(lc);
+        let (starts, cadence) = runs(lc);
         let enough = |p: usize| {
             let rows = predictable(&starts, p);
             if rows.len() > p + 1 {
@@ -130,10 +130,12 @@ impl Autoregressive {
         };
         let beta = least_squares(flux, &rows, order);
         let (mut time, mut out, mut err) = (vec![], vec![], vec![]);
+        let mut residuals = Vec::with_capacity(rows.len());
         let mut sum_squares = 0.0;
         for &t in &rows {
             let e = residual(flux, t, &beta);
             sum_squares += e * e;
+            residuals.push(e);
             time.push(lc.time()[t]);
             out.push(1.0 + e);
             err.push(lc.flux_err()[t]);
@@ -148,6 +150,9 @@ impl Autoregressive {
             constant: beta[0],
             coefficients: beta[1..].to_vec(),
             variance,
+            residuals,
+            starts,
+            cadence,
         })
     }
 }
@@ -160,6 +165,9 @@ pub struct Whitened {
     constant: f64,
     coefficients: Vec<f64>,
     variance: f64,
+    residuals: Vec<f64>,
+    starts: Vec<usize>,
+    cadence: f64,
 }
 
 impl Whitened {
@@ -212,18 +220,148 @@ impl Whitened {
     pub fn gain(&self) -> f64 {
         1.0 - self.coefficients.iter().sum::<f64>()
     }
+
+    /// What a box search should be run on after whitening: the residuals
+    /// filtered back by the model, so a box summed over them is the box's
+    /// matched filter in the model's noise (the generalised least-squares
+    /// fit of a box), and how much information a box of each duration
+    /// holds. `lc` is the light curve whitened.
+    ///
+    /// With `a_0 = 1`, `a_k = -phi_k` and `e` the residuals, each point of a
+    /// run that has residuals becomes
+    ///
+    /// `1 + (a_0 e_t + a_1 e_(t+1) + ... + a_p e_(t+p)) / gain^2`
+    ///
+    /// (the terms whose residuals are in its run), with the flux error
+    /// `sqrt(variance) / |gain|`. Inside a long, flat dip of depth `d` this
+    /// is about `1 - d`. In correlated noise a transit's ingress and egress
+    /// carry more of its signal than its middle, so a box holds more
+    /// information than its points: [`Matched::information`] says how many
+    /// times as much, for each duration. A box search that weighs each
+    /// duration so (`rustellar-bls`'s `Bls::search_whitened`) is the matched
+    /// filter.
+    ///
+    /// # Errors
+    ///
+    /// [`DetrendError::LightCurveMismatch`] if `lc` is not as long as the
+    /// light curve whitened, and [`DetrendError::DegenerateModel`] if the
+    /// gain or the variance is zero (or not finite): then there is no noise
+    /// to weigh a box against.
+    pub fn matched(&self, lc: &LightCurve) -> Result<Matched, DetrendError> {
+        let len = *self.starts.last().expect("the length is last");
+        if lc.len() != len {
+            return Err(DetrendError::LightCurveMismatch);
+        }
+        let gain = self.gain();
+        let sigma = self.variance.sqrt() / gain.abs();
+        if !(sigma > 0.0 && sigma.is_finite()) {
+            return Err(DetrendError::DegenerateModel);
+        }
+        let p = self.order();
+        let mut a = vec![1.0];
+        a.extend(self.coefficients.iter().map(|phi| -phi));
+        // Where each point's residual is, if it has one.
+        let mut at = vec![None; len];
+        for (k, &t) in self.indices.iter().enumerate() {
+            at[t] = Some(k);
+        }
+        let square = gain * gain;
+        let (mut time, mut flux, mut indices) = (vec![], vec![], vec![]);
+        for run in self.starts.windows(2) {
+            let (from, to) = (run[0], run[1]);
+            // A run too short to have residuals.
+            if to - from <= p {
+                continue;
+            }
+            for t in from..to {
+                let mut sum: Double = (0.0, 0.0);
+                for (j, &aj) in a.iter().enumerate().take(to - t) {
+                    if let Some(k) = at[t + j] {
+                        sum = accumulate(sum, two_product(aj, self.residuals[k]));
+                    }
+                }
+                indices.push(t);
+                time.push(lc.time()[t]);
+                flux.push(1.0 + (sum.0 + sum.1) / square);
+            }
+        }
+        let err = vec![sigma; time.len()];
+        // The times are a subset of a light curve's, the errors positive,
+        // the fluxes finite (residuals over a finite, nonzero square).
+        let light_curve = LightCurve::new(time, flux, err).expect("a valid light curve");
+        let gamma = (0..=p)
+            .map(|m| (0..=p - m).map(|j| a[j] * a[j + m]).sum())
+            .collect();
+        Ok(Matched {
+            light_curve,
+            indices,
+            gamma,
+            square,
+            cadence: self.cadence,
+        })
+    }
+}
+
+/// A whitened light curve made ready for a box search, from
+/// [`Whitened::matched`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct Matched {
+    light_curve: LightCurve,
+    indices: Vec<usize>,
+    /// The filter's autocorrelation, `gamma_m = sum a_j a_(j+m)`.
+    gamma: Vec<f64>,
+    square: f64,
+    cadence: f64,
+}
+
+impl Matched {
+    /// The light curve to search.
+    #[must_use]
+    pub fn light_curve(&self) -> &LightCurve {
+        &self.light_curve
+    }
+
+    /// For each of its points, its index in the light curve whitened.
+    #[must_use]
+    pub fn indices(&self) -> &[usize] {
+        &self.indices
+    }
+
+    /// How many times its points' information a box of `duration` holds
+    /// in each transit: a transit of `n` cadences (`duration` over the
+    /// cadence, at least 1), filtered by the model, has the squared sum
+    ///
+    /// `V(n) = n gamma_0 + 2 (gamma_1 (n - 1) + gamma_2 (n - 2) + ...)`
+    ///
+    /// (the terms with `m < n`), `gamma_m` the sum of `a_j a_(j+m)`, and
+    /// this is `V(n) / (gain^2 n)`. Longer than the order it is `1 + K /
+    /// (gain^2 n)` with `K = -2 (gamma_1 + 2 gamma_2 + ... + p gamma_p)`,
+    /// the ingress and egress: for one coefficient `phi`, `1 + 2 phi / ((1 -
+    /// phi)^2 n)`. Exactly 1 for order 0.
+    #[must_use]
+    pub fn information(&self, duration: TimeDelta) -> f64 {
+        let n = (duration.as_days() / self.cadence).max(1.0);
+        let mut v = n * self.gamma[0];
+        for (m, g) in self.gamma.iter().enumerate().skip(1) {
+            #[expect(clippy::cast_precision_loss, reason = "a small lag")]
+            let m = m as f64;
+            v += 2.0 * g * (n - m).max(0.0);
+        }
+        v / (self.square * n)
+    }
 }
 
 /// The index where each run of regular cadence starts, and the length as
-/// the last: a point starts a run where its step from the one before is
+/// the last, with the cadence: a point starts a run where its step from the one before is
 /// more than half a cadence (the median step) from it.
-fn runs(lc: &LightCurve) -> Vec<usize> {
+fn runs(lc: &LightCurve) -> (Vec<usize>, f64) {
     let time = lc.time();
     let mut steps: Vec<f64> = time.windows(2).map(|w| (w[1] - w[0]).as_days()).collect();
     let mut starts = vec![0];
+    let mut cadence = 0.0;
     if !steps.is_empty() {
         let mid = steps.len() / 2;
-        let (_, &mut cadence, _) = steps.select_nth_unstable_by(mid, f64::total_cmp);
+        cadence = *steps.select_nth_unstable_by(mid, f64::total_cmp).1;
         for (i, w) in time.windows(2).enumerate() {
             if ((w[1] - w[0]).as_days() - cadence).abs() > 0.5 * cadence {
                 starts.push(i + 1);
@@ -231,7 +369,7 @@ fn runs(lc: &LightCurve) -> Vec<usize> {
         }
     }
     starts.push(time.len());
-    starts
+    (starts, cadence)
 }
 
 /// The points with at least `order` points before them in their run.

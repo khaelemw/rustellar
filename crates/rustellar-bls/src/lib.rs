@@ -42,6 +42,7 @@ mod sums;
 #[cfg(any(feature = "cuda", test))]
 mod top;
 mod totals;
+mod whitened;
 
 #[cfg(test)]
 mod tests;

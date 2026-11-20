@@ -120,7 +120,8 @@ cargo run --release -p rustellar-benchmarks --bin compare -- whitening
 The same 400 curves with their white noise and with AR(1) noise of 0.5 and
 0.8, each with its transit and without, flattened (the biweight at 2.5
 durations), then whitened by an autoregressive model (AIC up to orders 3,
-10 and 30); a BLS search on each: detections at SDE above 7, false alarms,
+10 and 30); a BLS search on each, and the matched search
+(`Bls::search_whitened`): detections at SDE above 7, false alarms,
 and detections above the SDE 5% of the transit-free curves reach. The
 results are in `rustellar-detrend`'s README. About three minutes on 16
 threads.

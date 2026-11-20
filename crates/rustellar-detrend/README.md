@@ -229,26 +229,50 @@ misses, `1 + e`: noise correlated over a few cadences comes out white, as
 in ARPS (Caceres et al. 2019). A transit comes out shallower (by the
 model's gain, `1 - phi_1 - ... - phi_p`) with a deeper first point.
 
+A box is not what a whitened transit looks like, so `whiten` has a
+matched search too. `Whitened::matched(&flat)` filters the flattened
+light curve back through the model, so that a box summed on it is the
+generalised least squares fit of a box in the model's noise, and
+`Matched::information(duration)` says how much more a box of that
+duration is worth than its points: in correlated noise a transit's
+ingress and egress carry more of its signal than its middle.
+`rustellar-bls`'s `Bls::search_whitened` takes both.
+
+```rust,ignore
+let white = Autoregressive::default().whiten(flat.light_curve())?;
+let filtered = white.matched(flat.light_curve())?;
+let result = Bls::new(filtered.light_curve())?.search_whitened(
+    &periods,
+    &durations,
+    &options,
+    |d| filtered.information(d),
+)?;
+```
+
 On the window study's 400 curves, flattened (the biweight at 2.5
-durations) and searched with BLS, with their white noise and with noise as
-correlated as an AR(1) process with 0.5 and 0.8, each with its transit and
-without: how often the search finds the transit above the SDE that 5% of
-the curves without one reach.
+durations) and searched, with their white noise and with noise as
+correlated as an AR(1) process with 0.5 and 0.8, each with its transit
+and without: how often the search finds the transit above the SDE that 5%
+of the curves without one reach. BLS on the flattened curve, BLS on the
+whitened one, and the matched search, with AIC choosing the order up to
+3, 10 and 30.
 
-| Noise | Flattened | Whitened, AIC up to 3 | Up to 10 | Up to 30 |
-|---|--:|--:|--:|--:|
-| White | 0.453 | 0.370 | 0.398 | 0.512 |
-| AR(1) 0.5 | 0.318 | 0.278 | 0.302 | 0.302 |
-| AR(1) 0.8 | 0.235 | 0.242 | 0.225 | 0.228 |
+| Noise | Flattened | Whitened, up to 3 | Up to 10 | Up to 30 | Matched, up to 3 | Up to 10 | Up to 30 |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| White | 0.453 | 0.370 | 0.398 | 0.512 | 0.323 | 0.422 | **0.555** |
+| AR(1) 0.5 | **0.318** | 0.278 | 0.302 | 0.302 | 0.258 | 0.275 | 0.305 |
+| AR(1) 0.8 | 0.235 | **0.242** | 0.225 | 0.228 | 0.225 | 0.203 | 0.185 |
 
-Whitening finds more transits only where a long model takes out what the
-window left of the star (white noise, up to 30); in red noise a box
-search after it does no better than before. At SDE above 7 it looks
-better throughout, but only because false alarms rise with it (0.098 to
-0.147 on white noise, up to 10). A box is not what a whitened transit
-looks like: a search for the whitened shape (ARPS's transit comb filter,
-or a box whitened by the same model) is what would use it, and is not
-here. So whitening is an option to try, not a step to take by default.
+The matched search with a long model finds the most transits on white
+noise, 23% more than the flattened curve's search, at the same false
+alarms; a long model takes out what the window left of the star. In red
+noise neither whitening nor the matched search beats searching the
+flattened curve: the window has already taken out most of the slow
+noise, and the model's fit to the rest moves as much as it gains. At SDE
+above 7 every whitened search looks better, but only because false alarms
+rise with it (0.098 to 0.152 on white noise, matched up to 10). So
+whitening and the matched search are options to try, at order 30, not a
+step to take by default.
 
 `cargo run --release -p rustellar-benchmarks --bin compare -- whitening`
 reruns the study.

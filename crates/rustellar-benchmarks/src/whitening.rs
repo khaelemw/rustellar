@@ -4,10 +4,11 @@
 //! 0.8 (the same standard deviation), each with its transit and without.
 //! Each curve flattened (the biweight at 2.5 transit durations), searched
 //! (BLS), then whitened (`Autoregressive`, AIC order up to 3, 10 and 30)
-//! and searched again: how often the best peak is the transit's period with
-//! SDE above 7, how often a curve without a transit has a peak that high,
-//! and, fairer, how often the transit is found above the SDE that 5% of the
-//! curves without one reach.
+//! and searched again, with BLS on the whitened curve and with the matched
+//! search (`Whitened::matched` and `Bls::search_whitened`): how often the
+//! best peak is the transit's period with SDE above 7, how often a curve
+//! without a transit has a peak that high, and, fairer, how often the
+//! transit is found above the SDE that 5% of the curves without one reach.
 
 use std::fmt::Write as _;
 use std::num::NonZeroUsize;
@@ -17,7 +18,7 @@ use rustellar_core::TimeDelta;
 use rustellar_detrend::{Autoregressive, Detrend, Order};
 
 use crate::stats::median;
-use crate::window::{Case, Found, best, inject_with, quantile};
+use crate::window::{Case, Found, best, best_with, inject_with, quantile};
 
 /// The noises: white, then AR(1) with these coefficients.
 pub const NOISES: [f64; 3] = [0.0, 0.5, 0.8];
@@ -26,11 +27,13 @@ pub const NOISES: [f64; 3] = [0.0, 0.5, 0.8];
 pub const ORDERS: [usize; 3] = [3, 10, 30];
 
 /// For one curve: the search after flattening, then after whitening with
-/// each of [`ORDERS`], with the model's order and gain.
+/// each of [`ORDERS`] (with the model's order and gain), and the matched
+/// search with each.
 #[derive(Debug, Clone)]
 pub struct Searched {
     pub flattened: Found,
     pub whitened: Vec<(Found, usize, f64)>,
+    pub matched: Vec<Found>,
 }
 
 /// For one case and noise: the curve with its transit and without.
@@ -49,23 +52,33 @@ fn search(case: &Case, red: f64, transit: bool) -> Searched {
         .with_threads(NonZeroUsize::MIN)
         .flatten(&lc, None)
         .expect("detrended");
-    let whitened = ORDERS
-        .iter()
-        .map(|&most| {
-            let white = Autoregressive::default()
-                .with_order(Order::Aic(most))
-                .whiten(flat.light_curve())
-                .expect("whitened");
-            (
-                best(white.light_curve(), truth).0,
-                white.order(),
-                white.gain(),
+    let (mut whitened, mut matched) = (vec![], vec![]);
+    for &most in &ORDERS {
+        let white = Autoregressive::default()
+            .with_order(Order::Aic(most))
+            .whiten(flat.light_curve())
+            .expect("whitened");
+        whitened.push((
+            best(white.light_curve(), truth).0,
+            white.order(),
+            white.gain(),
+        ));
+        let filtered = white
+            .matched(flat.light_curve())
+            .expect("a model with noise");
+        matched.push(
+            best_with(
+                filtered.light_curve(),
+                truth,
+                Some(&|d| filtered.information(d)),
             )
-        })
-        .collect();
+            .0,
+        );
+    }
     Searched {
         flattened: best(flat.light_curve(), truth).0,
         whitened,
+        matched,
     }
 }
 
@@ -102,12 +115,31 @@ fn share(items: &[Found], pass: impl Fn(&Found) -> bool) -> f64 {
     items.iter().filter(|f| pass(f)).count() as f64 / items.len() as f64
 }
 
-/// The table: per noise and per curve (flattened, or whitened too), how
-/// often the search finds the transit (right period, SDE above 7), how
-/// often a curve without one has a peak above 7, how often the transit is
-/// found above the SDE 5% of the curves without one reach, how often the
-/// best peak is right at all, the median SDE, and the whitening model's
-/// median order and gain.
+/// Which search a row of the table is: after flattening, or after
+/// whitening with the `k`th of [`ORDERS`], BLS or matched.
+#[derive(Debug, Clone, Copy)]
+enum Row {
+    Flattened,
+    Whitened(usize),
+    Matched(usize),
+}
+
+impl Row {
+    fn pick(self, s: &Searched) -> Found {
+        match self {
+            Self::Flattened => s.flattened,
+            Self::Whitened(k) => s.whitened[k].0,
+            Self::Matched(k) => s.matched[k],
+        }
+    }
+}
+
+/// The table: per noise and per search (after flattening, after whitening,
+/// or matched), how often the search finds the transit (right period, SDE
+/// above 7), how often a curve without one has a peak above 7, how often
+/// the transit is found above the SDE 5% of the curves without one reach,
+/// how often the best peak is right at all, the median SDE, and the
+/// whitening model's median order and gain.
 #[must_use]
 pub fn report(results: &[Vec<Outcome>]) -> String {
     let mut out = String::from(
@@ -115,26 +147,29 @@ pub fn report(results: &[Vec<Outcome>]) -> String {
          | Found at 5% false alarms | Right | Median SDE | Order | Gain |\n\
          |---|---|--:|--:|--:|--:|--:|--:|--:|\n",
     );
+    let rows: Vec<Row> = std::iter::once(Row::Flattened)
+        .chain((0..ORDERS.len()).map(Row::Whitened))
+        .chain((0..ORDERS.len()).map(Row::Matched))
+        .collect();
     for (j, &red) in NOISES.iter().enumerate() {
         let noise = if red == 0.0 {
             String::from("white")
         } else {
             format!("AR(1) {red}")
         };
-        for which in std::iter::once(None).chain((0..ORDERS.len()).map(Some)) {
-            let pick = |s: &Searched| which.map_or(s.flattened, |k| s.whitened[k].0);
-            let transit: Vec<Found> = results.iter().map(|r| pick(&r[j].transit)).collect();
-            let empty: Vec<Found> = results.iter().map(|r| pick(&r[j].empty)).collect();
+        for &row in &rows {
+            let transit: Vec<Found> = results.iter().map(|r| row.pick(&r[j].transit)).collect();
+            let empty: Vec<Found> = results.iter().map(|r| row.pick(&r[j].empty)).collect();
             let quiet: Vec<f64> = empty.iter().map(|f| f.sde).collect();
             let cut = quantile(&quiet, 0.95);
             let sde: Vec<f64> = transit.iter().map(|f| f.sde).collect();
-            let (name, order, gain) = match which {
-                None => (
+            let (name, order, gain) = match row {
+                Row::Flattened => (
                     String::from("flattened"),
                     String::from("-"),
                     String::from("-"),
                 ),
-                Some(k) => {
+                Row::Whitened(k) | Row::Matched(k) => {
                     #[expect(clippy::cast_precision_loss, reason = "small orders")]
                     let orders: Vec<f64> = results
                         .iter()
@@ -142,8 +177,13 @@ pub fn report(results: &[Vec<Outcome>]) -> String {
                         .collect();
                     let gains: Vec<f64> =
                         results.iter().map(|r| r[j].transit.whitened[k].2).collect();
+                    let how = if matches!(row, Row::Matched(_)) {
+                        "matched"
+                    } else {
+                        "whitened"
+                    };
                     (
-                        format!("whitened, AIC up to {}", ORDERS[k]),
+                        format!("{how}, AIC up to {}", ORDERS[k]),
                         format!("{:.0}", median(&orders)),
                         format!("{:.2}", median(&gains)),
                     )

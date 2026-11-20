@@ -4,7 +4,7 @@
 //! in counts, and close to a unit root; then against its definition on
 //! light curves with gaps.
 
-use rustellar_core::LightCurve;
+use rustellar_core::{LightCurve, TimeDelta};
 use rustellar_detrend::{Autoregressive, DetrendError, MAX_ORDER, Order};
 
 const CASES: &str = include_str!("reference/ar_cases.csv");
@@ -271,4 +271,141 @@ fn constant_and_dependent_columns() {
     assert!((white.constant() - 2.0).abs() < 1e-14);
     assert!((white.coefficients()[0] + 1.0).abs() < 1e-14);
     assert_eq!(white.gain(), 2.0);
+}
+
+/// A light curve with three runs (a 5-cadence gap, then one cadence
+/// missing), correlated noise and a slow wave.
+fn gapped() -> LightCurve {
+    let mut time = vec![];
+    let mut flux = vec![];
+    let mut state = 11_u64;
+    let mut noise = 0.0;
+    for i in 0..400_u32 {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        #[expect(clippy::cast_precision_loss, reason = "a fixed generator")]
+        let draw = (state >> 11) as f64 / (1_u64 << 53) as f64 - 0.5;
+        noise = 0.6 * noise + draw;
+        if (100..105).contains(&i) || i == 250 {
+            continue;
+        }
+        time.push(f64::from(i) / 720.0);
+        flux.push(1.0 + 1e-3 * noise + 5e-4 * (f64::from(i) / 40.0).sin());
+    }
+    let n = time.len();
+    LightCurve::from_btjd(time, flux, vec![1e-3; n]).unwrap()
+}
+
+#[test]
+fn matched_by_definition() {
+    let lc = gapped();
+    let white = Autoregressive::default()
+        .with_order(Order::Fixed(3))
+        .whiten(&lc)
+        .unwrap();
+    let matched = white.matched(&lc).unwrap();
+    let (gain, phi) = (white.gain(), white.coefficients());
+    let a = [1.0, -phi[0], -phi[1], -phi[2]];
+    // Every point of the three runs (each longer than the order).
+    assert_eq!(matched.indices().len(), lc.len());
+    // The residual at each original index.
+    let mut e = vec![None; lc.len()];
+    for (k, &t) in white.indices().iter().enumerate() {
+        e[t] = Some(white.light_curve().flux()[k] - 1.0);
+    }
+    let run_of = |t: usize| usize::from(t >= 100) + usize::from(t >= 245);
+    for (k, &t) in matched.indices().iter().enumerate() {
+        let f: f64 = (0..4)
+            .filter(|&j| t + j < lc.len() && run_of(t + j) == run_of(t))
+            .filter_map(|j| e[t + j].map(|r| a[j] * r))
+            .sum();
+        let got = (matched.light_curve().flux()[k] - 1.0) * gain * gain;
+        assert!((got - f).abs() < 1e-15, "{t}: {got} {f}");
+    }
+    let sigma = white.variance().sqrt() / gain.abs();
+    assert!(matched.light_curve().flux_err().iter().all(|&s| s == sigma));
+    // The information, by its definition: a box of n points inside a run,
+    // filtered by the model, has squared sum gain^2 n information(n
+    // cadences), shorter than the order or not.
+    let cadence = 1.0 / 720.0;
+    let filtered_box = |n: usize| -> f64 {
+        // The box at points 20..20 + n of the first run, the rows from 3.
+        (3..100)
+            .map(|t| {
+                let w: f64 = (0..4)
+                    .filter(|&j| (20..20 + n).contains(&(t - j)))
+                    .map(|j| a[j])
+                    .sum();
+                w * w
+            })
+            .sum()
+    };
+    for n in [1, 2, 3, 4, 9, 30] {
+        #[expect(clippy::cast_precision_loss, reason = "small")]
+        let n_f = n as f64;
+        let duration = TimeDelta::from_days(n_f * cadence).unwrap();
+        let expected = filtered_box(n) / (gain * gain * n_f);
+        let got = matched.information(duration);
+        assert!(
+            (got - expected).abs() < 1e-12 * expected,
+            "{n}: {got} {expected}"
+        );
+    }
+    // Shorter than a cadence: one point's.
+    let tiny = TimeDelta::from_days(0.1 * cadence).unwrap();
+    let one = matched.information(TimeDelta::from_days(cadence).unwrap());
+    assert!((matched.information(tiny) - one).abs() < 1e-9 * one);
+    let lc2 = matched.light_curve().clone();
+    assert_eq!(lc2.len(), matched.indices().len());
+}
+
+#[test]
+fn matched_errors_and_white_noise() {
+    let lc = gapped();
+    let white = Autoregressive::default()
+        .with_order(Order::Fixed(0))
+        .whiten(&lc)
+        .unwrap();
+    let matched = white.matched(&lc).unwrap();
+    // Order 0: the residuals themselves, each point its own information.
+    assert_eq!(matched.information(TimeDelta::from_days(0.1).unwrap()), 1.0);
+    assert_eq!(matched.light_curve().flux(), white.light_curve().flux());
+    let short = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 1.0], vec![1.0; 2]).unwrap();
+    assert_eq!(
+        white.matched(&short).unwrap_err(),
+        DetrendError::LightCurveMismatch
+    );
+    // A constant: no noise to weigh against.
+    let flat = regular(&vec![1.0; 60]);
+    let white = Autoregressive::default()
+        .with_order(Order::Fixed(1))
+        .whiten(&flat)
+        .unwrap();
+    assert_eq!(
+        white.matched(&flat).unwrap_err(),
+        DetrendError::DegenerateModel
+    );
+    assert_eq!(
+        DetrendError::DegenerateModel.to_string(),
+        "the autoregressive model has no gain or no noise"
+    );
+    assert_eq!(
+        DetrendError::LightCurveMismatch.to_string(),
+        "the light curve is not the one whitened"
+    );
+    // A run no longer than the order is left out: one point alone at the
+    // end, after a gap.
+    let mut time: Vec<f64> = (0..50).map(|i| f64::from(i) / 720.0).collect();
+    time.push(1.0);
+    let flux: Vec<f64> = (0..51_u32)
+        .map(|i| 1.0 + 1e-3 * f64::from(i * 7 % 11))
+        .collect();
+    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 51]).unwrap();
+    let white = Autoregressive::default()
+        .with_order(Order::Fixed(1))
+        .whiten(&lc)
+        .unwrap();
+    let matched = white.matched(&lc).unwrap();
+    assert_eq!(matched.indices(), (0..50).collect::<Vec<_>>().as_slice());
 }

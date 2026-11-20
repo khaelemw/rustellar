@@ -27,7 +27,11 @@ fn every_noise_on_a_few_curves() {
     let table = report(&results);
     let rows: Vec<&str> = table.lines().filter(|l| l.starts_with('|')).collect();
     // The header, its rule, and per noise the flattened row and one per order.
-    assert_eq!(rows.len(), 2 + NOISES.len() * (1 + ORDERS.len()), "{table}");
+    assert_eq!(
+        rows.len(),
+        2 + NOISES.len() * (1 + 2 * ORDERS.len()),
+        "{table}"
+    );
     let columns = |l: &str| l.matches('|').count();
     assert!(
         rows.iter().all(|r| columns(r) == columns(rows[0])),

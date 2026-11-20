@@ -188,8 +188,13 @@ seconds a light curve:
 
 - The power is the binned search's. Only the peaks are refitted exactly, so
   a detection statistic measured from the power is not inflated.
-- The errors are taken as white noise. Red noise is not modelled; inflate
-  the flux errors to allow for it.
+- The errors are taken as white noise. For noise correlated over a few
+  cadences, `Bls::search_whitened` searches a light curve filtered by an
+  autoregressive model (`rustellar-detrend`'s `Whitened::matched`), the
+  matched filter for a box in that noise. On 400 injected curves it
+  finds 23% more transits than the plain search on white noise at the
+  same false alarms, and no more under AR(1) red noise (the study is in
+  `rustellar-detrend`'s README); otherwise inflate the flux errors.
 - Detection thresholds, vetting statistics and alias checks are for the
   pipeline using the search.
 

@@ -319,22 +319,32 @@ pub(crate) fn found(lc: &LightCurve, truth: f64) -> Found {
 
 /// The blind BLS search of [`found`], with its best peak as a candidate.
 pub(crate) fn best(lc: &LightCurve, truth: f64) -> (Found, Option<Candidate>) {
+    best_with(lc, truth, None)
+}
+
+/// [`best`], or with `information` the matched search of a whitened light
+/// curve (`Bls::search_whitened`).
+pub(crate) fn best_with(
+    lc: &LightCurve,
+    truth: f64,
+    information: Option<&dyn Fn(TimeDelta) -> f64>,
+) -> (Found, Option<Candidate>) {
     let periods = OfirPeriod {
         minimum_period: Some(TimeDelta::from_days(0.6).expect("finite")),
         ..OfirPeriod::default()
     }
     .periods(lc)
     .expect("a grid");
-    let result = Bls::new(lc)
-        .expect("a light curve")
-        .search(
-            &periods,
-            &Durations::from_days(&DURATIONS).expect("durations"),
-            &SearchOptions::default()
-                .with_objective(Objective::Snr)
-                .with_threads(NonZeroUsize::MIN),
-        )
-        .expect("a search");
+    let bls = Bls::new(lc).expect("a light curve");
+    let durations = Durations::from_days(&DURATIONS).expect("durations");
+    let options = SearchOptions::default()
+        .with_objective(Objective::Snr)
+        .with_threads(NonZeroUsize::MIN);
+    let result = match information {
+        None => bls.search(&periods, &durations, &options),
+        Some(f) => bls.search_whitened(&periods, &durations, &options, f),
+    }
+    .expect("a search");
     let candidate = result.best().map(|b| Candidate {
         period: b.transit.period(),
         t0: b.transit.transit_time(),

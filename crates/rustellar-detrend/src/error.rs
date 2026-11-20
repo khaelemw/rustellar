@@ -48,6 +48,12 @@ pub enum DetrendError {
     /// [`Autoregressive::whiten`](crate::Autoregressive::whiten) has fewer
     /// points it can predict than its model has coefficients.
     TooFewPoints,
+    /// [`Whitened::matched`](crate::Whitened::matched) was given a light
+    /// curve of another length than the one whitened.
+    LightCurveMismatch,
+    /// [`Whitened::matched`](crate::Whitened::matched): the model's gain or
+    /// variance is zero (or not finite), so no box can be weighed.
+    DegenerateModel,
 }
 
 impl fmt::Display for DetrendError {
@@ -68,6 +74,12 @@ impl fmt::Display for DetrendError {
                 )
             }
             Self::NoPointsLeft => write!(f, "no point has a trend to flatten by"),
+            Self::LightCurveMismatch => {
+                write!(f, "the light curve is not the one whitened")
+            }
+            Self::DegenerateModel => {
+                write!(f, "the autoregressive model has no gain or no noise")
+            }
             Self::TooFewPoints => {
                 write!(f, "too few points to fit the autoregressive model")
             }
