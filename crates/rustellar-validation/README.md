@@ -78,7 +78,8 @@ detrended with the biweight at multiples of its transit's duration: the
 depth and signal to noise each window keeps, with and without the transits
 masked, and how often a blind BLS search afterwards finds the injected
 period. The results, and the window they chose, are in
-`rustellar-detrend`'s README. It takes about 80 seconds on 16 threads.
+`rustellar-detrend`'s README. It takes about 80 seconds on 16 threads;
+`--limit N` runs the first N curves only.
 
 ## Speed against the Python references
 

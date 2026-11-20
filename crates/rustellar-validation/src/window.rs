@@ -382,8 +382,11 @@ pub fn search_report(cases: &[Case], results: &[Vec<Found>]) -> String {
     out
 }
 
-/// The `q` quantile of `values` (sorted copy, nearest rank).
+/// The `q` quantile of `values` (sorted copy, nearest rank); NaN for none.
 fn quantile(values: &[f64], q: f64) -> f64 {
+    if values.is_empty() {
+        return f64::NAN;
+    }
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
     #[expect(

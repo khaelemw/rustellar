@@ -43,6 +43,16 @@ fn every_set_by_default() {
         assert!(table.contains(&format!("### {set} (0 curves)")), "{table}");
     }
     assert!(table.contains("(8 curves,"), "{table}");
+    // The window study capped by --limit too, here to none.
+    assert!(table.contains("(0 curves,"), "{table}");
+}
+
+#[test]
+fn the_window_study_on_a_few_curves() {
+    let (ok, table, _) = compare(&["window", "--limit", "2", "--threads", "2"]);
+    assert!(ok);
+    assert!(table.contains("2 curves, "), "{table}");
+    assert!(table.contains("### A blind BLS search"), "{table}");
 }
 
 #[test]

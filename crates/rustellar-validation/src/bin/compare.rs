@@ -11,9 +11,10 @@
 //! `speed` times every crate against its Python references, and
 //! `speed-model`, `speed-detrend`, `speed-bls` or `speed-tls` one crate;
 //! never by default, as it wants a quiet machine. `--limit` searches only
-//! each TLS set's first N curves; `--step` only every N-th curve of limb; `--threads`
-//! sets the threads (default all cores); `--cpu` keeps the searches off the
-//! GPU with the `cuda` feature.
+//! each TLS set's first N curves, and the window study's first N of 400;
+//! `--step` only every N-th curve of limb; `--threads` sets the threads
+//! (default all cores); `--cpu` keeps the searches off the GPU with the
+//! `cuda` feature.
 
 use std::num::NonZeroUsize;
 use std::process::ExitCode;
@@ -96,13 +97,16 @@ fn main() -> ExitCode {
     }
     if with_window {
         let start = Instant::now();
-        let cases = window::cases(400);
-        let results = window::measure_all(&cases, threads);
+        let count = u64::try_from(limit.min(400)).expect("small");
+        let cases = window::cases(count);
         println!("## Detrending window against transit duration\n");
-        print!("{}", window::report(&cases, &results));
-        println!("\n### A blind BLS search after each unmasked window\n");
-        let found = window::search_all(&cases, threads);
-        print!("{}", window::search_report(&cases, &found));
+        if !cases.is_empty() {
+            let results = window::measure_all(&cases, threads);
+            print!("{}", window::report(&cases, &results));
+            println!("\n### A blind BLS search after each unmasked window\n");
+            let found = window::search_all(&cases, threads);
+            print!("{}", window::search_report(&cases, &found));
+        }
         println!(
             "\n({} curves, {:.0} s)",
             cases.len(),
