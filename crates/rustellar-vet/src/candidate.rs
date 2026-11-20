@@ -103,6 +103,29 @@ impl Candidate {
     pub const fn depth(&self) -> Option<f64> {
         self.depth
     }
+
+    /// The share of the orbit in transit, duration over period. A planet's
+    /// is small (2% for a hot Jupiter); an eclipsing binary's eclipses
+    /// often take more, and above 0.1 to 0.15 a planet is unlikely around a
+    /// star like the Sun.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_vet::{Candidate, Epoch, TimeDelta};
+    ///
+    /// let c = Candidate::new(
+    ///     TimeDelta::from_days(3.0)?,
+    ///     Epoch::from_btjd(0.0)?,
+    ///     TimeDelta::from_days(0.15)?,
+    /// )?;
+    /// assert!((c.duty_cycle() - 0.05).abs() < 1e-15);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn duty_cycle(&self) -> f64 {
+        self.duration.as_days() / self.period.as_days()
+    }
 }
 
 /// The best box of a `rustellar-bls` search: its period, mid-transit time,

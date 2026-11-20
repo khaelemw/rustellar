@@ -78,6 +78,27 @@ built from a period, a mid-transit time and a duration.
   light curve's own noise scale). Each box equals a box fit to 1e-12, and
   in white noise the significance at half the period has mean 0 and
   spread 1.
+  Its `depth_ratio` (at half over the primary) near 1 means the two
+  eclipses are alike.
+- `OddEven::half_period`: whether the shallower of the odd and even
+  depths looks empty (near zero and well below the deeper), which means
+  twice the period rather than an eclipsing binary; `depth_ratio` gives
+  the number.
+- `multiples`: the transits split `n` ways for every `n` up to a limit
+  (transit `e` in group `e mod n`), each group's depth, a chi-squared test
+  of equal depths, and the multiple of the period the deep groups point
+  to. At twice or three times the true period the right multiple and
+  starting group are named; for a planet every split is equal, and the
+  test's mean matches its degrees of freedom over 300 noise draws.
+- `ellipsoidal`: sinusoids once and twice an orbit fitted out of both
+  eclipses, the signature of a close binary (and of reflection and
+  Doppler beaming). Injected terms come back to 1e-12; each term over its
+  error is a standard normal in white noise. `Candidate::duty_cycle` gives
+  the duration over the period.
+- `search_period`: the period searched within a few percent of a
+  candidate's (or an alias's), with the mid-transit time, in steps that
+  move the outermost transits by an eighth of a duration; the whole
+  spectrum is returned.
 
 ## Pointing back to the true period
 

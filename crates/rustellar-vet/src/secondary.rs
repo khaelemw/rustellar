@@ -1,8 +1,8 @@
 use rustellar_core::LightCurve;
 
-use crate::Candidate;
 use crate::fit::phase;
 use crate::sum::Sum;
+use crate::{Candidate, Shape, fit_depth};
 
 /// A box of the candidate's duration fitted at one phase.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -47,6 +47,9 @@ impl Dip {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct Secondary {
+    /// The box at mid-transit, every point used: the primary eclipse's
+    /// depth on the same terms, for [`depth_ratio`](Self::depth_ratio).
+    pub primary: Option<Dip>,
     /// The box at half the period, where a circular orbit's second eclipse
     /// falls.
     pub at_half: Option<Dip>,
@@ -63,6 +66,16 @@ pub struct Secondary {
     /// About how many independent boxes the scan holds: its length over the
     /// duration. Many trials make a 3-sigma dip somewhere likely.
     pub trials: usize,
+}
+
+impl Secondary {
+    /// The depth at half the period over the primary's: near 1 when the
+    /// two eclipses are alike, so the true period may be half the
+    /// candidate's (or the star a twin binary); near 0 for a planet.
+    #[must_use]
+    pub fn depth_ratio(&self) -> Option<f64> {
+        Some(self.at_half?.depth / self.primary?.depth)
+    }
 }
 
 /// The search for a second eclipse of `candidate` in `lc`.
@@ -114,7 +127,14 @@ pub fn secondary(lc: &LightCurve, candidate: &Candidate) -> Secondary {
         })
         .collect();
     points.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let primary = fit_depth(lc, candidate, Shape::BOX).ok().map(|f| Dip {
+        phase: 0.0,
+        depth: f.depth,
+        depth_err: f.depth_err,
+        points: f.points_in_transit,
+    });
     let none = Secondary {
+        primary,
         at_half: None,
         deepest: None,
         brightest: None,
@@ -190,6 +210,7 @@ pub fn secondary(lc: &LightCurve, candidate: &Candidate) -> Secondary {
     )]
     let trials = (room / duration).floor() as usize + 1;
     Secondary {
+        primary,
         at_half: dip(0.5 * period),
         deepest: scan.iter().max_by(by_sigma).copied(),
         brightest: scan.iter().min_by(by_sigma).copied(),

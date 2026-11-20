@@ -18,6 +18,7 @@ fn a_candidate_keeps_what_it_is_given() {
     assert_eq!(c.transit_time(), at(1000.5));
     assert_eq!(c.duration(), days(0.1));
     assert_eq!(c.depth(), None);
+    assert!((c.duty_cycle() - 0.1 / 3.0).abs() < 1e-15);
     let deep = c.with_depth(2e-3).unwrap();
     assert_eq!(deep.depth(), Some(2e-3));
     assert_eq!(deep.period(), c.period());

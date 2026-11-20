@@ -107,6 +107,8 @@ fn a_planet_transit_by_transit() {
     let oe = e.odd_even.unwrap();
     assert!(oe.difference.abs() < 1e-10 * centre);
     assert_eq!((oe.odd_transits, oe.even_transits), (3, 3));
+    assert!((oe.depth_ratio() - 1.0).abs() < 1e-9);
+    assert!(!oe.half_period(2.0, 0.25));
     assert!((e.transits[1].time.as_btjd() - 1505.0).abs() < 1e-12);
 }
 
@@ -151,6 +153,13 @@ fn an_eclipsing_binary() {
     assert!((oe.odd - 3e-3).abs() < 4.0 * oe.odd_err);
     assert!((oe.even - 2e-3).abs() < 4.0 * oe.even_err);
     assert!(oe.sigma() > 10.0, "{}", oe.sigma());
+    // Two real depths: a binary, not twice the period.
+    assert!(
+        (oe.depth_ratio() - 2.0 / 3.0).abs() < 0.05,
+        "{}",
+        oe.depth_ratio()
+    );
+    assert!(!oe.half_period(2.0, 0.25));
     for t in &e.transits {
         let want = if t.epoch % 2 == 0 { 2e-3 } else { 3e-3 };
         assert!((t.depth.unwrap() - want).abs() < 5.0 * t.depth_err.unwrap());
@@ -170,6 +179,17 @@ fn half_the_true_period() {
     assert!(oe.odd.abs() < 4.0 * oe.odd_err, "{oe:?}");
     assert!((oe.even - centre).abs() < 4.0 * oe.even_err, "{oe:?}");
     assert!(oe.sigma() < -10.0, "{}", oe.sigma());
+    // The odd transits empty: twice the period.
+    assert!(oe.depth_ratio().abs() < 0.1);
+    assert!(oe.half_period(4.0, 0.25));
+    // At the true period from the other epoch, the even ones are empty.
+    let c = Candidate::new(days(3.7), at(1501.3 + 3.7), p.t14().unwrap()).unwrap();
+    let oe = evidence(&lc, &c, Shape::default())
+        .unwrap()
+        .odd_even
+        .unwrap();
+    assert!(oe.even.abs() < 4.0 * oe.even_err, "{oe:?}");
+    assert!(oe.half_period(4.0, 0.25));
 }
 
 // For a planet (equal depths) the odd-even significance is a standard

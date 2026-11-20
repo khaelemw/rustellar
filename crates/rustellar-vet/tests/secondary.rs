@@ -116,6 +116,11 @@ fn a_second_eclipse_at_half_the_period() {
     assert!((deepest.phase - 0.5).abs() < DURATION / P, "{deepest:?}");
     assert!(deepest.sigma() / s.spread > 5.0);
     assert!(half.upper_limit(3.0) > half.depth);
+    // The primary on the same terms: 3e-3, a third of which at half.
+    let primary = s.primary.unwrap();
+    assert_eq!(primary.phase, 0.0);
+    assert!((primary.depth - 3e-3).abs() < 4.0 * primary.depth_err);
+    assert!((s.depth_ratio().unwrap() - 1.0 / 3.0).abs() < 0.05);
 }
 
 // An eccentric binary's second eclipse at 0.37 of the period: found there,
@@ -171,8 +176,11 @@ fn no_room_or_no_points() {
         (None, None, None, 0)
     );
     assert!(s.spread.is_nan());
+    assert!(s.primary.is_some());
+    assert_eq!(s.depth_ratio(), None);
     let near = LightCurve::from_btjd(vec![T0, T0 + 0.01], vec![1.0; 2], vec![1e-3; 2]).unwrap();
-    assert_eq!(secondary(&near, &candidate()).deepest, None);
+    let s = secondary(&near, &candidate());
+    assert_eq!((s.deepest, s.primary), (None, None));
     // One point away from the transit, in the box at half the period.
     let one = LightCurve::from_btjd(vec![T0, T0 + 0.5 * P], vec![1.0; 2], vec![1e-3; 2]).unwrap();
     let s = secondary(&one, &candidate());

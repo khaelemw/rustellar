@@ -33,6 +33,13 @@
 //!   table).
 //! - [`secondary`]: a search for a second eclipse away from the transit,
 //!   at half the period and at every phase ([`Secondary`]).
+//! - [`multiples`]: the transits split `n` ways (every `n` up to a limit),
+//!   each group's depth, and the multiple of the period they point to
+//!   ([`Multiple`]).
+//! - [`ellipsoidal`]: sinusoids once and twice an orbit out of the
+//!   eclipses, the signs of a close binary ([`Ellipsoidal`]).
+//! - [`search_period`]: the period searched in a narrow window around a
+//!   candidate or one of its aliases ([`PeriodSearch`]).
 //!
 //! # Examples
 //!
@@ -52,11 +59,14 @@
 
 mod alias;
 mod candidate;
+mod ellipsoidal;
 mod error;
 mod evidence;
 mod fit;
 mod grouped;
+mod multiples;
 mod noise;
+mod period;
 mod refine;
 mod secondary;
 mod shape;
@@ -67,10 +77,13 @@ mod tests;
 
 pub use alias::{Alias, AliasRow, Aliases, Depth, Ratio, Split, aliases, aliases_at};
 pub use candidate::Candidate;
+pub use ellipsoidal::{Ellipsoidal, Harmonic, ellipsoidal};
 pub use error::VetError;
 pub use evidence::{Evidence, OddEven, Transit, evidence};
 pub use fit::{Fit, fit_depth};
+pub use multiples::{Multiple, multiples};
 pub use noise::{Noise, SignalToNoise, TransitSnr, signal_to_noise};
+pub use period::{PeriodSearch, search_period};
 pub use refine::{Refined, refine};
 pub use secondary::{Dip, Secondary, secondary};
 pub use shape::Shape;

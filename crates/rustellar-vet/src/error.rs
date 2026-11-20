@@ -51,6 +51,8 @@ pub enum VetError {
     /// An alias's period, the candidate's times a ratio, is too large to
     /// hold.
     AliasPeriodNotFinite,
+    /// A period search's width is not above 0 and at most 0.5.
+    WidthOutOfRange,
 }
 
 impl fmt::Display for VetError {
@@ -79,6 +81,9 @@ impl fmt::Display for VetError {
                 "a period ratio needs a numerator and denominator above zero"
             ),
             Self::AliasPeriodNotFinite => write!(f, "the alias's period is too large to hold"),
+            Self::WidthOutOfRange => {
+                write!(f, "a period search's width must be above 0 and at most 0.5")
+            }
         }
     }
 }

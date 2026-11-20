@@ -71,6 +71,28 @@ impl OddEven {
     pub fn sigma(&self) -> f64 {
         self.difference / self.difference_err
     }
+
+    /// The shallower group's depth over the deeper's: near 0 when every
+    /// other transit is empty (the true period twice the candidate's), near
+    /// 1 for a planet, in between for an eclipsing binary.
+    #[must_use]
+    pub fn depth_ratio(&self) -> f64 {
+        self.odd.min(self.even) / self.odd.max(self.even)
+    }
+
+    /// Whether the shallower group looks empty, so the true period is twice
+    /// the candidate's rather than an eclipsing binary's: its depth within
+    /// `sigmas` standard errors of zero and below `fraction` of the
+    /// deeper's. 2 and 0.25 are usual.
+    #[must_use]
+    pub fn half_period(&self, sigmas: f64, fraction: f64) -> bool {
+        let (shallow, err, deep) = if self.odd < self.even {
+            (self.odd, self.odd_err, self.even)
+        } else {
+            (self.even, self.even_err, self.odd)
+        };
+        shallow.abs() < sigmas * err && shallow < fraction * deep
+    }
 }
 
 /// The evidence transit by transit for one candidate.

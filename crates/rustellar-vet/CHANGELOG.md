@@ -42,4 +42,14 @@ All notable changes to this crate are recorded here. The format follows
   at half the period and at every phase a duration or more from the
   transit, with the deepest dip, the strongest brightening, the scan's
   spread of significances and its number of independent trials.
-- `VetError`, with `RatioZero` and `AliasPeriodNotFinite`.
+- `multiples` and `Multiple`: the transits split `n` ways for every `n`
+  up to a limit, each group's depth with a shared baseline, the
+  chi-squared test of equal depths, and the multiple of the period implied.
+- `OddEven::depth_ratio` and `OddEven::half_period`.
+- `Secondary::primary` and `Secondary::depth_ratio`.
+- `ellipsoidal`, `Ellipsoidal` and `Harmonic`: sinusoids once and twice an
+  orbit out of eclipse; `Candidate::duty_cycle`.
+- `search_period` and `PeriodSearch`: the period and mid-transit time
+  searched near a candidate's, with the spectrum.
+- `VetError`, with `RatioZero`, `AliasPeriodNotFinite` and
+  `WidthOutOfRange`.

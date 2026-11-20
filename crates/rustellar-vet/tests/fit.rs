@@ -132,6 +132,10 @@ fn the_new_errors_say_what_is_wrong() {
             VetError::AliasPeriodNotFinite,
             "the alias's period is too large to hold",
         ),
+        (
+            VetError::WidthOutOfRange,
+            "a period search's width must be above 0 and at most 0.5",
+        ),
     ] {
         assert_eq!(err.to_string(), text);
     }
