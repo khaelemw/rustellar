@@ -8,7 +8,8 @@ that cover it and the same results on any number of threads. Welsch's,
 Andrews' and Huber's M-estimators, Huber's proposal 2 (location and scale
 together, as wotan's `huber`), the Hodges-Lehmann estimator, the trimmed
 and winsorized means, the median and the mean are there too, and a
-least-squares cubic spline fitted to each segment.
+least-squares cubic spline fitted to each segment, plain or robust
+(clipped).
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `detrend` feature.
@@ -109,6 +110,15 @@ Where masks leave the knots badly conditioned, scipy's worst is 9,128
 and this crate's 113. The times are taken relative to the knots exactly
 and the fit refined twice from residuals found with fused multiply-adds.
 
+**The robust spline** (`Method::RobustSpline`), against the same clipping
+loop run exactly at 60 digits on 40 light curves with flares, dips and
+single outliers: the same points clipped in every case, and the trend
+within 2 ulps of the data's scale; the loop with scipy's fits, 4 to 47.
+wotan's `rspline` is a different loop: it clips only below the spline, so
+flares stay in and on pure noise its trend sits 0.09 standard deviations
+high (this crate's: unbiased, both sides clipped), and it always makes
+ten fits.
+
 **Detrend then search.** The five curves flattened by this crate's trend
 and by wotan's, then searched with rustellar-bls: both find every transit
 with the same period and mid-transit time, and depths that agree to 0.006.
@@ -185,6 +195,7 @@ Each method on the 2-minute sector, one thread (wotan's default settings):
 
 The least-squares spline (`Method::Spline`, knots half a day apart) on the
 same sector: scipy's `LSQUnivariateSpline` 0.00268, this crate 0.00244.
+The robust spline (sigma 3): wotan's `rspline` 0.447, this crate 0.00757.
 
 `Method::Huber` uses a fixed scale, c times the MAD (c 1.28, as wotan's
 `huber_psi`); `Method::HuberJoint` estimates the scale with the location,

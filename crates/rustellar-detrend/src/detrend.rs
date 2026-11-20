@@ -122,6 +122,18 @@ pub enum Method {
     /// robust: an outlier pulls the spline toward it. The edge cutoff
     /// applies as for the windows.
     Spline,
+    /// [`Spline`](Self::Spline) made robust by clipping: refitted without
+    /// the points more than `sigma` robust standard deviations from it
+    /// (1.4826 times the median absolute deviation of the residuals), on
+    /// either side, every point judged afresh each time, until the points
+    /// kept repeat (at most 50 refits). Flares and dips both drop out,
+    /// so a transit pulls the trend less. `sigma` from `1e-30` to `1e30`;
+    /// 3 is usual. wotan's `rspline` clips only points below the spline,
+    /// by the standard deviation, at 2.
+    RobustSpline {
+        /// The clipping threshold, in robust standard deviations.
+        sigma: f64,
+    },
 }
 
 impl Default for Method {
@@ -368,7 +380,8 @@ impl Detrend {
     /// The checks run in this order, and the first that fails is returned:
     ///
     /// 1. [`TuningOutOfRange`](DetrendError::TuningOutOfRange) if an
-    ///    M-estimator's `c` is not between `1e-30` and `1e30`, or
+    ///    M-estimator's `c` or a robust spline's `sigma` is not between
+    ///    `1e-30` and `1e30`, or
     ///    [`ProportionOutOfRange`](DetrendError::ProportionOutOfRange) if a
     ///    trimmed or winsorized mean's proportion is not from 0 to below 1/2.
     /// 2. [`NotPositive`](DetrendError::NotPositive) if the window, or a
@@ -518,6 +531,7 @@ impl Detrend {
                 window_of(Location::Winsorized(proportion(p)?))
             }
             Method::Spline => Estimator::Spline(Fit::Plain),
+            Method::RobustSpline { sigma } => Estimator::Spline(Fit::Clipped(tuning(sigma)?)),
         };
         let window = self.window.as_days();
         if window <= 0.0 {

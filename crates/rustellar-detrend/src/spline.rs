@@ -9,7 +9,10 @@
 
 use std::cmp::Ordering;
 
-use crate::window::{WindowOptions, exceeds, segments};
+use crate::{
+    location::midpoint,
+    window::{WindowOptions, exceeds, segments},
+};
 
 /// Steps of iterative refinement after the first solve.
 const REFINEMENTS: usize = 2;
@@ -19,7 +22,17 @@ const REFINEMENTS: usize = 2;
 pub(crate) enum Fit {
     /// Least squares over every unmasked point.
     Plain,
+    /// Least squares, refitted without the points more than this many
+    /// robust standard deviations from the spline, until they repeat.
+    Clipped(f64),
 }
+
+/// The most refits a clipped spline makes.
+pub(crate) const MAX_CLIPS: usize = 50;
+
+/// The standard deviation of normal data over its median absolute
+/// deviation: `1 / Phi^-1(3/4)`.
+pub(crate) const MAD_TO_SD: f64 = 1.482_602_218_505_602;
 
 /// Knots `step` apart from `start`, `intervals` of them: `intervals + 3`
 /// coefficients.
@@ -296,6 +309,70 @@ pub(crate) fn fit(knots: &Knots, points: &[(f64, f64, f64)]) -> Vec<f64> {
     c
 }
 
+/// The spline fitted to `points` and refitted to those within `sigma`
+/// robust standard deviations of it ([`MAD_TO_SD`] times the median
+/// absolute deviation of every point's residual from their median), until
+/// the points kept repeat, their scatter is zero, or [`MAX_CLIPS`] refits.
+/// Every point is judged afresh each time, so one left out can come back.
+pub(crate) fn clipped(knots: &Knots, points: &[(f64, f64, f64)], sigma: f64) -> Vec<f64> {
+    let mut c = fit(knots, points);
+    let mut inside = vec![true; points.len()];
+    let mut residuals = vec![0.0; points.len()];
+    let mut scratch = Vec::with_capacity(points.len());
+    let mut subset = Vec::with_capacity(points.len());
+    for _ in 0..MAX_CLIPS {
+        for (r, &(x, y, _)) in residuals.iter_mut().zip(points) {
+            *r = y - knots.value(&c, x);
+        }
+        let limit = sigma * MAD_TO_SD * mad(&residuals, &mut scratch);
+        if limit == 0.0 {
+            break;
+        }
+        let mut same = true;
+        for (keep, r) in inside.iter_mut().zip(&residuals) {
+            let now = r.abs() <= limit;
+            same &= *keep == now;
+            *keep = now;
+        }
+        if same {
+            break;
+        }
+        subset.clear();
+        subset.extend(
+            points
+                .iter()
+                .zip(&inside)
+                .filter(|(_, k)| **k)
+                .map(|(p, _)| *p),
+        );
+        c = fit(knots, &subset);
+    }
+    c
+}
+
+/// The median absolute deviation of `values` (at least one, finite) from
+/// their median, with `scratch` for room.
+pub(crate) fn mad(values: &[f64], scratch: &mut Vec<f64>) -> f64 {
+    scratch.clear();
+    scratch.extend_from_slice(values);
+    let centre = median(scratch);
+    for v in scratch.iter_mut() {
+        *v = (*v - centre).abs();
+    }
+    median(scratch)
+}
+
+/// The median of `values` (at least one, finite), reordering them.
+fn median(values: &mut [f64]) -> f64 {
+    let n = values.len();
+    let (below, &mut upper, _) = values.select_nth_unstable_by(n / 2, f64::total_cmp);
+    if n % 2 == 1 {
+        return upper;
+    }
+    let lower = below.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    midpoint(lower, upper)
+}
+
 /// Rows pulling the differences of the coefficients toward zero, of order
 /// three (two for two points, one for one), each a millionth of the largest
 /// diagonal entry.
@@ -356,6 +433,7 @@ pub(crate) fn trend(
         let knots = Knots::new(first, last, options.window, kept.len());
         let coefficients = match how {
             Fit::Plain => fit(&knots, &kept),
+            Fit::Clipped(sigma) => clipped(&knots, &kept, sigma),
         };
         for i in segment {
             let t = times[i];

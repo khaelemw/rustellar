@@ -36,3 +36,6 @@ All notable changes to this crate are recorded here. The format follows
   a window apart, masked points left out; banded Givens QR with exact knot
   offsets and two refinement steps, about an ulp of the data's scale (scipy's
   FITPACK about 17), and kept smooth where the points leave it undetermined.
+- `Method::RobustSpline`: the spline refitted without points beyond `sigma`
+  robust standard deviations of it, both sides, until the kept set repeats;
+  matches the exact loop to 2 ulps, unbiased on noise.

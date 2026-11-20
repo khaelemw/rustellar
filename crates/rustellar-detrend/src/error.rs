@@ -29,8 +29,8 @@ pub enum DetrendError {
     },
     /// The edge cutoff is negative.
     NegativeEdgeCutoff,
-    /// An M-estimator's tuning constant `c` is not between `1e-30` and
-    /// `1e30` (or is NaN).
+    /// An M-estimator's tuning constant `c`, or a robust spline's `sigma`,
+    /// is not between `1e-30` and `1e30` (or is NaN).
     TuningOutOfRange,
     /// A trimmed or winsorized mean's proportion is not from 0 to below 1/2
     /// (or is NaN).
