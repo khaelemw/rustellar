@@ -41,6 +41,10 @@ pub enum DetrendError {
     /// trend (every window cut off or masked, or every flattened value out
     /// of range), so there is no light curve to return.
     NoPointsLeft,
+    /// [`Masking`](crate::Masking)'s mask factor is not positive, or not
+    /// below its window factor (or either is NaN): a masked point needs
+    /// unmasked neighbours in its window.
+    MaskNotInWindow,
 }
 
 impl fmt::Display for DetrendError {
@@ -61,6 +65,10 @@ impl fmt::Display for DetrendError {
                 )
             }
             Self::NoPointsLeft => write!(f, "no point has a trend to flatten by"),
+            Self::MaskNotInWindow => write!(
+                f,
+                "the mask must be longer than zero and shorter than the window"
+            ),
         }
     }
 }

@@ -11,6 +11,8 @@
 //! - [`window`]: how long a detrending window should be.
 //! - [`methods`]: the detrending methods (biweight and splines) on the
 //!   window study's curves, with wotan 1.10's.
+//! - [`masking`]: detrending again around a search's candidate, its
+//!   transits masked, on the same curves.
 //! - [`vet`]: `rustellar-vet`'s alias table on transitleastsquares
 //!   1.32's candidates, at the true period and at its aliases.
 //! - [`speed`]: each crate timed against its Python references.
@@ -19,6 +21,7 @@
 
 mod curves;
 pub mod limb;
+pub mod masking;
 pub mod methods;
 mod random;
 // The BLS crate's survey recipe (its items are `pub(super)`, so the whole

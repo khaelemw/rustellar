@@ -8,15 +8,16 @@
 //! transitleastsquares), or limb (rustellar-bls against rustellar-tls on
 //! limb-darkened transits), or window (how long a detrending window
 //! should be, on transits over spotted stars), or methods (the detrending
-//! methods on the same curves, with wotan's), or vet (rustellar-vet's
+//! methods on the same curves, with wotan's), or masking (detrending
+//! again around a search's candidate on the same curves), or vet (rustellar-vet's
 //! alias table on TLS's candidates); default all of those.
 //! `--export-methods FILE` writes those curves for wotan to be run on, and
 //! `--search-flattened IN OUT` searches the curves wotan flattened.
 //! `speed` times every crate against its Python references, and
 //! `speed-model`, `speed-detrend`, `speed-bls` or `speed-tls` one crate;
 //! never by default, as it wants a quiet machine. `--limit` searches only
-//! each TLS set's first N curves (for vet too), and the window and
-//! methods studies' first N of 400;
+//! each TLS set's first N curves (for vet too), and the window, methods
+//! and masking studies' first N of 400;
 //! `--step` only every N-th curve of limb; `--threads` sets the threads
 //! (default all cores); `--cpu` keeps the searches off the GPU with the
 //! `cuda` feature.
@@ -27,17 +28,17 @@ use std::thread;
 use std::time::Instant;
 
 use rustellar_tls::{Device, SearchOptions};
-use rustellar_validation::{Kind, limb, methods, speed, tls, vet, window};
+use rustellar_validation::{Kind, limb, masking, methods, speed, tls, vet, window};
 
 const HELP: &str =
     "compare [SET...] [--limit N] [--step N] [--threads N] [--cpu] [--export-methods FILE]
         [--search-flattened IN OUT]
-  SET: many, mixed, varying, short, sectors, limb, window, methods or vet (default all),
+  SET: many, mixed, varying, short, sectors, limb, window, methods, masking or vet (default all),
        speed or speed-CRATE: model, detrend, bls or tls (never by default)";
 
 fn main() -> ExitCode {
     let (mut kinds, mut with_limb, mut with_window) = (vec![], false, false);
-    let (mut with_vet, mut with_methods) = (false, false);
+    let (mut with_vet, mut with_methods, mut with_masking) = (false, false, false);
     let mut export: Option<String> = None;
     let mut search: Option<(String, String)> = None;
     let mut speeds: Vec<&str> = vec![];
@@ -70,6 +71,7 @@ fn main() -> ExitCode {
                 _ => return usage(),
             },
             "methods" => with_methods = true,
+            "masking" => with_masking = true,
             "limb" => with_limb = true,
             "window" => with_window = true,
             "vet" => with_vet = true,
@@ -117,12 +119,13 @@ fn main() -> ExitCode {
             }
         };
     }
-    let none = !with_limb && !with_window && !with_methods && !with_vet;
+    let none = !with_limb && !with_window && !with_methods && !with_masking && !with_vet;
     if kinds.is_empty() && none && speeds.is_empty() {
         kinds = Kind::ALL.to_vec();
         with_limb = true;
         with_window = true;
         with_methods = true;
+        with_masking = true;
         with_vet = true;
     }
     if !kinds.is_empty() {
@@ -177,6 +180,27 @@ fn main() -> ExitCode {
         }
         println!(
             "\n({} curves, {:.0} s)",
+            cases.len(),
+            start.elapsed().as_secs_f64()
+        );
+    }
+    if with_masking {
+        let start = Instant::now();
+        let count = u64::try_from(limit.min(400)).expect("small");
+        let cases = window::cases(count);
+        println!(
+            "## Transit masking on the window study's curves
+"
+        );
+        if !cases.is_empty() {
+            print!(
+                "{}",
+                masking::report(&cases, &masking::measure_all(&cases, threads))
+            );
+        }
+        println!(
+            "
+({} curves, {:.0} s)",
             cases.len(),
             start.elapsed().as_secs_f64()
         );

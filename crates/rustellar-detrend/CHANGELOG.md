@@ -42,3 +42,9 @@ All notable changes to this crate are recorded here. The format follows
 - `Method::HuberSpline`: Huber's M-estimate of the spline (statsmodels'
   `RLM(HuberT)` with its MAD scale), solved to its fixed point by Newton's
   steps on the points' zones; 67 times faster than statsmodels.
+- `Detrend::flatten_around`, `Masking`, `Candidate` and `Masked`: flatten,
+  run any transit search, mask its candidate's transits (1.5 durations,
+  windows of 2.5) and flatten again, optionally searching again until the
+  mask repeats; keeps 98% of the signal to noise on 400 injected curves,
+  as much as masking the true transits (in the README).
+- `DetrendError::MaskNotInWindow`.

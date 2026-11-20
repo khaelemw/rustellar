@@ -14,7 +14,7 @@ use std::thread;
 
 use rustellar_bls::{Bls, Durations, Objective, SearchOptions};
 use rustellar_core::{Epoch, LightCurve, OfirPeriod, TimeDelta};
-use rustellar_detrend::{Detrend, Flattened, transit_mask};
+use rustellar_detrend::{Candidate, Detrend, Flattened, transit_mask};
 use rustellar_model::{
     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
 };
@@ -294,6 +294,11 @@ pub fn search(case: &Case) -> Vec<Found> {
 /// A blind BLS search on `lc`: its best peak's SDE, and whether it is at
 /// `truth` days within 1%.
 pub(crate) fn found(lc: &LightCurve, truth: f64) -> Found {
+    best(lc, truth).0
+}
+
+/// The blind BLS search of [`found`], with its best peak as a candidate.
+pub(crate) fn best(lc: &LightCurve, truth: f64) -> (Found, Option<Candidate>) {
     let periods = OfirPeriod {
         minimum_period: Some(TimeDelta::from_days(0.6).expect("finite")),
         ..OfirPeriod::default()
@@ -310,13 +315,17 @@ pub(crate) fn found(lc: &LightCurve, truth: f64) -> Found {
                 .with_threads(NonZeroUsize::MIN),
         )
         .expect("a search");
-    let period = result
-        .best()
-        .map_or(f64::NAN, |b| b.transit.period().as_days());
-    Found {
+    let candidate = result.best().map(|b| Candidate {
+        period: b.transit.period(),
+        t0: b.transit.transit_time(),
+        duration: b.transit.duration(),
+    });
+    let period = candidate.map_or(f64::NAN, |c| c.period.as_days());
+    let found = Found {
         sde: sde(result.power()),
         right: (period / truth - 1.0).abs() < 0.01,
-    }
+    };
+    (found, candidate)
 }
 
 /// The SDE of a BLS power spectrum: the peak's height above the mean, in

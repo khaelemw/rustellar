@@ -17,7 +17,10 @@
 //!   (transits left out of every window);
 //! - the light curve divided by it, [`Detrend::flatten`] ([`Flattened`]);
 //! - the mask of a candidate's transits, [`transit_mask`], to detrend again
-//!   with them left out.
+//!   with them left out;
+//! - both steps around a search's candidate, [`Detrend::flatten_around`]:
+//!   flatten, search (any search, as a closure), mask the
+//!   [`Candidate`]'s transits, flatten again ([`Masking`], [`Masked`]).
 //!
 //! The biweight is solved to full double precision (correctly rounded
 //! wherever its defining sum's sign can be told from zero), the median and
@@ -41,6 +44,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod around;
 mod detrend;
 mod double;
 mod error;
@@ -58,6 +62,7 @@ mod window;
 #[cfg(test)]
 mod tests;
 
+pub use around::{Candidate, MASK_PER_DURATION, MASKED_WINDOW_PER_DURATION, Masked, Masking};
 pub use detrend::{BreakTolerance, Detrend, Flattened, Method, WINDOW_PER_DURATION};
 pub use error::DetrendError;
 pub use mask::transit_mask;

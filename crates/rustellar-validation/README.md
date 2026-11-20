@@ -97,6 +97,20 @@ what it flattened with `--search-flattened IN OUT`, as the crate's own are
 searched. The results are in `rustellar-detrend`'s README. About 90
 seconds on 16 threads.
 
+## Transit masking
+
+```sh
+cargo run --release -p rustellar-validation --bin compare -- masking
+```
+
+The same 400 curves flattened blind (the biweight at 2.5 transit
+durations), searched with BLS, and flattened again around the candidate
+found (`Detrend::flatten_around`), once or searching again until the mask
+repeats, with several mask and window lengths; beside them, the true
+transits masked. Depth and signal to noise kept, and the last search's
+result. The results are in `rustellar-detrend`'s README. About two
+minutes on 16 threads.
+
 ## rustellar-vet's alias table on TLS's candidates
 
 ```sh

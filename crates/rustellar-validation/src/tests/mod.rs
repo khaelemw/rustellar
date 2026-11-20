@@ -1,5 +1,6 @@
 mod curves;
 mod limb;
+mod masking;
 mod methods;
 mod speed;
 mod stats;

@@ -167,10 +167,47 @@ shorter it is the less variability it leaves. So, two steps:
    in the middle of the range the search did best after, so a transit
    somewhat longer than expected keeps most of its depth.
 2. **Measure** a candidate after detrending again with its transits left
-   out (`transit_mask`) and a window of two durations, which leaves a few
-   points either side of a mask wider than the transit.
+   out: `Detrend::flatten_around` does both steps with any search, below.
 
 `cargo run --release -p rustellar-validation --bin compare -- window`
+reruns the study.
+
+## Masking a search's candidate
+
+`Detrend::flatten_around(lc, &Masking::default(), search)` flattens the
+light curve, runs `search` (any transit search, such as a BLS or TLS one,
+returning its best candidate's period, mid-transit time and duration),
+masks the candidate's transits (`transit_mask`) and flattens again around
+them. With `Masking::with_rounds` it searches again, until the search finds
+the same transits. On the same 400 curves, from the biweight at 2.5
+durations and a blind BLS search (mask and window in the candidate's
+durations, as the search found it; the true transits' row in the true
+duration):
+
+| Flattening | Mask | Window | Depth kept | Signal to noise kept | 10th percentile | Search right |
+|---|--:|--:|--:|--:|--:|--:|
+| Blind | | 2.5 | 0.64 | 0.63 | 0.42 | 0.770 |
+| Masked once | 1.2 | 2 | 1.00 | 0.97 | 0.60 | 0.767 |
+| Masked once (default) | 1.5 | 2.5 | 1.01 | 0.98 | 0.67 | 0.770 |
+| Masked once | 2 | 3 | 1.01 | 0.98 | 0.67 | 0.762 |
+| Searched until settled | 1.2 | 2 | 1.00 | 0.99 | 0.58 | 0.765 |
+| Searched until settled | 1.5 | 2.5 | 1.01 | 0.98 | 0.65 | 0.762 |
+| True transits masked | 1.2 | 2 | 1.00 | 0.99 | 0.78 | 0.892 |
+| True transits masked | 1.5 | 2.5 | 1.00 | 0.98 | 0.69 | 0.838 |
+
+One mask around the search's own candidate keeps the whole depth and 98%
+of the signal to noise, against 63% blind, as much as masking the true
+transits: the coarse durations and mid-transit times a search reports cost
+nothing with a mask 1.5 durations long. The few curves where it does
+worse (the 10th percentile) are those whose search was wrong, and masking
+cannot put that right: a search on a curve masked around a candidate
+favours it, so searching again never found the true period where the blind
+search had not (0 of 92), and moved a few right ones to aliases. Hence one
+round by default: search blind, measure masked. The depth comes out about
+1% deep, because the search picks the mid-transit time and duration where
+the noise is deepest too.
+
+`cargo run --release -p rustellar-validation --bin compare -- masking`
 reruns the study.
 
 ## Splines or the biweight
