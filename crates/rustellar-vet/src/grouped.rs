@@ -30,6 +30,8 @@ pub(crate) struct Grouped {
     inverse: Vec<f64>,
     /// Points in transit in each group.
     pub(crate) points: Vec<usize>,
+    /// The fit's chi-squared.
+    pub(crate) chi2: f64,
 }
 
 impl Grouped {
@@ -126,9 +128,20 @@ pub(crate) fn solve(
     if alpha <= 0.0 {
         return Err(VetError::BaselineNotPositive);
     }
-    let beta = (0..groups)
+    let beta: Vec<Option<f64>> = (0..groups)
         .map(|k| (points[k] > 0).then(|| (c[k].get() - b[k].get() * alpha) / a[k].get()))
         .collect();
+    // The chi-squared from the residuals themselves, not from the normal
+    // equations' identity, which cancels.
+    let mut chi2 = Sum::default();
+    for (((&y, &e), &s), &g) in flux.iter().zip(flux_err).zip(shapes).zip(group) {
+        let model = match g.and_then(|k| beta[k]) {
+            Some(b) => alpha + b * s,
+            None => alpha,
+        };
+        let r = (y - model) / e;
+        chi2.add(r * r);
+    }
     Ok(Grouped {
         alpha,
         var_alpha,
@@ -136,5 +149,6 @@ pub(crate) fn solve(
         ratio,
         inverse,
         points,
+        chi2: chi2.get(),
     })
 }

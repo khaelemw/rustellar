@@ -2,5 +2,6 @@
 mod evidence;
 mod fit;
 mod grouped;
+mod noise;
 mod shape;
 mod sum;

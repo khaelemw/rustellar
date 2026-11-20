@@ -56,6 +56,14 @@ built from a period, a mid-transit time and a duration.
   1,000 noise draws of a planet the odd-even significance has mean 0 and
   spread 1 to within the draws' own scatter, and a candidate at half the
   true period or an eclipsing binary stands out by more than 10 sigma.
+- `signal_to_noise`: the signal to noise with the errors given (white)
+  and with the noise measured out of transit (red, after Pont, Zucker &
+  Queloz 2006), for the candidate and for each transit; the largest
+  transit's share of the depth; and a chi-squared test of whether every
+  transit has one depth. In red noise as large as the white, over 300
+  draws, the depth scatters three times its white error and within 12% of
+  its red error; in white noise the depth test's chi-squared has the mean
+  and variance it should.
 
 ## Quick start
 

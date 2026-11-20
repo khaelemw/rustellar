@@ -145,34 +145,7 @@ pub fn evidence(
     let profile = shape.profile(period, duration)?;
     let s = shapes(lc, candidate, &profile);
     let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
-    // Each point's transit number.
-    let epochs: Vec<i64> = times
-        .iter()
-        .map(|&t| {
-            let n = ((t - t0) - phase(t - t0, period)) / period;
-            #[expect(clippy::cast_possible_truncation, reason = "a whole number of periods")]
-            let n = n.round() as i64;
-            n
-        })
-        .collect();
-    let (first, last) = times
-        .iter()
-        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &t| {
-            (lo.min(t), hi.max(t))
-        });
-    // The transits whose window overlaps the span.
-    #[expect(clippy::cast_possible_truncation, reason = "a whole number of periods")]
-    let (lo, hi) = (
-        ((first - t0 - 0.5 * duration) / period).floor() as i64,
-        ((last - t0 + 0.5 * duration) / period).ceil() as i64,
-    );
-    let predicted: Vec<i64> = (lo..=hi)
-        .filter(|&n| {
-            #[expect(clippy::cast_precision_loss, reason = "a transit number")]
-            let centre = t0 + n as f64 * period;
-            centre + 0.5 * duration > first && centre - 0.5 * duration < last
-        })
-        .collect();
+    let Layout { epochs, predicted } = layout(&times, candidate);
     let index = |n: i64| predicted.binary_search(&n).ok();
     // Each transit its own group.
     let group: Vec<Option<usize>> = epochs.iter().map(|&n| index(n)).collect();
@@ -253,4 +226,47 @@ pub(crate) fn median_step(times: &[f64]) -> Option<f64> {
     } else {
         0.5 * (steps[n / 2 - 1] + steps[n / 2])
     })
+}
+
+/// Each point's transit number, and the transits predicted in the span.
+pub(crate) struct Layout {
+    /// Each point's transit number (the nearest mid-transit time's),
+    /// counted from the candidate's.
+    pub(crate) epochs: Vec<i64>,
+    /// The transits whose window overlaps first to last time, in order.
+    pub(crate) predicted: Vec<i64>,
+}
+
+/// The layout of `candidate`'s transits over `times` (days).
+pub(crate) fn layout(times: &[f64], candidate: &Candidate) -> Layout {
+    let period = candidate.period().as_days();
+    let duration = candidate.duration().as_days();
+    let t0 = candidate.transit_time().as_btjd();
+    let epochs: Vec<i64> = times
+        .iter()
+        .map(|&t| {
+            let n = ((t - t0) - phase(t - t0, period)) / period;
+            #[expect(clippy::cast_possible_truncation, reason = "a whole number of periods")]
+            let n = n.round() as i64;
+            n
+        })
+        .collect();
+    let (first, last) = times
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &t| {
+            (lo.min(t), hi.max(t))
+        });
+    #[expect(clippy::cast_possible_truncation, reason = "a whole number of periods")]
+    let (lo, hi) = (
+        ((first - t0 - 0.5 * duration) / period).floor() as i64,
+        ((last - t0 + 0.5 * duration) / period).ceil() as i64,
+    );
+    let predicted = (lo..=hi)
+        .filter(|&n| {
+            #[expect(clippy::cast_precision_loss, reason = "a transit number")]
+            let centre = t0 + n as f64 * period;
+            centre + 0.5 * duration > first && centre - 0.5 * duration < last
+        })
+        .collect();
+    Layout { epochs, predicted }
 }

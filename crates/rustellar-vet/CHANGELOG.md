@@ -26,4 +26,10 @@ All notable changes to this crate are recorded here. The format follows
   error counting their correlation through the shared baseline; all fitted
   with one baseline, solved exactly through the normal equations' arrow
   structure.
+- `signal_to_noise`, `SignalToNoise`, `TransitSnr` and `Noise`: the
+  signal to noise, white and with the noise measured (errors scaled to the
+  scatter out of transit and red noise from residuals binned on the
+  transit's duration, after Pont, Zucker & Queloz 2006), for the candidate
+  and each transit; the largest transit's share of the depth; and the
+  chi-squared drop from one depth to a depth per transit.
 - `VetError`.

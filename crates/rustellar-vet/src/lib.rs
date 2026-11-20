@@ -22,6 +22,9 @@
 //!   candidate's period, exactly for a box ([`Refined`]).
 //! - [`evidence`]: each predicted transit's points, coverage and depth,
 //!   and the odd and even transits' depths compared ([`Evidence`]).
+//! - [`signal_to_noise`]: the signal to noise, white and with red noise,
+//!   transit by transit, and whether the transits share one depth
+//!   ([`SignalToNoise`]).
 //!
 //! # Examples
 //!
@@ -44,6 +47,7 @@ mod error;
 mod evidence;
 mod fit;
 mod grouped;
+mod noise;
 mod refine;
 mod shape;
 mod sum;
@@ -55,6 +59,7 @@ pub use candidate::Candidate;
 pub use error::VetError;
 pub use evidence::{Evidence, OddEven, Transit, evidence};
 pub use fit::{Fit, fit_depth};
+pub use noise::{Noise, SignalToNoise, TransitSnr, signal_to_noise};
 pub use refine::{Refined, refine};
 pub use shape::Shape;
 
