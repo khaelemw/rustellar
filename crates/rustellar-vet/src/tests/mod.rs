@@ -1,0 +1,4 @@
+// Unit tests for crate-only items, one file per source module.
+mod fit;
+mod shape;
+mod sum;

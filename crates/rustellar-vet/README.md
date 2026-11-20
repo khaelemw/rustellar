@@ -37,6 +37,16 @@ thresholds. It takes a `Candidate` from any search: from `rustellar-bls`
 with the `bls` feature, from `rustellar-tls` with the `tls` feature, or
 built from a period, a mid-transit time and a duration.
 
+## So far
+
+- `Candidate`: a period, mid-transit time, duration and optional depth.
+- `fit_depth`: the depth at that period, mid-transit time and duration,
+  with its standard error, for a limb-darkened shape (the default: a small
+  planet half-way to the limb of a Sun-like star) or a box. The model is
+  baseline times (1 - depth times shape), fitted by weighted least squares;
+  the depth comes back to rounding from a noiseless transit, and its
+  stated error matches the scatter of 4,000 noisy fits to within 4%.
+
 ## Quick start
 
 ```rust

@@ -15,6 +15,9 @@
 //! - [`Candidate`]: a period, mid-transit time, duration and optional
 //!   depth, checked; from `rustellar-bls`'s best box with the `bls`
 //!   feature and `rustellar-tls`'s candidate with the `tls` feature.
+//! - [`fit_depth`]: the depth at a fixed period, mid-transit time and
+//!   duration, for a [`Shape`] (limb-darkened by default, or a box), with
+//!   its standard error ([`Fit`]).
 //!
 //! # Examples
 //!
@@ -34,9 +37,17 @@
 
 mod candidate;
 mod error;
+mod fit;
+mod shape;
+mod sum;
+
+#[cfg(test)]
+mod tests;
 
 pub use candidate::Candidate;
 pub use error::VetError;
+pub use fit::{Fit, fit_depth};
+pub use shape::Shape;
 
 // Core's types, which this crate's API takes and returns: with them the
 // crate works on its own, without listing rustellar-core, and always with
@@ -44,6 +55,13 @@ pub use error::VetError;
 #[doc(no_inline)]
 pub use rustellar_core::{
     Epoch, FoldedLightCurve, LightCurve, LightCurveError, TimeDelta, TimeError,
+};
+
+// The model's types a limb-darkened [`Shape`] is built from, re-exported
+// for the same reason.
+#[doc(no_inline)]
+pub use rustellar_model::{
+    ImpactParameter, LimbDarkening, LimbDarkeningError, ParamError, RadiusRatio,
 };
 
 // The README's example, compiled and run as a doctest.

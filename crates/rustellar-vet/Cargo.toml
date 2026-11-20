@@ -21,6 +21,7 @@ tls = ["dep:rustellar-tls"]
 [dependencies]
 rustellar-bls = { workspace = true, optional = true }
 rustellar-core.workspace = true
+rustellar-model.workspace = true
 rustellar-tls = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]

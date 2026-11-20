@@ -32,6 +32,20 @@ pub enum VetError {
     DurationNotShorterThanPeriod,
     /// The depth is NaN or infinite.
     DepthNotFinite,
+    /// A limb-darkened shape's impact parameter is at least `1 + k`: the
+    /// planet would miss the star.
+    NoTransit,
+    /// A limb-darkened shape was asked for a duration of more than half the
+    /// period, which no circular orbit gives.
+    DurationTooLongForShape,
+    /// No point of the light curve falls in transit.
+    NoPointsInTransit,
+    /// Every point of the light curve falls in transit, so there is no
+    /// baseline.
+    NoPointsOutOfTransit,
+    /// The fitted baseline is zero or negative, so no fractional depth
+    /// exists.
+    BaselineNotPositive,
 }
 
 impl fmt::Display for VetError {
@@ -42,6 +56,19 @@ impl fmt::Display for VetError {
                 write!(f, "the duration must be shorter than the period")
             }
             Self::DepthNotFinite => write!(f, "the depth must be a finite number"),
+            Self::NoTransit => write!(
+                f,
+                "the impact parameter must be below 1 + k for the planet to cross the star"
+            ),
+            Self::DurationTooLongForShape => write!(
+                f,
+                "a limb-darkened shape needs a duration of at most half the period"
+            ),
+            Self::NoPointsInTransit => write!(f, "no point of the light curve is in transit"),
+            Self::NoPointsOutOfTransit => {
+                write!(f, "no point of the light curve is out of transit")
+            }
+            Self::BaselineNotPositive => write!(f, "the fitted baseline is not above zero"),
         }
     }
 }
