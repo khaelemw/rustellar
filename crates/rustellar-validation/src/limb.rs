@@ -41,7 +41,7 @@ const NAMES: [&str; 4] = [
     "ground, nights",
 ];
 
-/// rustellar-model against batman on the generator's sample points.
+/// rustellar-model against batman on the reference data's sample points.
 const MODEL_TOLERANCE: f64 = 2.1e-8;
 
 fn rows(csv: &str) -> impl Iterator<Item = Vec<&str>> {
@@ -93,7 +93,7 @@ type Family = (Vec<(f64, u32)>, [f64; 3]);
 ///
 /// # Panics
 ///
-/// If a curve is not the generator's: its times and errors to the bit, its
+/// If a curve is not the reference data's: its times and errors to the bit, its
 /// fluxes within the transit model's agreement with batman.
 #[must_use]
 pub fn cases(step: usize) -> Vec<Case> {
@@ -174,7 +174,7 @@ pub fn cases(step: usize) -> Vec<Case> {
             assert_eq!(
                 periods.as_slice().len(),
                 v[10].parse::<usize>().expect("a count"),
-                "the generator's grid"
+                "the reference grid"
             );
             Case {
                 family,
@@ -190,7 +190,7 @@ pub fn cases(step: usize) -> Vec<Case> {
         .collect()
 }
 
-/// The generator's sample points: "index:time:flux:error;...".
+/// The reference data's sample points: "index:time:flux:error;...".
 fn check_samples(lc: &LightCurve, samples: &str) {
     for sample in samples.split(';') {
         let v: Vec<f64> = sample

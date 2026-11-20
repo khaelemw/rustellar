@@ -1,7 +1,7 @@
-//! SplitMix64, as the reference generators draw it.
+//! SplitMix64, as the reference data were drawn.
 
 /// SplitMix64: the noise of every reference light curve, drawn the same way
-/// in the generators.
+/// in the reference data.
 pub(crate) struct Random(u64);
 
 impl Random {

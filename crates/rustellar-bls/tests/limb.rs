@@ -122,8 +122,8 @@ fn light_curve(family: &Family, seed: u64, transit: Option<TransitParams>) -> Li
     .unwrap()
 }
 
-// The generator's points: times and errors to the bit; fluxes to within
-// batman's error (the generator's model), which rustellar-model documents as
+// The reference data's points: times and errors to the bit; fluxes to within
+// batman's error (the reference data's model), which rustellar-model documents as
 // 2.1e-8 at worst against batman 2.5.1.
 fn check_samples(lc: &LightCurve, samples: &str) {
     for sample in samples.split(';') {
@@ -211,7 +211,7 @@ fn sde(power: &[f64]) -> f64 {
     (peak - mean) / variance.sqrt()
 }
 
-// Our search over the generator's grid, as in the box injections: objective
+// Our search over the reference data's grid, as in the box injections: objective
 // snr, the default refinement.
 fn ours(case: &Case) -> Found {
     let periods: Periods = OfirPeriod {

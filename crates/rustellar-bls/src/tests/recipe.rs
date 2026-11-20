@@ -1,4 +1,4 @@
-// The shared light-curve recipes: the reference generator builds the same
+// The shared light-curve recipes: the reference data were built from the same
 // light curves from the same seeds, bit for bit, so only astropy's results
 // are stored. Only + - * / and floor are used, which IEEE 754 rounds the same
 // on every platform.
@@ -39,7 +39,7 @@ impl Recipe {
     // Times every `cadence`, jittered by up to half a cadence (the first
     // exactly `t_start`); uniform noise of half-width `noise`; a box of
     // `depth` within duration / 2 of tc + k period; errors from 0.75 to 1.25
-    // noise. Written as the generator writes it, operation for operation.
+    // noise. Written as the reference data's were, operation for operation.
     pub(super) fn light_curve(&self) -> LightCurve {
         let mut rng = Random(self.seed);
         let (mut t, mut y, mut e) = (vec![], vec![], vec![]);
@@ -108,7 +108,7 @@ impl Survey {
     }
 }
 
-// The generator's samples, "index:time:flux:flux_err;...", must be the
+// The reference data's samples, "index:time:flux:flux_err;...", must be the
 // recipe's values to the last bit.
 pub(super) fn check_samples(lc: &LightCurve, samples: &str) {
     for sample in samples.split(';') {

@@ -1,5 +1,5 @@
 // The survey light curves' recipe, shared bit for bit with the reference
-// generator: only + - * / and floor, which IEEE 754 rounds the same
+// data: only + - * / and floor, which IEEE 754 rounds the same
 // everywhere. Used by the survey tests and the benchmarks.
 
 use rustellar_core::{LightCurve, TimeDelta};
@@ -23,7 +23,7 @@ impl Random {
     }
 }
 
-/// One curve's recipe, with the generator's fingerprint of it.
+/// One curve's recipe, with the reference data's fingerprint of it.
 #[derive(Clone)]
 pub(crate) struct Curve {
     pub(crate) name: String,
@@ -68,7 +68,7 @@ impl Curve {
     // Spots: a Catmull-Rom spline through random knots a quarter rotation
     // apart, and a linear drift; noise, the sum of four uniforms; flares
     // decaying as 1 / (1 + dt / tau)^2; box transits; cadences dropped at
-    // random and in a gap. Written as the generator writes it, operation
+    // random and in a gap. Written as the reference data's were, operation
     // for operation.
     pub(crate) fn build(&self) -> Built {
         let mut knots_rng = Random(self.seed ^ 0x5eed_5eed_5eed_5eed);

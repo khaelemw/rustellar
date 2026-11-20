@@ -167,7 +167,7 @@ fn cases(set: &Set, families: &[Family]) -> Vec<Case> {
     cases
 }
 
-// The Ofir grid the generator used: a Sun-like star, oversampling 3, from
+// The Ofir grid the reference data used: a Sun-like star, oversampling 3, from
 // 0.6 d to half the baseline.
 fn grid(lc: &LightCurve) -> Periods {
     OfirPeriod {

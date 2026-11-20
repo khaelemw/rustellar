@@ -199,7 +199,7 @@ pub fn transit(row: &Row) -> TransitParams {
     .expect("a transit")
 }
 
-/// The curve of `row` in set `kind`, as the reference generator built it:
+/// The curve of `row` in set `kind`, as the reference data were built:
 /// per point, noise from four uniforms of SplitMix64(seed), and for a
 /// sparse curve one more uniform, the point dropped below 0.25.
 ///

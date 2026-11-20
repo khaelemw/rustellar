@@ -14,7 +14,7 @@ fn options() -> SearchOptions {
 }
 
 // The first block: each family with a transit, then without, the samples
-// checked against the generator's, and transitleastsquares 1.32 on it.
+// checked against the reference data's, and transitleastsquares 1.32 on it.
 #[test]
 fn the_first_block() {
     let block = cases(250);

@@ -67,7 +67,7 @@ fn sampled_periods() -> Vec<(usize, usize, f64)> {
 }
 
 // The grid depends only on the first and last times, as in astropy; the
-// middle point is the one the reference generator used.
+// middle point is the one the reference data used.
 fn light_curve(t_min: f64, t_max: f64) -> LightCurve {
     let time = vec![t_min, 0.5 * (t_min + t_max), t_max];
     LightCurve::from_btjd(time, vec![1.0; 3], vec![1e-3; 3]).unwrap()

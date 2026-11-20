@@ -159,7 +159,7 @@ const FAST_OVERSAMPLE: usize = 8;
 // ==========================
 
 #[test]
-fn recipe_reproduces_the_generators_light_curves() {
+fn recipe_reproduces_the_reference_light_curves() {
     for v in rows(FAST_CURVES) {
         fast_curve(&v);
     }
@@ -320,7 +320,7 @@ fn injected() -> Vec<Errors> {
             }
             .light_curve();
             check_samples(&lc, v[11]);
-            // The generator's periods, operation for operation.
+            // The reference data's periods, operation for operation.
             let periods: Vec<f64> = (0..201)
                 .map(|k| period * (1.0 + 0.02 * f64::from(k - 100) / 100.0))
                 .collect();

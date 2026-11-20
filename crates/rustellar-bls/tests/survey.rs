@@ -183,10 +183,10 @@ fn survey() -> (Vec<Curve>, Vec<Astropy>, Vec<Row>) {
 // Against astropy
 // ==========================
 
-// The light curves are the generator's, bit for bit: 36 curves of 1,776 to
+// The light curves are the reference data's, bit for bit: 36 curves of 1,776 to
 // 18,000 points, five families.
 #[test]
-fn survey_curves_are_the_generators() {
+fn survey_curves_are_the_reference_curves() {
     let curves = curves();
     assert_eq!(curves.len(), 36);
     let families: std::collections::BTreeSet<&str> =

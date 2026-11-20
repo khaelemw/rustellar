@@ -21,7 +21,7 @@ const WINDOWS: &str = include_str!("reference/survey_windows.csv");
 const WOTAN: &str = include_str!("reference/survey_wotan.csv");
 const HUBER: &str = include_str!("reference/survey_huber.csv");
 
-/// Each curve built and checked against the generator's fingerprint.
+/// Each curve built and checked against the reference data's fingerprint.
 fn built() -> Vec<(Curve, Built)> {
     curves()
         .into_iter()
@@ -31,7 +31,7 @@ fn built() -> Vec<(Curve, Built)> {
             assert_eq!(
                 fingerprint(&b.time, &b.flux),
                 c.fingerprint,
-                "{}: not the generator's light curve",
+                "{}: not the reference light curve",
                 c.name
             );
             (c, b)

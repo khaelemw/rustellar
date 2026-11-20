@@ -1,5 +1,5 @@
 // The reference curves built again: every file read, every set's times,
-// and the noise drawn as the generators draw it.
+// and the noise drawn as the reference data were drawn.
 
 use crate::curves::Kind;
 use crate::random::Random;
@@ -40,7 +40,7 @@ fn sparse_curves_drop_a_quarter() {
 // SplitMix64's first outputs from seed 0, as published with it, and noise
 // of unit variance.
 #[test]
-fn the_generators_random_numbers() {
+fn the_reference_random_numbers() {
     let mut random = Random::new(0);
     assert_eq!(
         random.uniform(),
