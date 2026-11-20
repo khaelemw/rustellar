@@ -16,4 +16,8 @@ All notable changes to this crate are recorded here. The format follows
   baseline and both standard errors; for a box or a limb-darkened transit
   (`rustellar-model`'s flux on a circular orbit of the candidate's
   duration), centred two-pass compensated sums.
+- `refine` and `Refined`: the mid-transit time (within half a duration)
+  and duration (half to twice) refined at the candidate's period; exact
+  for a box (every run of points in phase scored), a grid and two finer
+  grids for a limb-darkened shape.
 - `VetError`.

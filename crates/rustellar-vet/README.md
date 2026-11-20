@@ -46,6 +46,10 @@ built from a period, a mid-transit time and a duration.
   baseline times (1 - depth times shape), fitted by weighted least squares;
   the depth comes back to rounding from a noiseless transit, and its
   stated error matches the scatter of 4,000 noisy fits to within 4%.
+- `refine`: the mid-transit time and duration that fit best near the
+  candidate's, at its period. For a box this is exact (no point of a
+  301 by 301 grid does better); for a limb-darkened shape it matches a
+  dense grid's best to a part in a million.
 
 ## Quick start
 

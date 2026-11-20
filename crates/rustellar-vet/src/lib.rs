@@ -18,6 +18,8 @@
 //! - [`fit_depth`]: the depth at a fixed period, mid-transit time and
 //!   duration, for a [`Shape`] (limb-darkened by default, or a box), with
 //!   its standard error ([`Fit`]).
+//! - [`refine`]: the mid-transit time and duration refined at the
+//!   candidate's period, exactly for a box ([`Refined`]).
 //!
 //! # Examples
 //!
@@ -38,6 +40,7 @@
 mod candidate;
 mod error;
 mod fit;
+mod refine;
 mod shape;
 mod sum;
 
@@ -47,6 +50,7 @@ mod tests;
 pub use candidate::Candidate;
 pub use error::VetError;
 pub use fit::{Fit, fit_depth};
+pub use refine::{Refined, refine};
 pub use shape::Shape;
 
 // Core's types, which this crate's API takes and returns: with them the
