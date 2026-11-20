@@ -81,6 +81,21 @@ period. The results, and the window they chose, are in
 `rustellar-detrend`'s README. It takes about 80 seconds on 16 threads;
 `--limit N` runs the first N curves only.
 
+## rustellar-vet's alias table on TLS's candidates
+
+```sh
+cargo run --release -p rustellar-validation --bin compare -- vet
+```
+
+transitleastsquares 1.32's candidates on the five TLS sets, from their
+reference files (no search is run). Where TLS found the injected period
+the candidate is also given at a third, half, two thirds, three halves,
+twice and three times it; where TLS found an alias, as it is. Each is
+pointed at its alias table's lowest chi-squared, and the table counts how
+often that is the true period, by ratio and by the signal to noise at the
+true period. The results are in `rustellar-vet`'s README. It takes a few
+seconds; `--limit N` uses each set's first N curves.
+
 ## Speed against the Python references
 
 ```sh

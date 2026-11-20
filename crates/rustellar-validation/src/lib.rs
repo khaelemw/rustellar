@@ -9,6 +9,8 @@
 //!   transits, each at its own 1% false-alarm rate, with
 //!   transitleastsquares 1.32 on a subset.
 //! - [`window`]: how long a detrending window should be.
+//! - [`vet`]: `rustellar-vet`'s alias table on transitleastsquares
+//!   1.32's candidates, at the true period and at its aliases.
 //! - [`speed`]: each crate timed against its Python references.
 //!
 //! Run `cargo run --release -p rustellar-validation --bin compare -- --help`.
@@ -24,6 +26,7 @@ mod recipe;
 pub mod speed;
 mod stats;
 pub mod tls;
+pub mod vet;
 pub mod window;
 
 #[cfg(test)]

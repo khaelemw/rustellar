@@ -18,3 +18,4 @@ rustellar-core.workspace = true
 rustellar-detrend.workspace = true
 rustellar-model.workspace = true
 rustellar-tls.workspace = true
+rustellar-vet.workspace = true

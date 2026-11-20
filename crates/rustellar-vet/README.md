@@ -79,6 +79,30 @@ built from a period, a mid-transit time and a duration.
   in white noise the significance at half the period has mean 0 and
   spread 1.
 
+## Pointing back to the true period
+
+On the five TLS validation sets (`compare -- vet` in
+`rustellar-validation`), every planet transitleastsquares 1.32 found was
+also given to `aliases` at a third, half, two thirds, three halves, twice
+and three times its period, as a search locked onto an alias would report
+it: 4,117 candidates in all, with TLS's mid-transit time and duration and
+the default limb-darkened shape. The row of lowest chi-squared was the
+true period:
+
+| Signal to noise at the true period | Candidates | Pointed to the true period |
+|---|---|---|
+| below 7 | 813 | 768 (94.5%) |
+| 7 to 10 | 987 | 987 (100%) |
+| 10 to 20 | 1,862 | 1,862 (100%) |
+| 20 to 50 | 413 | 413 (100%) |
+
+(The 42 other candidates have mid-transit times more than a duration off
+the true transits.) TLS itself reported an alias on 15 curves; every one has
+a signal to noise of 2 to 5 at the true period, too faint for any table
+to settle, and the table is right on 1 of them. For one depth and one
+baseline the lowest chi-squared is the highest signal to noise, so
+choosing by either gives the same row.
+
 ## Quick start
 
 ```rust

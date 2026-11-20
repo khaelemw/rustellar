@@ -7,11 +7,13 @@
 //! SET is many, mixed, varying, short or sectors (rustellar-tls against
 //! transitleastsquares), or limb (rustellar-bls against rustellar-tls on
 //! limb-darkened transits), or window (how long a detrending window
-//! should be, on transits over spotted stars); default all of those.
+//! should be, on transits over spotted stars), or vet (rustellar-vet's
+//! alias table on TLS's candidates); default all of those.
 //! `speed` times every crate against its Python references, and
 //! `speed-model`, `speed-detrend`, `speed-bls` or `speed-tls` one crate;
 //! never by default, as it wants a quiet machine. `--limit` searches only
-//! each TLS set's first N curves, and the window study's first N of 400;
+//! each TLS set's first N curves (for vet too), and the window study's
+//! first N of 400;
 //! `--step` only every N-th curve of limb; `--threads` sets the threads
 //! (default all cores); `--cpu` keeps the searches off the GPU with the
 //! `cuda` feature.
@@ -22,14 +24,15 @@ use std::thread;
 use std::time::Instant;
 
 use rustellar_tls::{Device, SearchOptions};
-use rustellar_validation::{Kind, limb, speed, tls, window};
+use rustellar_validation::{Kind, limb, speed, tls, vet, window};
 
 const HELP: &str = "compare [SET...] [--limit N] [--step N] [--threads N] [--cpu]
-  SET: many, mixed, varying, short, sectors, limb or window (default all),
+  SET: many, mixed, varying, short, sectors, limb, window or vet (default all),
        speed or speed-CRATE: model, detrend, bls or tls (never by default)";
 
 fn main() -> ExitCode {
     let (mut kinds, mut with_limb, mut with_window) = (vec![], false, false);
+    let mut with_vet = false;
     let mut speeds: Vec<&str> = vec![];
     let (mut limit, mut step) = (usize::MAX, NonZeroUsize::MIN);
     let mut threads = thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
@@ -53,6 +56,7 @@ fn main() -> ExitCode {
             "--cpu" => options = options.with_device(Device::Cpu),
             "limb" => with_limb = true,
             "window" => with_window = true,
+            "vet" => with_vet = true,
             "speed" => speeds.extend(SPEEDS),
             name if name.starts_with("speed-") => {
                 match SPEEDS
@@ -69,10 +73,11 @@ fn main() -> ExitCode {
             },
         }
     }
-    if kinds.is_empty() && !with_limb && !with_window && speeds.is_empty() {
+    if kinds.is_empty() && !with_limb && !with_window && !with_vet && speeds.is_empty() {
         kinds = Kind::ALL.to_vec();
         with_limb = true;
         with_window = true;
+        with_vet = true;
     }
     if !kinds.is_empty() {
         println!("## rustellar-tls against transitleastsquares 1.32\n");
@@ -109,6 +114,25 @@ fn main() -> ExitCode {
         }
         println!(
             "\n({} curves, {:.0} s)",
+            cases.len(),
+            start.elapsed().as_secs_f64()
+        );
+    }
+    if with_vet {
+        let start = Instant::now();
+        let cases: Vec<vet::Case> = Kind::ALL
+            .into_iter()
+            .flat_map(|kind| vet::cases(kind, limit, threads))
+            .collect();
+        println!(
+            "## rustellar-vet's alias table on transitleastsquares 1.32's candidates
+"
+        );
+        print!("{}", vet::report(&cases));
+        println!(
+            "
+({} candidates, {:.0} s)
+",
             cases.len(),
             start.elapsed().as_secs_f64()
         );

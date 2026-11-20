@@ -432,6 +432,7 @@ dependencies = [
  "rustellar-detrend",
  "rustellar-model",
  "rustellar-tls",
+ "rustellar-vet",
 ]
 
 [[package]]
