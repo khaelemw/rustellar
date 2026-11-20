@@ -42,7 +42,8 @@ built from a period, a mid-transit time and a duration.
 - `Candidate`: a period, mid-transit time, duration and optional depth.
 - `fit_depth`: the depth at that period, mid-transit time and duration,
   with its standard error, for a limb-darkened shape (the default: a small
-  planet half-way to the limb of a Sun-like star) or a box. The model is
+  planet half-way to the limb of a Sun-like star, in the Kepler band) or a
+  box. The model is
   baseline times (1 - depth times shape), fitted by weighted least squares;
   the depth comes back to rounding from a noiseless transit, and its
   stated error matches the scatter of 4,000 noisy fits to within 4%.
@@ -99,6 +100,15 @@ built from a period, a mid-transit time and a duration.
   candidate's (or an alias's), with the mid-transit time, in steps that
   move the outermost transits by an eighth of a duration; the whole
   spectrum is returned.
+- `flag_periods` and `flag_times`: what you know about your data, checked
+  against the candidate. A `SuspectPeriod` is a period a real signal is
+  unlikely to share (a spacecraft's orbit, a rotation, a day), matched at
+  its multiples and fractions within a relative tolerance; each match
+  gives the ratio and the offset. A `TimeWindow` is a span a transit
+  should not fall in (an instrument event, a gap's edge, flagged data);
+  each predicted transit that overlaps one is listed with the windows it
+  overlaps. Nothing is built in for any instrument: the periods and
+  windows are yours. Checked against trying every ratio and every window.
 
 ## Pointing back to the true period
 

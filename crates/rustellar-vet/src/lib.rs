@@ -40,6 +40,10 @@
 //!   eclipses, the signs of a close binary ([`Ellipsoidal`]).
 //! - [`search_period`]: the period searched in a narrow window around a
 //!   candidate or one of its aliases ([`PeriodSearch`]).
+//! - [`flag_periods`] and [`flag_times`]: the candidate's period matched to
+//!   periods the user suspects ([`SuspectPeriod`], at multiples and
+//!   fractions of them), and its transits that fall in time windows the
+//!   user gives ([`TimeWindow`]). Nothing is built in for any instrument.
 //!
 //! # Examples
 //!
@@ -63,6 +67,7 @@ mod ellipsoidal;
 mod error;
 mod evidence;
 mod fit;
+mod flags;
 mod grouped;
 mod multiples;
 mod noise;
@@ -81,6 +86,7 @@ pub use ellipsoidal::{Ellipsoidal, Harmonic, ellipsoidal};
 pub use error::VetError;
 pub use evidence::{Evidence, OddEven, Transit, evidence};
 pub use fit::{Fit, fit_depth};
+pub use flags::{PeriodFlag, SuspectPeriod, TimeFlag, TimeWindow, flag_periods, flag_times};
 pub use multiples::{Multiple, multiples};
 pub use noise::{Noise, SignalToNoise, TransitSnr, signal_to_noise};
 pub use period::{PeriodSearch, search_period};

@@ -51,5 +51,9 @@ All notable changes to this crate are recorded here. The format follows
   orbit out of eclipse; `Candidate::duty_cycle`.
 - `search_period` and `PeriodSearch`: the period and mid-transit time
   searched near a candidate's, with the spectrum.
-- `VetError`, with `RatioZero`, `AliasPeriodNotFinite` and
-  `WidthOutOfRange`.
+- `flag_periods`, `SuspectPeriod` and `PeriodFlag`: the candidate's period
+  matched to periods the user gives, at their multiples and fractions.
+- `flag_times`, `TimeWindow` and `TimeFlag`: the predicted transits that
+  fall in time windows the user gives.
+- `VetError`, with `RatioZero`, `AliasPeriodNotFinite`,
+  `WidthOutOfRange`, `ToleranceOutOfRange` and `WindowReversed`.

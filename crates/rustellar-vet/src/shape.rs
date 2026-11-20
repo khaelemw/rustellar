@@ -17,7 +17,9 @@ use crate::VetError;
 ///
 /// The default is a limb-darkened transit of `k` 0.05 at `b` 0.5 in front
 /// of a Sun-like star (quadratic limb darkening 0.4804, 0.1867, as
-/// transitleastsquares' default): a small planet half-way to the limb.
+/// transitleastsquares' default, for the Kepler band): a small planet
+/// half-way to the limb. For other bands or stars, build the shape with
+/// their own coefficients.
 ///
 /// # Examples
 ///

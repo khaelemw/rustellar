@@ -53,6 +53,10 @@ pub enum VetError {
     AliasPeriodNotFinite,
     /// A period search's width is not above 0 and at most 0.5.
     WidthOutOfRange,
+    /// A suspect period's relative tolerance is not at least 0 and below 1.
+    ToleranceOutOfRange,
+    /// A time window ends before it starts.
+    WindowReversed,
 }
 
 impl fmt::Display for VetError {
@@ -84,6 +88,13 @@ impl fmt::Display for VetError {
             Self::WidthOutOfRange => {
                 write!(f, "a period search's width must be above 0 and at most 0.5")
             }
+            Self::ToleranceOutOfRange => {
+                write!(
+                    f,
+                    "a suspect period's tolerance must be at least 0 and below 1"
+                )
+            }
+            Self::WindowReversed => write!(f, "a time window must not end before it starts"),
         }
     }
 }
