@@ -13,14 +13,15 @@
 //! transit in a sparse light curve costs `N` times the points it holds,
 //! like TLS's template laid on the samples.
 //!
-//! Where a transit holds more points than [`BINS_PER_STEP`] bins per trial
-//! step (at high cadence), the points are binned first, in bins lined up
-//! with the trial times. Each bin keeps the moments of its points' offsets
-//! `δ` from its centre, and the template is taken to its slope there,
-//! `s + s' δ`, so the sums are exact to second order in the bin's width.
-//! Every trial time then sees the same template values at the same bins, so
-//! its sums are a run of multiply-adds: about `steps² BINS_PER_STEP P / D`
-//! a duration, whatever `N`.
+//! Where a transit holds more points than trial steps (at high cadence),
+//! the points are binned first, one bin a trial step wide, centred on the
+//! trial times. Each bin keeps its points' moments in `u`, their offsets
+//! from its centre in bin widths: `w r u^j` to `u²` and `w u^j` to `u⁴`.
+//! Across each bin the template is its least-squares quadratic in `u`, so
+//! the sums are those of the exact fit of a template smoothed a little over
+//! the bins, and a fit never beats its own template's best. Every trial
+//! time sees the same quadratics at the same bins, so its sums are a run of
+//! multiply-adds: about `steps² P / D` bins a duration, whatever `N`.
 
 use std::num::NonZeroUsize;
 use std::thread;
@@ -86,15 +87,35 @@ impl Table {
 /// there are.
 pub(crate) const MIN_STEPS: usize = 10;
 
-/// Bins per trial step where the points are binned: every period's best
-/// gain within 0.1% of the unbinned one at 2-minute cadence, far below the
-/// trial times' own loss.
-pub(crate) const BINS_PER_STEP: usize = 4;
+/// Gauss-Legendre nodes and weights, 8 points on [-1, 1]: exact for
+/// polynomials to degree 15.
+pub(crate) const GAUSS_NODES: [f64; 8] = [
+    -0.960_289_856_497_536_2,
+    -0.796_666_477_413_626_7,
+    -0.525_532_409_916_329,
+    -0.183_434_642_495_649_8,
+    0.183_434_642_495_649_8,
+    0.525_532_409_916_329,
+    0.796_666_477_413_626_7,
+    0.960_289_856_497_536_2,
+];
+pub(crate) const GAUSS_WEIGHTS: [f64; 8] = [
+    0.101_228_536_290_376_26,
+    0.222_381_034_453_374_47,
+    0.313_706_645_877_887_3,
+    0.362_683_783_378_362,
+    0.362_683_783_378_362,
+    0.313_706_645_877_887_3,
+    0.222_381_034_453_374_47,
+    0.101_228_536_290_376_26,
+];
 
 /// When a duration's sums are taken over bins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Binning {
-    /// Where a transit holds more points than bins.
+    /// Where a transit holds more points than bins: every period's best
+    /// gain within 0.2% of the unbinned one at 2-minute cadence, below the
+    /// trial times' own loss.
     Auto,
     /// Always, or never: for the tests, to hold the two against each other.
     #[cfg_attr(not(test), expect(dead_code, reason = "the tests' choice"))]
@@ -156,12 +177,13 @@ pub(crate) struct Scratch {
     offset: Vec<f64>,
     weighted_residual: Vec<f64>,
     weight: Vec<f64>,
-    /// Each bin's moments: `sum w r δ^j` (j = 0, 1), then `sum w δ^j`
-    /// (j = 0, 1, 2).
-    bins: Vec<[f64; 5]>,
-    /// The template at each bin from a trial time: `s`, `s'`, `s²`,
-    /// `2 s s'` and `s'²`.
-    terms: Vec<[f64; 5]>,
+    /// Each bin's moments: `sum w r u^j` (j = 0 to 2), then `sum w u^j`
+    /// (j = 0 to 4), for `u` the points' offsets from its centre in bin
+    /// widths.
+    bins: Vec<[f64; 8]>,
+    /// The template across each bin from a trial time as a quadratic in
+    /// `u`, then its square: their coefficients, lowest first.
+    terms: Vec<[f64; 8]>,
 }
 
 /// The best gain so far at one period, and its fit.
@@ -302,10 +324,7 @@ impl Search<'_> {
             let binned = match self.binning {
                 Binning::Always => true,
                 Binning::Never => false,
-                Binning::Auto => {
-                    swept as f64 * duration
-                        > covered * (BINS_PER_STEP as f64).mul_add(duration / step, 3.0)
-                }
+                Binning::Auto => swept as f64 * duration > covered * (duration / step + 3.0),
             };
             let sweep = Sweep {
                 duration,
@@ -361,9 +380,8 @@ impl Search<'_> {
         }
     }
 
-    /// One duration's trial times, each summed over bins a
-    /// [`BINS_PER_STEP`]th of a step wide, the template taken to its slope
-    /// across each.
+    /// One duration's trial times, each summed over bins a step wide, the
+    /// template a quadratic across each.
     #[expect(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
@@ -377,10 +395,8 @@ impl Search<'_> {
             count,
             step,
         } = sweep;
-        let q = BINS_PER_STEP as i64;
-        let h = step / BINS_PER_STEP as f64;
-        // Bin m is centred on m h, so trial time k is at the centre of bin
-        // k q.
+        let h = step;
+        // Bin m is centred on trial time m.
         let bin = |o: f64| (o / h + 0.5).floor() as i64;
         let offset = &scratch.offset;
         let first = bin(offset[0]);
@@ -388,7 +404,7 @@ impl Search<'_> {
         bins.clear();
         bins.resize(
             (bin(offset[offset.len() - 1]) - first + 1) as usize,
-            [0.0; 5],
+            [0.0; 8],
         );
         for ((&o, &wr), &w) in offset
             .iter()
@@ -396,34 +412,60 @@ impl Search<'_> {
             .zip(&scratch.weight)
         {
             let m = bin(o);
-            let d = (m as f64).mul_add(-h, o);
+            let u = o / h - m as f64;
+            let uu = u * u;
             let b = &mut bins[(m - first) as usize];
             b[0] += wr;
-            b[1] += wr * d;
-            b[2] += w;
-            b[3] += w * d;
-            b[4] += w * d * d;
+            b[1] += wr * u;
+            b[2] += wr * uu;
+            b[3] += w;
+            b[4] += w * u;
+            b[5] += w * uu;
+            b[6] += w * uu * u;
+            b[7] += w * uu * uu;
         }
 
         // The bins from `-reach` to `reach` about a trial time: beyond them
-        // the template and its slope across a bin are 0.
-        let reach = (duration / (2.0 * h) + 1.0).ceil() as i64;
+        // the template is 0. Across each, the template's least-squares
+        // quadratic (its Legendre series to P2, by quadrature), and that
+        // quadratic's square.
+        let reach = (duration / (2.0 * h) + 0.5).ceil() as i64;
         let samples = self.table.intervals();
         let at = |t: f64| self.table.at_sample((t / duration + 0.5) * samples);
         let terms = &mut scratch.terms;
         terms.clear();
         terms.extend((-reach..=reach).map(|j| {
-            let t = j as f64 * h;
-            let s = at(t);
-            let slope = (at(0.5f64.mul_add(h, t)) - at((-0.5f64).mul_add(h, t))) / h;
-            [s, slope, s * s, 2.0 * s * slope, slope * slope]
+            let centre = j as f64 * h;
+            // Legendre coefficients on v = 2u in [-1, 1].
+            let (mut s0, mut s1, mut s2) = (0.0, 0.0, 0.0);
+            for (&v, &g) in GAUSS_NODES.iter().zip(&GAUSS_WEIGHTS) {
+                let s = at(0.5f64.mul_add(v * h, centre));
+                let (p1, p2) = (v, 1.5f64.mul_add(v * v, -0.5));
+                s0 += g * s;
+                s1 += g * s * p1;
+                s2 += g * s * p2;
+            }
+            // c_k = (2k + 1) / 2 times those; then in powers of u, with
+            // P1 = 2u and P2 = 6u² - 1/2.
+            let (c0, c1, c2) = (0.5 * s0, 1.5 * s1, 2.5 * s2);
+            let (a0, a1, a2) = (0.5f64.mul_add(-c2, c0), 2.0 * c1, 6.0 * c2);
+            [
+                a0,
+                a1,
+                a2,
+                a0 * a0,
+                2.0 * a0 * a1,
+                a1.mul_add(a1, 2.0 * a0 * a2),
+                2.0 * a1 * a2,
+                a2 * a2,
+            ]
         }));
 
         let n = bins.len() as i64;
         let width = terms.len() as i64;
         for k in 0..count {
             // The window's first bin, counted from the first bin.
-            let start = k as i64 * q - reach - first;
+            let start = k as i64 - reach - first;
             // The terms whose bins exist: none where the trial time is
             // beyond the points.
             let lo = (-start).clamp(0, width);
@@ -431,8 +473,11 @@ impl Search<'_> {
             let (mut rs, mut ss) = (0.0, 0.0);
             let window = &bins[(start + lo).clamp(0, n) as usize..];
             for (b, t) in window.iter().zip(&terms[lo as usize..hi as usize]) {
-                rs += b[0].mul_add(t[0], b[1] * t[1]);
-                ss += b[2].mul_add(t[2], b[3].mul_add(t[3], b[4] * t[4]));
+                rs += b[0].mul_add(t[0], b[1].mul_add(t[1], b[2] * t[2]));
+                ss += b[3].mul_add(
+                    t[3],
+                    b[4].mul_add(t[4], b[5].mul_add(t[5], b[6].mul_add(t[6], b[7] * t[7]))),
+                );
             }
             best.offer(self, duration, k as f64 * step, rs, ss);
         }

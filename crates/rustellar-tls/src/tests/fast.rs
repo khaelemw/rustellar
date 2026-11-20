@@ -7,7 +7,9 @@ use std::num::NonZeroUsize;
 use super::{Random, light_curve};
 use crate::durations::{Constants, Stars, grid};
 use crate::exact::best;
-use crate::fast::{Binning, PeriodBest, Scratch, Search, Settings, Table};
+use crate::fast::{
+    Binning, GAUSS_NODES, GAUSS_WEIGHTS, PeriodBest, Scratch, Search, Settings, Table,
+};
 use crate::fit::{Points, Position, fit};
 use crate::template::Template;
 
@@ -130,22 +132,24 @@ fn its_sums_are_the_exact_fits_at_its_own_trial_times() {
 // The trial times are a grid, so the fast search loses a little of the
 // best gain, less the finer the grid: on these 10 noisy transits at most
 // 2.8%, 1.6%, 0.31% and 0.10% with 10, 25, 50 and 100 trial times per
-// duration (binned: 3.0%, 1.5%, 0.31%, 0.10%). Unbinned it never beats the
-// oracle; binned, its sums are a slope's approximation, and overstate the
-// gain by at most 8e-6 of it here. The peaks are refined exactly later.
+// duration (binned: 2.9%, 1.6%, 0.32%, 0.077%). Unbinned it never beats the
+// oracle; binned, its template is smoothed a little over each bin, and fits
+// the noise a little differently: better than the oracle by 1.2e-3 of the
+// gain at 25 steps, 2.3e-5 at 100, never at 10 and 50. The peaks are
+// refined exactly later.
 #[test]
 fn close_to_the_oracle() {
     let template = Template::tls_default();
     let table = Table::new(&template, SAMPLES);
     for (steps, bound, binning, over) in [
         (10, 0.03, Binning::Never, 1e-6),
-        (10, 0.031, Binning::Always, 2e-5),
+        (10, 0.03, Binning::Always, 1e-6),
         (25, 0.02, Binning::Never, 1e-6),
-        (25, 0.02, Binning::Always, 2e-5),
+        (25, 0.02, Binning::Always, 1.3e-3),
         (50, 0.004, Binning::Never, 1e-6),
-        (50, 0.004, Binning::Always, 2e-5),
+        (50, 0.004, Binning::Always, 1e-6),
         (100, 0.0015, Binning::Never, 1e-6),
-        (100, 0.0015, Binning::Always, 2e-5),
+        (100, 0.0015, Binning::Always, 3e-5),
     ] {
         let mut random = Random::new(22);
         let mut worst: f64 = 0.0;
@@ -256,11 +260,12 @@ fn nothing_to_fit_leaves_the_flat_model() {
     }
 }
 
-// At high cadence the points are binned: every period's best gain within
-// 0.1% of the unbinned one, the best period the same. At 30 minutes a
-// transit holds fewer points than bins, and nothing is binned.
+// Where a transit holds more points than bins the points are binned: at 2
+// minutes every period's best gain within 0.2% of the unbinned one (1.8e-3
+// at most, on fits to the noise), at 30 minutes, where fewer durations are
+// binned, within 0.07%; the best period the same.
 #[test]
-fn binned_at_high_cadence_within_a_thousandth() {
+fn binned_within_two_thousandths() {
     let template = Template::tls_default();
     let table = Table::new(&template, SAMPLES);
     let fractions = grid(Constants::IAU, Stars::TLS, 0.6, 13.0, 1.1);
@@ -305,15 +310,12 @@ fn binned_at_high_cadence_within_a_thousandth() {
                 .collect::<Vec<_>>()
         };
         let (auto, never) = (with(Binning::Auto), with(Binning::Never));
-        if cadence > 0.01 {
-            assert_eq!(auto, never);
-            continue;
-        }
         assert_ne!(auto, never);
+        let bound = if cadence < 0.01 { 2e-3 } else { 7e-4 };
         for (a, n) in auto.iter().zip(&never) {
             let gain = points.flat_chi2() - n.chi2;
             assert!(
-                ((points.flat_chi2() - a.chi2) / gain - 1.0).abs() < 1e-3,
+                ((points.flat_chi2() - a.chi2) / gain - 1.0).abs() < bound,
                 "{a:?} {n:?}"
             );
         }
@@ -449,4 +451,24 @@ fn the_same_results_on_any_number_of_threads() {
         );
     }
     assert!(s.periods(&[], NonZeroUsize::new(4).unwrap()).is_empty());
+}
+
+// The quadrature that fits the template's quadratic across a bin: 8 points
+// integrate every power to x^15 over [-1, 1] exactly (2 / (j + 1) for even
+// j, 0 for odd), to rounding.
+#[test]
+fn gauss_legendre_is_exact_to_degree_fifteen() {
+    for j in 0..16 {
+        let sum: f64 = GAUSS_NODES
+            .iter()
+            .zip(&GAUSS_WEIGHTS)
+            .map(|(&x, &w)| w * x.powi(j))
+            .sum();
+        let exact = if j % 2 == 0 {
+            2.0 / f64::from(j + 1)
+        } else {
+            0.0
+        };
+        assert!((sum - exact).abs() < 4e-16, "x^{j}: {sum} {exact}");
+    }
 }
