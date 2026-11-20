@@ -20,4 +20,10 @@ All notable changes to this crate are recorded here. The format follows
   and duration (half to twice) refined at the candidate's period; exact
   for a box (every run of points in phase scored), a grid and two finer
   grids for a limb-darkened shape.
+- `evidence`, `Evidence`, `Transit` and `OddEven`: every transit predicted
+  in the light curve's span with its points, expected points (coverage) and
+  own depth, and the odd and even transits' depths with the difference's
+  error counting their correlation through the shared baseline; all fitted
+  with one baseline, solved exactly through the normal equations' arrow
+  structure.
 - `VetError`.

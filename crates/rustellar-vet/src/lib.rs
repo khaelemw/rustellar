@@ -20,6 +20,8 @@
 //!   its standard error ([`Fit`]).
 //! - [`refine`]: the mid-transit time and duration refined at the
 //!   candidate's period, exactly for a box ([`Refined`]).
+//! - [`evidence`]: each predicted transit's points, coverage and depth,
+//!   and the odd and even transits' depths compared ([`Evidence`]).
 //!
 //! # Examples
 //!
@@ -39,7 +41,9 @@
 
 mod candidate;
 mod error;
+mod evidence;
 mod fit;
+mod grouped;
 mod refine;
 mod shape;
 mod sum;
@@ -49,6 +53,7 @@ mod tests;
 
 pub use candidate::Candidate;
 pub use error::VetError;
+pub use evidence::{Evidence, OddEven, Transit, evidence};
 pub use fit::{Fit, fit_depth};
 pub use refine::{Refined, refine};
 pub use shape::Shape;

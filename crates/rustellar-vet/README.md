@@ -50,6 +50,12 @@ built from a period, a mid-transit time and a duration.
   candidate's, at its period. For a box this is exact (no point of a
   301 by 301 grid does better); for a limb-darkened shape it matches a
   dense grid's best to a part in a million.
+- `evidence`: each predicted transit's points, coverage and own depth,
+  and the odd and even transits' depths compared. The difference's error
+  counts the two depths' correlation through their shared baseline; on
+  1,000 noise draws of a planet the odd-even significance has mean 0 and
+  spread 1 to within the draws' own scatter, and a candidate at half the
+  true period or an eclipsing binary stands out by more than 10 sigma.
 
 ## Quick start
 
