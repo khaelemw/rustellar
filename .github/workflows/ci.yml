@@ -67,9 +67,9 @@ jobs:
         with:
           toolchain: "1.85"
       - uses: Swatinem/rust-cache@v2
-      # Every feature but the `cuda` ones, which need Rust 1.88.
+      # Every feature but `cuda`, which needs Rust 1.88 (msrv-cuda).
       - run: cargo check --workspace --lib
-      - run: cargo check -p rustellar --lib --all-features
+      - run: cargo check -p rustellar --lib --features full
 
   # The `cuda` features on their own minimum Rust.
   msrv-cuda:

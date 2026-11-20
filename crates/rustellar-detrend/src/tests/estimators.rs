@@ -2,7 +2,7 @@
 // means: the series at 50 digits, brute force, exact symmetries, and the two
 // builds. (Against the reference windows: the integration tests.)
 
-use super::{Random, awkward_windows};
+use super::Random;
 use crate::{
     exact_sum::ExactSum,
     m_estimate::{Scratch, solve},
@@ -449,6 +449,7 @@ fn the_grouped_terms_are_the_scalar_ones() {
         }
     }
     all(Plain);
+    #[cfg(target_arch = "x86_64")]
     if let Some(wide) = crate::psi::Avx2::new() {
         all(wide);
     }
@@ -474,7 +475,7 @@ fn the_baseline_build_is_the_wide_one() {
         found
     };
     let mut random = Random(0x5eed_0603);
-    let mut windows = awkward_windows(&mut random, 1500);
+    let mut windows = super::awkward_windows(&mut random, 1500);
     // Symmetric about 0, MAD m, and a point x at the double just below c m
     // (where c m is not a double): its |u| = x / (c m) is 1 less a tail, just
     // inside Huber's cut. The location is 0.
