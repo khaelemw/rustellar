@@ -1,6 +1,6 @@
 use rustellar_core::{Epoch, LightCurve, TimeDelta};
 
-use crate::fit::{fit_depth, phase, shapes};
+use crate::fit::{fit_depth, phase};
 use crate::sum::Sum;
 use crate::{Candidate, Fit, Shape, VetError};
 
@@ -190,19 +190,74 @@ fn best_run(lc: &LightCurve, candidate: &Candidate, longest: f64) -> Option<(f64
 
 /// The best limb-darkened fit on a grid and finer grids around its best:
 /// its shift and length.
+///
+/// Each trial is scored by the drop in chi-squared, `S_sy^2 / S_ss`, from
+/// sums about the weighted mean flux: `S_sy = sum w s (y - mean)` and
+/// `S_ss = sum w s^2 - (sum w s)^2 / W`. Only points with a shape above 0
+/// enter them, so each trial sums the points in its own transit, found by
+/// phase among those any trial can reach, and never the whole light curve.
 fn best_grid(
     lc: &LightCurve,
     candidate: &Candidate,
     shape: Shape,
     longest: f64,
 ) -> Option<(f64, f64)> {
+    let period = candidate.period().as_days();
     let duration = candidate.duration().as_days();
+    let t0 = candidate.transit_time().as_btjd();
+    let (mut w_all, mut wy_all) = (Sum::default(), Sum::default());
+    for (&y, &e) in lc.flux().iter().zip(lc.flux_err()) {
+        let w = 1.0 / (e * e);
+        w_all.add(w);
+        wy_all.add(w * y);
+    }
+    let (w_all, n) = (w_all.get(), lc.len());
+    let mean = wy_all.get() / w_all;
+    // Every point any trial can reach (shift up to half the duration, half
+    // the longest length either side), sorted by phase: phase, weight and
+    // flux less the mean.
+    let reach = 0.5 * duration + 0.5 * longest;
+    let mut near: Vec<(f64, f64, f64)> = lc
+        .time()
+        .iter()
+        .zip(lc.flux())
+        .zip(lc.flux_err())
+        .map(|((t, &y), &e)| (phase(t.as_btjd() - t0, period), 1.0 / (e * e), y - mean))
+        .filter(|&(ph, _, _)| ph.abs() < reach)
+        .collect();
+    near.sort_by(|a, b| a.0.total_cmp(&b.0));
+    // Where a trial's transit cannot wrap past half the period, only the
+    // points within it are summed.
+    let unwrapped = reach + 0.5 * duration < 0.5 * period;
     let gain = |shift: f64, length: f64| -> Option<f64> {
-        let c = at(candidate, shift, length).ok()?;
-        let profile = shape.profile(c.period().as_days(), length).ok()?;
-        let s = shapes(lc, &c, &profile);
-        let fit = crate::fit::solve(lc.flux(), lc.flux_err(), &s).ok()?;
-        (fit.depth > 0.0).then_some(fit.delta_chi2)
+        let profile = shape.profile(period, length).ok()?;
+        let (lo, hi) = if unwrapped {
+            let half = 0.5 * length;
+            (
+                near.partition_point(|p| p.0 <= shift - half),
+                near.partition_point(|p| p.0 < shift + half),
+            )
+        } else {
+            (0, near.len())
+        };
+        let (mut ss, mut s1, mut sy) = (Sum::default(), Sum::default(), Sum::default());
+        let mut points = 0;
+        for &(ph, w, yc) in &near[lo..hi] {
+            let s = profile.at(phase(ph - shift, period));
+            if s > 0.0 {
+                ss.add(w * s * s);
+                s1.add(w * s);
+                sy.add(w * s * yc);
+                points += 1;
+            }
+        }
+        // A fit needs points both in and out of transit.
+        (points > 0 && points < n).then_some(())?;
+        let (s1, sy) = (s1.get(), sy.get());
+        let sss = ss.get() - s1 * s1 / w_all;
+        let beta = sy / sss;
+        let alpha = mean - beta * s1 / w_all;
+        (beta < 0.0 && alpha > 0.0).then_some(sy * beta)
     };
     // Shift in days; length as its logarithm.
     let (mut shift_lo, mut shift_hi) = (-0.5 * duration, 0.5 * duration);

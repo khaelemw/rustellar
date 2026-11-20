@@ -125,6 +125,36 @@ fn the_transit_matches_a_dense_grid() {
     }
 }
 
+// A limb-darkened transit almost a third of its period long, whose trial
+// transits wrap past half the period, with a gap over its middle that
+// leaves the shortest trials no points: the refinement still matches a
+// dense grid.
+#[test]
+fn a_long_transit_over_a_gap() {
+    let mut r = Random(9);
+    let time: Vec<f64> = (0..1440)
+        .map(|i| f64::from(i) / 144.0)
+        .filter(|&t| ((t - 0.5 + 0.5).rem_euclid(1.0) - 0.5).abs() >= 0.06)
+        .collect();
+    let flux: Vec<f64> = time
+        .iter()
+        .map(|&t| {
+            let dip = ((t - 0.5 + 0.5).rem_euclid(1.0) - 0.5).abs() < 0.12;
+            1.0 - if dip { 3e-3 } else { 0.0 } + 4e-4 * r.normal()
+        })
+        .collect();
+    let n = time.len();
+    let lc = LightCurve::from_btjd(time, flux, vec![4e-4; n]).unwrap();
+    let c = Candidate::new(days(1.0), at(0.5), days(0.3)).unwrap();
+    let refined = refine(&lc, &c, Shape::default()).unwrap();
+    let grid = dense(&lc, &c, Shape::default(), 80);
+    assert!(
+        refined.fit.delta_chi2 >= grid - 1e-6 * grid,
+        "{} {grid}",
+        refined.fit.delta_chi2
+    );
+}
+
 // Without noise the refinement walks back to the planet's own time and
 // duration, and its depth.
 #[test]

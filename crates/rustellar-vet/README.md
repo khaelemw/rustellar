@@ -103,6 +103,26 @@ to settle, and the table is right on 1 of them. For one depth and one
 baseline the lowest chi-squared is the highest signal to noise, so
 choosing by either gives the same row.
 
+## Speed
+
+Milliseconds on one thread of an AMD Ryzen 7 5700G, for a 3.7-day planet
+in a TESS sector at 2 minutes (19,440 points) and in four years of Kepler
+long cadence (70,128 points), with the default limb-darkened shape and a
+box (`cargo bench -p rustellar-vet`):
+
+| Step | TESS, limb-darkened | TESS, box | Kepler, limb-darkened | Kepler, box |
+|---|---|---|---|---|
+| `fit_depth` | 0.22 | 0.19 | 0.83 | 0.71 |
+| `refine` | 153 | 1.2 | 558 | 18 |
+| `evidence` | 0.59 | 0.56 | 3.2 | 3.1 |
+| `signal_to_noise` | 0.93 | 0.90 | 6.4 | 6.3 |
+| `aliases` (seven ratios) | 16 | 15 | 91 | 87 |
+| `secondary` | 0.59 | | 4.4 | |
+
+The limb-darkened `refine` scores its 5,043 trials on the points within
+each trial's own transit only, so it does not grow with the points out of
+transit.
+
 ## Quick start
 
 ```rust

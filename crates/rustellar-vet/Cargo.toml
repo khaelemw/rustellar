@@ -8,8 +8,8 @@ license.workspace = true
 keywords = ["astronomy", "exoplanet", "transit", "vetting"]
 categories = ["science", "algorithms"]
 # The published package holds the library and its unit tests, which need no
-# files. The integration tests stay in the source.
-exclude = ["/tests/"]
+# files. The integration tests and the benchmarks stay in the source.
+exclude = ["/tests/", "/benches/"]
 
 # Conversions from a search's result into a `Candidate`, each behind the
 # feature of that search, so the crate stays light by default.
@@ -23,6 +23,13 @@ rustellar-bls = { workspace = true, optional = true }
 rustellar-core.workspace = true
 rustellar-model.workspace = true
 rustellar-tls = { workspace = true, optional = true }
+
+[dev-dependencies]
+criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "vet"
+harness = false
 
 [package.metadata.docs.rs]
 all-features = true
