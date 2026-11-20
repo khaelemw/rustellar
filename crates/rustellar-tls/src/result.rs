@@ -6,8 +6,8 @@ use rustellar_core::{Epoch, TimeDelta};
 
 /// A time in days as an [`Epoch`]; the light curve's times are finite, and
 /// so is every time the search derives from them.
-pub(crate) fn epoch(btjd: f64) -> Epoch {
-    Epoch::from_btjd(btjd).expect("a finite time")
+pub(crate) fn epoch(days: f64) -> Epoch {
+    Epoch::from_days(days).expect("a finite time")
 }
 
 /// A span in days as a [`TimeDelta`].

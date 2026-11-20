@@ -20,7 +20,7 @@ use crate::search::{Method, Options, peaks, run};
 fn injected(random: &mut Random, k: f64, period: f64, t0: f64, noise: f64) -> LightCurve {
     let time: Vec<f64> = (0..1296).map(|i| f64::from(i) / 48.0).collect();
     let params = TransitParams::new(
-        Epoch::from_btjd(t0).unwrap(),
+        Epoch::from_days(t0).unwrap(),
         TimeDelta::from_days(period).unwrap(),
         RadiusRatio::new(k).unwrap(),
         ScaledSemiMajorAxis::new(12.0).unwrap(),
@@ -28,7 +28,7 @@ fn injected(random: &mut Random, k: f64, period: f64, t0: f64, noise: f64) -> Li
         LimbDarkening::quadratic(0.4804, 0.1867).unwrap(),
     )
     .unwrap();
-    let epochs: Vec<Epoch> = time.iter().map(|&t| Epoch::from_btjd(t).unwrap()).collect();
+    let epochs: Vec<Epoch> = time.iter().map(|&t| Epoch::from_days(t).unwrap()).collect();
     let flux: Vec<f64> = params
         .light_curve(&epochs)
         .into_iter()
@@ -37,7 +37,7 @@ fn injected(random: &mut Random, k: f64, period: f64, t0: f64, noise: f64) -> Li
             f + noise * n
         })
         .collect();
-    LightCurve::from_btjd(time, flux, vec![noise; 1296]).unwrap()
+    LightCurve::from_days(time, flux, vec![noise; 1296]).unwrap()
 }
 
 fn periods(lc: &LightCurve) -> Vec<f64> {
@@ -127,7 +127,7 @@ fn recovered(method: Method) {
 fn nothing_to_fit_gives_no_spectra() {
     // Every flux above 1: no depth anywhere.
     let time: Vec<f64> = (0..500).map(|i| f64::from(i) / 20.0).collect();
-    let lc = LightCurve::from_btjd(time, vec![1.001; 500], vec![1e-3; 500]).unwrap();
+    let lc = LightCurve::from_days(time, vec![1.001; 500], vec![1e-3; 500]).unwrap();
     for method in [Method::Fold, Method::Cells] {
         let mut options = Options::tls();
         options.method = method;
@@ -304,7 +304,7 @@ fn against_tls_on_injected_transits() {
     {
         let mut random = Random::new(seed);
         let params = TransitParams::new(
-            Epoch::from_btjd(t0).unwrap(),
+            Epoch::from_days(t0).unwrap(),
             TimeDelta::from_days(period).unwrap(),
             RadiusRatio::new(k).unwrap(),
             ScaledSemiMajorAxis::new(12.0).unwrap(),
@@ -315,7 +315,7 @@ fn against_tls_on_injected_transits() {
         let (mut time, mut flux) = (vec![], vec![]);
         for i in 0..1296 {
             let t = f64::from(i) / 48.0;
-            let f = params.flux_at(Epoch::from_btjd(t).unwrap());
+            let f = params.flux_at(Epoch::from_days(t).unwrap());
             let n: f64 = (0..4).map(|_| random.uniform() - 0.5).sum::<f64>() * 3_f64.sqrt();
             if !(gap && t > 12.5 && t < 14.5) {
                 time.push(t);
@@ -323,13 +323,13 @@ fn against_tls_on_injected_transits() {
             }
         }
         let n = time.len();
-        let lc = LightCurve::from_btjd(time, flux, vec![noise; n]).unwrap();
+        let lc = LightCurve::from_days(time, flux, vec![noise; n]).unwrap();
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
         let outcome = run(&Points::new(&lc), &periods(&lc), options);
         let best = outcome.best.unwrap();
         let ours = best.position;
-        let depth = 1.0 - params.flux_at(Epoch::from_btjd(t0).unwrap());
+        let depth = 1.0 - params.flux_at(Epoch::from_days(t0).unwrap());
         let t14 = params.t14().unwrap().as_days();
         let off = |x: f64| {
             let d = (x - t0).rem_euclid(period);
@@ -486,7 +486,7 @@ fn against_tls_on_shallower_noisier_and_sparse_transits() {
     {
         let mut random = Random::new(seed);
         let params = TransitParams::new(
-            Epoch::from_btjd(t0).unwrap(),
+            Epoch::from_days(t0).unwrap(),
             TimeDelta::from_days(period).unwrap(),
             RadiusRatio::new(k).unwrap(),
             ScaledSemiMajorAxis::new(12.0).unwrap(),
@@ -497,7 +497,7 @@ fn against_tls_on_shallower_noisier_and_sparse_transits() {
         let (mut time, mut flux) = (vec![], vec![]);
         for i in 0..1296 {
             let t = f64::from(i) / 48.0;
-            let f = params.flux_at(Epoch::from_btjd(t).unwrap());
+            let f = params.flux_at(Epoch::from_days(t).unwrap());
             let n: f64 = (0..4).map(|_| random.uniform() - 0.5).sum::<f64>() * 3_f64.sqrt();
             if sparse && random.uniform() < 0.25 {
                 continue;
@@ -506,13 +506,13 @@ fn against_tls_on_shallower_noisier_and_sparse_transits() {
             flux.push(f + noise * n);
         }
         let n = time.len();
-        let lc = LightCurve::from_btjd(time, flux, vec![noise; n]).unwrap();
+        let lc = LightCurve::from_days(time, flux, vec![noise; n]).unwrap();
         let mut options = Options::tls();
         options.threads = NonZeroUsize::new(4).unwrap();
         let outcome = run(&Points::new(&lc), &periods(&lc), options);
         let best = outcome.best.unwrap();
         let ours = best.position;
-        let depth = 1.0 - params.flux_at(Epoch::from_btjd(t0).unwrap());
+        let depth = 1.0 - params.flux_at(Epoch::from_days(t0).unwrap());
         let t14 = params.t14().unwrap().as_days();
         let ours_sde = outcome.spectra.unwrap().sde;
         assert!(
@@ -753,7 +753,7 @@ fn uneven(
             .unzip()
     };
     let params = TransitParams::new(
-        Epoch::from_btjd(t0).unwrap(),
+        Epoch::from_days(t0).unwrap(),
         TimeDelta::from_days(period).unwrap(),
         RadiusRatio::new(k).unwrap(),
         ScaledSemiMajorAxis::new(12.0).unwrap(),
@@ -767,10 +767,10 @@ fn uneven(
         .zip(&dy)
         .map(|(&t, &e)| {
             let n: f64 = (0..4).map(|_| random.uniform() - 0.5).sum::<f64>() * 3_f64.sqrt();
-            params.flux_at(Epoch::from_btjd(t).unwrap()) + e * n
+            params.flux_at(Epoch::from_days(t).unwrap()) + e * n
         })
         .collect();
-    (LightCurve::from_btjd(time, flux, dy).unwrap(), params)
+    (LightCurve::from_days(time, flux, dy).unwrap(), params)
 }
 
 // Where TLS's own assumptions break: with mixed cadence it takes the
@@ -805,7 +805,7 @@ fn against_tls_on_mixed_cadence_and_varying_errors() {
                 },
             );
             assert!(best.fit.chi2 < at_tls.chi2, "{seed}");
-            let depth = 1.0 - params.flux_at(Epoch::from_btjd(t0).unwrap());
+            let depth = 1.0 - params.flux_at(Epoch::from_days(t0).unwrap());
             let t14 = params.t14().unwrap().as_days();
             depth_error.0 += (best.fit.depth / depth - 1.0).abs();
             depth_error.1 += (tls_depth / depth - 1.0).abs();

@@ -163,7 +163,7 @@ fn a_noiseless_transit_is_fitted_exactly() {
         .iter()
         .map(|&t| 1.0 - depth * template.shape(position.x(t)))
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 5000]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 5000]).unwrap();
     let got = fit(&Points::new(&lc), &template, position);
     assert!((got.depth / depth - 1.0).abs() < 1e-14, "{}", got.depth);
     // Residuals of a rounding of 1 each: chi2 about n_in (1e-16 / 1e-3)².
@@ -201,7 +201,7 @@ fn scaling_the_weights_scales_the_chi2_only() {
 
 #[test]
 fn points_from_a_light_curve() {
-    let lc = LightCurve::from_btjd(vec![1.0, 2.0], vec![0.99, 1.25], vec![0.5, 0.25]).unwrap();
+    let lc = LightCurve::from_days(vec![1.0, 2.0], vec![0.99, 1.25], vec![0.5, 0.25]).unwrap();
     let p = Points::new(&lc);
     assert_eq!(p.time, vec![1.0, 2.0]);
     assert_eq!(p.residual, vec![1.0 - 0.99, -0.25]);

@@ -3,7 +3,7 @@ use std::fmt;
 /// Why a light curve could not be built or folded.
 ///
 /// Returned by [`LightCurve::new`](crate::LightCurve::new),
-/// [`LightCurve::from_btjd`](crate::LightCurve::from_btjd), and
+/// [`LightCurve::from_days`](crate::LightCurve::from_days), and
 /// [`LightCurve::fold`](crate::LightCurve::fold). New variants may be added in
 /// minor releases, so a `match` on this type needs a wildcard arm.
 ///
@@ -18,7 +18,7 @@ use std::fmt;
 /// use rustellar_core::LightCurve;
 ///
 /// fn load() -> Result<LightCurve, Box<dyn Error>> {
-///     let lc = LightCurve::from_btjd(vec![2.0, 1.0], vec![1.0, 1.0], vec![0.1, 0.1])?;
+///     let lc = LightCurve::from_days(vec![2.0, 1.0], vec![1.0, 1.0], vec![0.1, 0.1])?;
 ///     Ok(lc)
 /// }
 ///
@@ -70,7 +70,7 @@ impl std::error::Error for LightCurveError {}
 /// ```
 /// use rustellar_core::{Epoch, TimeError};
 ///
-/// assert_eq!(Epoch::from_btjd(f64::NAN), Err(TimeError::NonFinite));
+/// assert_eq!(Epoch::from_days(f64::NAN), Err(TimeError::NonFinite));
 /// assert_eq!(TimeError::NonFinite.to_string(), "time value must be finite");
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

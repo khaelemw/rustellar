@@ -11,7 +11,7 @@ fn days(d: f64) -> TimeDelta {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 struct Random(u64);
@@ -45,7 +45,7 @@ fn from(t: f64, offset: f64) -> f64 {
     (t - c + 0.5 * P).rem_euclid(P) - 0.5 * P
 }
 
-// 27 days every 10 minutes from BTJD 1500: a 3e-3 box transit, a box
+// 27 days every 10 minutes from day 1500: a 3e-3 box transit, a box
 // eclipse `second` deep at `offset` of the period, and white noise
 // `noise` with uneven errors.
 fn curve(second: f64, offset: f64, noise: f64, seed: u64) -> LightCurve {
@@ -72,7 +72,7 @@ fn curve(second: f64, offset: f64, noise: f64, seed: u64) -> LightCurve {
             1.0 - transit - eclipse + e * r.normal()
         })
         .collect();
-    LightCurve::from_btjd(time, flux, err).unwrap()
+    LightCurve::from_days(time, flux, err).unwrap()
 }
 
 fn candidate() -> Candidate {
@@ -86,10 +86,10 @@ fn each_box_is_a_box_fit() {
     let lc = curve(1e-3, 0.5, 5e-4, 1);
     let s = secondary(&lc, &candidate());
     let keep: Vec<usize> = (0..lc.len())
-        .filter(|&i| from(lc.time()[i].as_btjd(), 0.0).abs() >= DURATION)
+        .filter(|&i| from(lc.time()[i].as_days(), 0.0).abs() >= DURATION)
         .collect();
-    let reduced = LightCurve::from_btjd(
-        keep.iter().map(|&i| lc.time()[i].as_btjd()).collect(),
+    let reduced = LightCurve::from_days(
+        keep.iter().map(|&i| lc.time()[i].as_days()).collect(),
         keep.iter().map(|&i| lc.flux()[i]).collect(),
         keep.iter().map(|&i| lc.flux_err()[i]).collect(),
     )
@@ -178,15 +178,15 @@ fn no_room_or_no_points() {
     assert!(s.spread.is_nan());
     assert!(s.primary.is_some());
     assert_eq!(s.depth_ratio(), None);
-    let near = LightCurve::from_btjd(vec![T0, T0 + 0.01], vec![1.0; 2], vec![1e-3; 2]).unwrap();
+    let near = LightCurve::from_days(vec![T0, T0 + 0.01], vec![1.0; 2], vec![1e-3; 2]).unwrap();
     let s = secondary(&near, &candidate());
     assert_eq!((s.deepest, s.primary), (None, None));
     // One point away from the transit, in the box at half the period.
-    let one = LightCurve::from_btjd(vec![T0, T0 + 0.5 * P], vec![1.0; 2], vec![1e-3; 2]).unwrap();
+    let one = LightCurve::from_days(vec![T0, T0 + 0.5 * P], vec![1.0; 2], vec![1e-3; 2]).unwrap();
     let s = secondary(&one, &candidate());
     assert_eq!((s.at_half, s.deepest), (None, None));
     // Two points: one box each; one sigma, no spread.
-    let two = LightCurve::from_btjd(
+    let two = LightCurve::from_days(
         vec![T0 + 0.5 * P, T0 + 0.5 * P + 0.3],
         vec![0.999, 1.0],
         vec![1e-3; 2],

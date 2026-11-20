@@ -12,7 +12,7 @@ use std::fmt;
 ///
 /// let err = Candidate::new(
 ///     TimeDelta::from_days(2.0)?,
-///     Epoch::from_btjd(1.0)?,
+///     Epoch::from_days(1.0)?,
 ///     TimeDelta::from_days(3.0)?,
 /// )
 /// .unwrap_err();

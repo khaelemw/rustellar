@@ -14,7 +14,7 @@ fn days(d: f64) -> TimeDelta {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 struct Random(u64);
@@ -52,7 +52,7 @@ fn planet(period: f64) -> TransitParams {
     .unwrap()
 }
 
-// 27 days every 10 minutes from BTJD 1500, without the times `gap` holds.
+// 27 days every 10 minutes from day 1500, without the times `gap` holds.
 fn times(gap: impl Fn(f64) -> bool) -> Vec<f64> {
     (0..3888)
         .map(|i| 1500.0 + f64::from(i) / 144.0)
@@ -64,7 +64,7 @@ fn curve(time: Vec<f64>, flux: impl Fn(f64) -> f64, noise: f64, seed: u64) -> Li
     let mut r = Random(seed);
     let f: Vec<f64> = time.iter().map(|&t| flux(t) + noise * r.normal()).collect();
     let n = time.len();
-    LightCurve::from_btjd(time, f, vec![noise.max(1e-6); n]).unwrap()
+    LightCurve::from_days(time, f, vec![noise.max(1e-6); n]).unwrap()
 }
 
 fn candidate(period: f64, p: &TransitParams) -> Candidate {
@@ -109,7 +109,7 @@ fn a_planet_transit_by_transit() {
     assert_eq!((oe.odd_transits, oe.even_transits), (3, 3));
     assert!((oe.depth_ratio() - 1.0).abs() < 1e-9);
     assert!(!oe.half_period(2.0, 0.25));
-    assert!((e.transits[1].time.as_btjd() - 1505.0).abs() < 1e-12);
+    assert!((e.transits[1].time.as_days() - 1505.0).abs() < 1e-12);
 }
 
 // A transit before the first time but overlapping it is predicted; the
@@ -221,7 +221,7 @@ fn the_significance_is_calibrated() {
 
 #[test]
 fn what_cannot_be_measured() {
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-3; 2]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-3; 2]).unwrap();
     let late = Candidate::new(days(10.0), at(5.0), days(0.1)).unwrap();
     assert_eq!(
         evidence(&lc, &late, Shape::BOX),
@@ -233,14 +233,14 @@ fn what_cannot_be_measured() {
         Err(VetError::DurationTooLongForShape)
     );
     // One point, in transit: no baseline.
-    let one = LightCurve::from_btjd(vec![0.0], vec![0.99], vec![1e-3]).unwrap();
+    let one = LightCurve::from_days(vec![0.0], vec![0.99], vec![1e-3]).unwrap();
     let c = Candidate::new(days(10.0), at(0.0), days(0.1)).unwrap();
     assert_eq!(
         evidence(&one, &c, Shape::BOX),
         Err(VetError::NoPointsOutOfTransit)
     );
     // Two: one transit, no odd and even.
-    let two = LightCurve::from_btjd(vec![0.0, 0.5], vec![0.99, 1.0], vec![1e-3; 2]).unwrap();
+    let two = LightCurve::from_days(vec![0.0, 0.5], vec![0.99, 1.0], vec![1e-3; 2]).unwrap();
     let e = evidence(&two, &c, Shape::BOX).unwrap();
     assert_eq!(e.odd_even, None);
     assert_eq!(e.transits.len(), 1);

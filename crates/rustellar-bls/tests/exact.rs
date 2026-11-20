@@ -54,7 +54,7 @@ fn exact_cases() -> Vec<ExactCase> {
                 flux_err.push(p[3].parse().unwrap());
             }
             ExactCase {
-                lc: LightCurve::from_btjd(time, flux, flux_err).unwrap(),
+                lc: LightCurve::from_days(time, flux, flux_err).unwrap(),
                 period: v[1].parse().unwrap(),
                 duration: v[2].parse().unwrap(),
                 best: (!v[3].is_empty()).then(|| {
@@ -75,7 +75,7 @@ fn example_3() -> LightCurve {
         flux.push(v[1].parse().unwrap());
         flux_err.push(v[2].parse().unwrap());
     }
-    LightCurve::from_btjd(time, flux, flux_err).unwrap()
+    LightCurve::from_days(time, flux, flux_err).unwrap()
 }
 
 fn in_transit(lc: &LightCurve, transit: &TransitBox) -> Vec<bool> {
@@ -140,13 +140,13 @@ fn no_grid_point_does_better() {
         let Some(ours) = best(&case.lc, case.period, case.duration) else {
             continue;
         };
-        let start = case.lc.time()[0].as_btjd();
+        let start = case.lc.time()[0].as_days();
         for k in 0..2_000 {
             let t0 = start + case.period * f64::from(k) / 2_000.0;
             let transit = TransitBox::new(
                 days(case.period),
                 days(case.duration),
-                Epoch::from_btjd(t0).unwrap(),
+                Epoch::from_days(t0).unwrap(),
             )
             .unwrap();
             if let Ok(fit) = transit.fit(&case.lc) {
@@ -168,7 +168,7 @@ fn worked_example_3_box() {
     let transit = TransitBox::new(
         days(3.0),
         days(0.12),
-        Epoch::from_btjd(1.302_942_952_053_283).unwrap(),
+        Epoch::from_days(1.302_942_952_053_283).unwrap(),
     )
     .unwrap();
     let fit = transit.fit(&example_3()).unwrap();
@@ -238,10 +238,10 @@ fn single_transit() {
             }
         })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 200]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 200]).unwrap();
     let ours = best(&lc, 10.0, 0.1).unwrap();
     assert!((ours.fit.depth - 0.005).abs() < 1e-12, "{ours:?}");
-    assert!((ours.transit.transit_time().as_btjd() - 1325.8).abs() < 0.01);
+    assert!((ours.transit.transit_time().as_days() - 1325.8).abs() < 0.01);
 }
 
 // Two stretches with a gap of a week between, a transit in each.
@@ -262,7 +262,7 @@ fn data_with_a_gap() {
             if r.min(2.5 - r) < 0.035 { 0.996 } else { 1.0 }
         })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 400]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 400]).unwrap();
     let ours = best(&lc, 2.5, 0.065).unwrap();
     assert_eq!(ours.fit.n_in, 14);
     assert!((ours.fit.depth - 0.004).abs() < 1e-12, "{ours:?}");
@@ -271,7 +271,7 @@ fn data_with_a_gap() {
 // Every point at the same phase: any box holds all of them or none.
 #[test]
 fn every_box_holds_every_point() {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.0, 1.0, 2.0, 3.0],
         vec![1.0, 0.9, 1.1, 1.0],
         vec![1e-3; 4],
@@ -283,13 +283,13 @@ fn every_box_holds_every_point() {
 #[test]
 fn flat_flux_has_no_dip() {
     let time: Vec<f64> = (0..50).map(f64::from).collect();
-    let lc = LightCurve::from_btjd(time, vec![1.0; 50], vec![1e-3; 50]).unwrap();
+    let lc = LightCurve::from_days(time, vec![1.0; 50], vec![1e-3; 50]).unwrap();
     assert_eq!(best(&lc, 7.3, 0.5), None);
 }
 
 #[test]
 fn one_point() {
-    let lc = LightCurve::from_btjd(vec![1325.0], vec![1.0], vec![1e-3]).unwrap();
+    let lc = LightCurve::from_days(vec![1325.0], vec![1.0], vec![1e-3]).unwrap();
     assert_eq!(best(&lc, 1.0, 0.1), None);
 }
 
@@ -306,7 +306,7 @@ fn bad_box() {
 // rather than part way through at the first box that holds only that point.
 #[rstest]
 fn weights_out_of_range(#[values(1e-160, 1e155, 1e200)] bad: f64) {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.0, 1.0, 2.0],
         vec![1.0, 0.9, 1.0],
         vec![bad, 1.0, 1.0],
@@ -322,7 +322,7 @@ fn weights_out_of_range(#[values(1e-160, 1e155, 1e200)] bad: f64) {
 #[test]
 fn statistics_that_overflow() {
     let lc =
-        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
+        LightCurve::from_days(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
     assert_eq!(
         TransitBox::best(&lc, days(10.0), days(0.5)),
         Err(BlsError::OutOfRange)
@@ -333,7 +333,7 @@ fn statistics_that_overflow() {
 // the dip at 1 and 2 runs from 0 to 3, its edges on the points either side.
 #[test]
 fn only_one_mid_transit_time() {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.0, 1.0, 2.0, 3.0],
         vec![1.0, 0.9, 0.9, 1.0],
         vec![1e-3; 4],
@@ -341,6 +341,6 @@ fn only_one_mid_transit_time() {
     .unwrap();
     let ours = best(&lc, 10.0, 3.0).unwrap();
     assert_eq!(ours.fit.n_in, 2);
-    assert_eq!(ours.transit.transit_time().as_btjd(), 1.5);
+    assert_eq!(ours.transit.transit_time().as_days(), 1.5);
     assert_eq!(in_transit(&lc, &ours.transit), [false, true, true, false]);
 }

@@ -67,11 +67,11 @@ impl Fit {
 ///     .iter()
 ///     .map(|&t| if ((t - 0.75 + 1.5).rem_euclid(3.0) - 1.5).abs() < 0.05 { 0.995 } else { 1.0 })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 576])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 576])?;
 ///
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(0.75)?,
+///     Epoch::from_days(0.75)?,
 ///     TimeDelta::from_days(0.1)?,
 /// )?;
 /// let fit = fit_depth(&lc, &candidate, Shape::BOX)?;
@@ -89,10 +89,10 @@ pub fn fit_depth(lc: &LightCurve, candidate: &Candidate, shape: Shape) -> Result
 /// The shape at each point of `lc` for `candidate`.
 pub(crate) fn shapes(lc: &LightCurve, candidate: &Candidate, profile: &Profile) -> Vec<f64> {
     let period = candidate.period().as_days();
-    let t0 = candidate.transit_time().as_btjd();
+    let t0 = candidate.transit_time().as_days();
     lc.time()
         .iter()
-        .map(|t| profile.at(phase(t.as_btjd() - t0, period)))
+        .map(|t| profile.at(phase(t.as_days() - t0, period)))
         .collect()
 }
 

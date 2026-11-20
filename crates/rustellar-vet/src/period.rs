@@ -56,10 +56,10 @@ pub struct PeriodSearch {
 ///         1.0 - if dip { 3e-3 } else { 0.0 }
 ///     })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 3888])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 3888])?;
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(0.75)?,
+///     Epoch::from_days(0.75)?,
 ///     TimeDelta::from_days(0.1)?,
 /// )?;
 /// let found = search_period(&lc, &candidate, Shape::BOX, 0.01)?;
@@ -78,9 +78,9 @@ pub fn search_period(
     let period = candidate.period().as_days();
     let duration = candidate.duration().as_days();
     let time = lc.time();
-    let (first, last) = (time[0].as_btjd(), time[time.len() - 1].as_btjd());
+    let (first, last) = (time[0].as_days(), time[time.len() - 1].as_days());
     // The candidate's transit nearest the middle, by number.
-    let t0 = candidate.transit_time().as_btjd();
+    let t0 = candidate.transit_time().as_days();
     let n = ((0.5 * (first + last) - t0) / period).round();
     let span = (last - first).max(duration);
     let step = duration * period / (4.0 * span);
@@ -89,7 +89,7 @@ pub fn search_period(
     let at = |p: f64, t: f64| {
         Candidate::new(
             TimeDelta::from_days(p).expect("finite"),
-            Epoch::from_btjd(t).expect("finite"),
+            Epoch::from_days(t).expect("finite"),
             candidate.duration(),
         )
     };

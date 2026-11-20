@@ -114,8 +114,8 @@ fn light_curve(family: &Family, seed: u64, transit: Option<TransitParams>) -> Li
         .zip(&model)
         .map(|(y, m)| y + (m - 1.0))
         .collect();
-    LightCurve::from_btjd(
-        noise.time().iter().map(|t| t.as_btjd()).collect(),
+    LightCurve::from_days(
+        noise.time().iter().map(|t| t.as_days()).collect(),
         flux,
         noise.flux_err().to_vec(),
     )
@@ -129,7 +129,7 @@ fn check_samples(lc: &LightCurve, samples: &str) {
     for sample in samples.split(';') {
         let v: Vec<f64> = sample.split(':').map(|x| x.parse().unwrap()).collect();
         let i = v[0] as usize;
-        assert_eq!(lc.time()[i].as_btjd().to_bits(), v[1].to_bits(), "time {i}");
+        assert_eq!(lc.time()[i].as_days().to_bits(), v[1].to_bits(), "time {i}");
         assert_eq!(lc.flux_err()[i].to_bits(), v[3].to_bits(), "error {i}");
         assert!((lc.flux()[i] - v[2]).abs() <= MODEL_TOLERANCE, "flux {i}");
     }
@@ -163,7 +163,7 @@ fn cases() -> Vec<Case> {
             let (period, tc) = (f(4), f(5));
             let transit = injected.then(|| {
                 TransitParams::new(
-                    Epoch::from_btjd(tc).unwrap(),
+                    Epoch::from_days(tc).unwrap(),
                     TimeDelta::from_days(period).unwrap(),
                     RadiusRatio::new(f(6)).unwrap(),
                     ScaledSemiMajorAxis::new(f(7)).unwrap(),
@@ -235,7 +235,7 @@ fn ours(case: &Case) -> Found {
     Found {
         sde: sde(result.power()),
         period: best.transit.period().as_days(),
-        t0: best.transit.transit_time().as_btjd(),
+        t0: best.transit.transit_time().as_days(),
     }
 }
 
@@ -270,7 +270,7 @@ fn errors(case: &Case, found: Found, threshold: f64) -> Option<[f64; 2]> {
         return None;
     }
     let time = case.lc.time();
-    let middle = 0.5 * (time[0].as_btjd() + time[time.len() - 1].as_btjd());
+    let middle = 0.5 * (time[0].as_days() + time[time.len() - 1].as_days());
     let near = found.t0 + ((middle - found.t0) / found.period).round() * found.period;
     let r = (near - case.tc) / case.period;
     Some([

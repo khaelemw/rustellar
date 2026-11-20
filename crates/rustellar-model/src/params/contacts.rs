@@ -19,9 +19,9 @@ use rustellar_core::TimeDelta;
 /// # use rustellar_model::{
 /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
 /// # };
-/// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+/// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
 /// # let params = TransitParams::new(
-/// #     Epoch::from_btjd(0.0)?,
+/// #     Epoch::from_days(0.0)?,
 /// #     TimeDelta::from_days(3.0)?,
 /// #     RadiusRatio::new(0.1)?,
 /// #     ScaledSemiMajorAxis::new(10.0)?,

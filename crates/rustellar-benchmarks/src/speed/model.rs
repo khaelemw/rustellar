@@ -30,7 +30,7 @@ pub type Timing = (String, f64);
 
 fn hot_jupiter() -> TransitParams {
     TransitParams::new(
-        Epoch::from_btjd(0.0).expect("finite"),
+        Epoch::from_days(0.0).expect("finite"),
         TimeDelta::from_days(3.0).expect("positive"),
         RadiusRatio::new(0.1).expect("valid"),
         ScaledSemiMajorAxis::new(10.0).expect("valid"),
@@ -48,7 +48,7 @@ fn day(i: usize, n: usize) -> f64 {
 
 fn times(n: usize) -> Vec<Epoch> {
     (0..n)
-        .map(|i| Epoch::from_btjd(day(i, n)).expect("finite"))
+        .map(|i| Epoch::from_days(day(i, n)).expect("finite"))
         .collect()
 }
 

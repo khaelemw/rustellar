@@ -14,7 +14,7 @@ fn days(d: f64) -> TimeDelta {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 struct Random(u64);
@@ -56,7 +56,7 @@ fn light_curve(period: f64, seed: u64) -> (LightCurve, TimeDelta) {
         .iter()
         .map(|&t| p.flux_at(at(t)) + 3e-4 * r.normal())
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![3e-4; 7776]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![3e-4; 7776]).unwrap();
     (lc, p.t14().unwrap())
 }
 
@@ -182,7 +182,7 @@ fn the_table_as_text() {
 
 #[test]
 fn what_cannot_be_measured() {
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-3; 2]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-3; 2]).unwrap();
     let late = Candidate::new(days(10.0), at(5.0), days(0.1)).unwrap();
     assert_eq!(
         aliases(&lc, &late, Shape::BOX),

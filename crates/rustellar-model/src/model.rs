@@ -29,14 +29,14 @@ use crate::{Exposure, TransitParams, error::LengthMismatch, params::check_length
 /// // Kepler long-cadence time stamps across one transit.
 /// let cadence = 29.4 / 60.0 / 24.0;
 /// let times: Vec<Epoch> = (-10..=10)
-///     .map(|i| Epoch::from_btjd(f64::from(i) * cadence).unwrap())
+///     .map(|i| Epoch::from_days(f64::from(i) * cadence).unwrap())
 ///     .collect();
 /// let exposure = Exposure::new(TimeDelta::from_days(cadence)?, NonZeroUsize::new(15).unwrap())?;
 /// let mut model = TransitModel::with_exposure(times, exposure);
 ///
 /// for k in [0.09, 0.1, 0.11] {
 ///     let params = TransitParams::new(
-///         Epoch::from_btjd(0.0)?,
+///         Epoch::from_days(0.0)?,
 ///         TimeDelta::from_days(3.0)?,
 ///         RadiusRatio::new(k)?,
 ///         ScaledSemiMajorAxis::new(10.0)?,
@@ -69,15 +69,15 @@ impl TransitModel {
     /// # use rustellar_model::TransitModel;
     /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
     /// #     .into_iter()
-    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .map(|t| Epoch::from_days(t).unwrap())
     /// #     .collect();
     /// # use rustellar_core::TimeDelta;
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -109,7 +109,7 @@ impl TransitModel {
     /// # use rustellar_model::TransitModel;
     /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
     /// #     .into_iter()
-    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .map(|t| Epoch::from_days(t).unwrap())
     /// #     .collect();
     /// # use rustellar_core::TimeDelta;
     /// use rustellar_model::Exposure;
@@ -140,7 +140,7 @@ impl TransitModel {
     /// # use rustellar_model::TransitModel;
     /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
     /// #     .into_iter()
-    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .map(|t| Epoch::from_days(t).unwrap())
     /// #     .collect();
     /// let model = TransitModel::new(times.clone());
     /// assert_eq!(model.times(), times.as_slice());
@@ -160,7 +160,7 @@ impl TransitModel {
     /// # use rustellar_model::TransitModel;
     /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
     /// #     .into_iter()
-    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .map(|t| Epoch::from_days(t).unwrap())
     /// #     .collect();
     /// assert_eq!(TransitModel::new(times).exposure(), None);
     /// # Ok::<(), rustellar_core::TimeError>(())
@@ -183,15 +183,15 @@ impl TransitModel {
     /// # use rustellar_model::TransitModel;
     /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
     /// #     .into_iter()
-    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .map(|t| Epoch::from_days(t).unwrap())
     /// #     .collect();
     /// # use rustellar_core::TimeDelta;
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -225,15 +225,15 @@ impl TransitModel {
     /// # use rustellar_model::TransitModel;
     /// # let times: Vec<Epoch> = [-0.1, 0.0, 0.1]
     /// #     .into_iter()
-    /// #     .map(|t| Epoch::from_btjd(t).unwrap())
+    /// #     .map(|t| Epoch::from_days(t).unwrap())
     /// #     .collect();
     /// # use rustellar_core::TimeDelta;
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,

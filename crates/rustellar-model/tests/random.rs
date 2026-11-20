@@ -104,7 +104,7 @@ fn random_transit(rng: &mut Random) -> TransitParams {
     let a_rs = rng.log_uniform(1.5, 300.0);
     let b = rng.uniform(0.0, (1.1 + radius_ratio).min(0.99 * a_rs));
     TransitParams::new(
-        Epoch::from_btjd(rng.uniform(-2000.0, 5000.0)).unwrap(),
+        Epoch::from_days(rng.uniform(-2000.0, 5000.0)).unwrap(),
         TimeDelta::from_days(rng.log_uniform(0.2, 1000.0)).unwrap(),
         k(radius_ratio),
         ScaledSemiMajorAxis::new(a_rs).unwrap(),

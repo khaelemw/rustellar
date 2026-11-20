@@ -88,7 +88,7 @@ fn cases_of(kind: Kind, row: &Row) -> Vec<Case> {
         .filter_map(|(source, given, period)| {
             let candidate = Candidate::new(
                 TimeDelta::from_days(period).ok()?,
-                Epoch::from_btjd(row.tls.t0).ok()?,
+                Epoch::from_days(row.tls.t0).ok()?,
                 TimeDelta::from_days(row.tls.duration).ok()?,
             )
             .ok()?;

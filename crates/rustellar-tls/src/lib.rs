@@ -25,7 +25,7 @@
 //!     .iter()
 //!     .map(|&t| if (t - 0.7).rem_euclid(3.0) < 0.1 { 0.995 } else { 1.0 })
 //!     .collect();
-//! let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 576])?;
+//! let lc = LightCurve::from_days(time, flux, vec![1e-3; 576])?;
 //!
 //! let periods = OfirPeriod::default().periods(&lc)?;
 //! let result = Tls::new(&lc)?.search(&periods, &SearchOptions::default())?;

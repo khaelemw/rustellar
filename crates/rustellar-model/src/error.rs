@@ -121,16 +121,16 @@ impl std::error::Error for LimbDarkeningError {}
 /// # use rustellar_model::{
 /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
 /// # };
-/// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+/// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
 /// # let params = TransitParams::new(
-/// #     Epoch::from_btjd(0.0)?,
+/// #     Epoch::from_days(0.0)?,
 /// #     TimeDelta::from_days(3.0)?,
 /// #     RadiusRatio::new(0.1)?,
 /// #     ScaledSemiMajorAxis::new(10.0)?,
 /// #     ImpactParameter::new(0.3)?,
 /// #     LimbDarkening::quadratic(0.3, 0.25)?,
 /// # )?;
-/// let times = [Epoch::from_btjd(0.0)?, Epoch::from_btjd(0.1)?];
+/// let times = [Epoch::from_days(0.0)?, Epoch::from_days(0.1)?];
 /// let mut out = [0.0; 3];
 /// let err = params.light_curve_into(&times, &mut out).unwrap_err();
 /// assert_eq!((err.times, err.output), (2, 3));

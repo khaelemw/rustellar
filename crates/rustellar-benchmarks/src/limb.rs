@@ -141,7 +141,7 @@ pub fn cases(step: usize) -> Vec<Case> {
             .light_curve();
             let lc = if injected {
                 let transit = TransitParams::new(
-                    Epoch::from_btjd(tc).expect("finite"),
+                    Epoch::from_days(tc).expect("finite"),
                     TimeDelta::from_days(period).expect("finite"),
                     RadiusRatio::new(f(6)).expect("a radius ratio"),
                     ScaledSemiMajorAxis::new(f(7)).expect("a semi-major axis"),
@@ -151,8 +151,8 @@ pub fn cases(step: usize) -> Vec<Case> {
                 .expect("a transit");
                 let model = transit.light_curve(lc.time());
                 let flux = lc.flux().iter().zip(&model).map(|(y, m)| y + (m - 1.0));
-                LightCurve::from_btjd(
-                    lc.time().iter().map(|t| t.as_btjd()).collect(),
+                LightCurve::from_days(
+                    lc.time().iter().map(|t| t.as_days()).collect(),
                     flux.collect(),
                     lc.flux_err().to_vec(),
                 )
@@ -199,7 +199,7 @@ fn check_samples(lc: &LightCurve, samples: &str) {
             reason = "an index"
         )]
         let i = v[0] as usize;
-        assert_eq!(lc.time()[i].as_btjd().to_bits(), v[1].to_bits(), "time {i}");
+        assert_eq!(lc.time()[i].as_days().to_bits(), v[1].to_bits(), "time {i}");
         assert_eq!(lc.flux_err()[i].to_bits(), v[3].to_bits(), "error {i}");
         assert!((lc.flux()[i] - v[2]).abs() <= MODEL_TOLERANCE, "flux {i}");
     }
@@ -239,13 +239,13 @@ pub fn search(case: &Case, options: &SearchOptions) -> [Hit; 2] {
     let bls = Hit {
         sde: sde(bls.power()),
         period: best.transit.period().as_days(),
-        t0: best.transit.transit_time().as_btjd(),
+        t0: best.transit.transit_time().as_days(),
     };
     // The study's flux is around 0, which a box does not mind; TLS's
     // template dims from 1, so it gets the flux plus 1, as
     // transitleastsquares 1.32 did.
-    let normalised = LightCurve::from_btjd(
-        case.lc.time().iter().map(|t| t.as_btjd()).collect(),
+    let normalised = LightCurve::from_days(
+        case.lc.time().iter().map(|t| t.as_days()).collect(),
         case.lc.flux().iter().map(|f| f + 1.0).collect(),
         case.lc.flux_err().to_vec(),
     )
@@ -257,7 +257,7 @@ pub fn search(case: &Case, options: &SearchOptions) -> [Hit; 2] {
     let tls = Hit {
         sde: result.spectra().map_or(0.0, |s| s.sde),
         period: result.best().map_or(f64::NAN, |b| b.period.as_days()),
-        t0: result.best().map_or(f64::NAN, |b| b.transit_time.as_btjd()),
+        t0: result.best().map_or(f64::NAN, |b| b.transit_time.as_days()),
     };
     [bls, tls]
 }
@@ -294,7 +294,7 @@ fn errors(case: &Case, hit: Hit, threshold: f64) -> Option<[f64; 2]> {
         return None;
     }
     let time = case.lc.time();
-    let middle = 0.5 * (time[0].as_btjd() + time[time.len() - 1].as_btjd());
+    let middle = 0.5 * (time[0].as_days() + time[time.len() - 1].as_days());
     let near = hit.t0 + ((middle - hit.t0) / hit.period).round() * hit.period;
     let r = (near - case.tc) / case.period;
     Some([

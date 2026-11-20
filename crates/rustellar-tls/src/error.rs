@@ -13,7 +13,7 @@ use rustellar_core::GridError;
 /// use rustellar_tls::{SearchOptions, Tls, TlsError};
 /// use rustellar_tls::LightCurve;
 ///
-/// let lc = LightCurve::from_btjd(vec![1.0], vec![1.0], vec![1e-3])?;
+/// let lc = LightCurve::from_days(vec![1.0], vec![1.0], vec![1e-3])?;
 /// let err = Tls::new(&lc).unwrap_err();
 /// assert_eq!(err, TlsError::NoBaseline);
 /// assert_eq!(err.to_string(), "the light curve must span more than one time");

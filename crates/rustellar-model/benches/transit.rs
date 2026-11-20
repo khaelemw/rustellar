@@ -17,7 +17,7 @@ use rustellar_model::{
 // darkening. Its transit lasts 2.4 hours.
 fn hot_jupiter() -> TransitParams {
     TransitParams::new(
-        Epoch::from_btjd(0.0).unwrap(),
+        Epoch::from_days(0.0).unwrap(),
         TimeDelta::from_days(3.0).unwrap(),
         RadiusRatio::new(0.1).unwrap(),
         ScaledSemiMajorAxis::new(10.0).unwrap(),
@@ -31,7 +31,7 @@ fn hot_jupiter() -> TransitParams {
 // about half are in transit.
 fn times(n: usize) -> Vec<Epoch> {
     (0..n)
-        .map(|i| Epoch::from_btjd(-0.1 + 0.2 * i as f64 / (n - 1) as f64).unwrap())
+        .map(|i| Epoch::from_days(-0.1 + 0.2 * i as f64 / (n - 1) as f64).unwrap())
         .collect()
 }
 

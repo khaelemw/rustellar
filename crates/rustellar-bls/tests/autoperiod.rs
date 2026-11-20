@@ -70,7 +70,7 @@ fn sampled_periods() -> Vec<(usize, usize, f64)> {
 // middle point is the one the reference data used.
 fn light_curve(t_min: f64, t_max: f64) -> LightCurve {
     let time = vec![t_min, 0.5 * (t_min + t_max), t_max];
-    LightCurve::from_btjd(time, vec![1.0; 3], vec![1e-3; 3]).unwrap()
+    LightCurve::from_days(time, vec![1.0; 3], vec![1e-3; 3]).unwrap()
 }
 
 fn grid(case: &Case) -> Periods {
@@ -135,7 +135,7 @@ fn same_periods_as_astropy_to_the_last_bit() {
 // 1,000 even times over 27 days; the values are astropy's.
 #[test]
 fn worked_example() {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         (0..1000).map(|i| 27.0 * f64::from(i) / 999.0).collect(),
         vec![1.0; 1000],
         vec![1e-3; 1000],
@@ -263,7 +263,7 @@ fn set_period_not_positive(
 
 #[test]
 fn single_time_has_no_baseline() {
-    let lc = LightCurve::from_btjd(vec![1325.0], vec![1.0], vec![1e-3]).unwrap();
+    let lc = LightCurve::from_days(vec![1325.0], vec![1.0], vec![1e-3]).unwrap();
     assert_eq!(
         AutoPeriod::default().periods(&lc, &durations(&[0.1])),
         Err(BlsError::NoBaseline)

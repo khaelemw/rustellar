@@ -196,7 +196,7 @@ fn ours(case: &Case) -> Found {
     let best = result.best().expect("a box with a dip");
     Found {
         period: best.transit.period().as_days(),
-        t0: best.transit.transit_time().as_btjd(),
+        t0: best.transit.transit_time().as_days(),
         depth: best.fit.depth,
     }
 }
@@ -225,7 +225,7 @@ fn errors(case: &Case, found: Found) -> Option<[f64; 3]> {
         return None;
     }
     let time = case.lc.time();
-    let middle = 0.5 * (time[0].as_btjd() + time[time.len() - 1].as_btjd());
+    let middle = 0.5 * (time[0].as_days() + time[time.len() - 1].as_days());
     let near = found.t0 + ((middle - found.t0) / found.period).round() * found.period;
     let r = (near - case.tc) / case.period;
     Some([

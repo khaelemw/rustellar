@@ -33,7 +33,7 @@ const T0: f64 = 0.4;
 fn candidate() -> Candidate {
     Candidate::new(
         TimeDelta::from_days(P).unwrap(),
-        Epoch::from_btjd(T0).unwrap(),
+        Epoch::from_days(T0).unwrap(),
         TimeDelta::from_days(0.12).unwrap(),
     )
     .unwrap()
@@ -64,7 +64,7 @@ fn curve(terms: [f64; 4], noise: f64, seed: u64) -> LightCurve {
             2.0 * (1.0 + wave - eclipse + noise * r.normal())
         })
         .collect();
-    LightCurve::from_btjd(time, flux, vec![2.0 * noise.max(1e-6); 3888]).unwrap()
+    LightCurve::from_days(time, flux, vec![2.0 * noise.max(1e-6); 3888]).unwrap()
 }
 
 #[test]
@@ -106,11 +106,11 @@ fn the_errors_are_calibrated() {
 
 #[test]
 fn too_few_points_or_phases() {
-    let few = LightCurve::from_btjd(vec![1.0, 1.2, 1.4], vec![1.0; 3], vec![1e-3; 3]).unwrap();
+    let few = LightCurve::from_days(vec![1.0, 1.2, 1.4], vec![1.0; 3], vec![1e-3; 3]).unwrap();
     assert_eq!(ellipsoidal(&few, &candidate()), None);
     // Ten points at one phase, an orbit apart: nothing tells the terms
     // apart.
     let time: Vec<f64> = (0..10).map(|k| T0 + 0.7 + P * f64::from(k)).collect();
-    let same = LightCurve::from_btjd(time, vec![1.0; 10], vec![1e-3; 10]).unwrap();
+    let same = LightCurve::from_days(time, vec![1.0; 10], vec![1e-3; 10]).unwrap();
     assert_eq!(ellipsoidal(&same, &candidate()), None);
 }

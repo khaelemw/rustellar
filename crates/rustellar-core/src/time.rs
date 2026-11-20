@@ -2,7 +2,6 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::TimeError;
 
-const BTJD_OFFSET: f64 = 2_457_000.0;
 const HOURS_PER_DAY: f64 = 24.0;
 
 /// A length of time, such as an orbital period or a transit duration.
@@ -154,17 +153,19 @@ impl Neg for TimeDelta {
     }
 }
 
-/// A point in time on the barycentric (BJD_TDB) time scale.
+/// A point in time, in days on the time scale of the data.
 ///
-/// Stored as BTJD, the TESS convention: BJD_TDB minus 2457000. Converting from
-/// BJD is exact for any realistic date, but converting back to BJD rounds to
-/// about 40 microseconds, because the larger number has less precision left
-/// for the fraction of a day.
+/// The crates only ever use differences between epochs, so any scale
+/// counted in days works: BJD_TDB, or an offset form of it such as TESS's
+/// BTJD (BJD_TDB - 2457000), Kepler's BKJD (BJD_TDB - 2454833) or MJD.
+/// Keep every epoch of one analysis on the same scale; nothing converts
+/// between scales.
 ///
-/// There is no conversion from JD or UTC, as that needs the target's position
-/// on the sky.
+/// A full BJD of about 2.46 million days leaves room for times to about
+/// 40 microseconds only. Subtract a constant first (as BTJD and BKJD do)
+/// to keep sub-millisecond precision.
 ///
-/// As with [`TimeDelta`], the constructors reject NaN and infinity but the
+/// As with [`TimeDelta`], the constructor rejects NaN and infinity but the
 /// operators do not check their results, so adding or subtracting a
 /// non-finite delta, or one near `f64::MAX`, gives a non-finite epoch, and
 /// subtracting two epochs near `f64::MAX` gives a non-finite delta.
@@ -172,92 +173,55 @@ impl Neg for TimeDelta {
 /// # Examples
 ///
 /// ```
-/// use rustellar_core::Epoch;
+/// use rustellar_core::{Epoch, TimeDelta};
 ///
-/// let t = Epoch::from_bjd(2_460_000.5)?;
-/// assert_eq!(t.as_btjd(), 3000.5);
+/// let t0 = Epoch::from_days(1325.5)?;
+/// let later = t0 + TimeDelta::from_days(2.0)?;
+/// assert_eq!(later.as_days(), 1327.5);
+/// assert_eq!((later - t0).as_days(), 2.0);
 /// # Ok::<(), rustellar_core::TimeError>(())
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 pub struct Epoch {
-    btjd: f64,
+    days: f64,
 }
 
 impl Epoch {
-    fn new(btjd: f64) -> Result<Self, TimeError> {
-        if !btjd.is_finite() {
+    /// Makes an epoch from a time in days, on the data's own scale.
+    ///
+    /// # Errors
+    ///
+    /// [`TimeError::NonFinite`] if `days` is NaN or infinite.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{Epoch, TimeError};
+    ///
+    /// assert_eq!(Epoch::from_days(3000.25)?.as_days(), 3000.25);
+    /// assert_eq!(Epoch::from_days(f64::NAN), Err(TimeError::NonFinite));
+    /// # Ok::<(), TimeError>(())
+    /// ```
+    pub fn from_days(days: f64) -> Result<Self, TimeError> {
+        if !days.is_finite() {
             return Err(TimeError::NonFinite);
         }
-
-        Ok(Self { btjd })
+        Ok(Self { days })
     }
 
-    /// Makes an epoch from a BTJD value.
-    ///
-    /// # Errors
-    ///
-    /// [`TimeError::NonFinite`] if `btjd` is NaN or infinite.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rustellar_core::{Epoch, TimeDelta};
-    ///
-    /// let t0 = Epoch::from_btjd(1325.5)?;
-    /// let later = t0 + TimeDelta::from_days(2.0)?;
-    /// assert_eq!(later.as_btjd(), 1327.5);
-    /// # Ok::<(), rustellar_core::TimeError>(())
-    /// ```
-    pub fn from_btjd(btjd: f64) -> Result<Self, TimeError> {
-        Self::new(btjd)
-    }
-
-    /// Makes an epoch from a BJD_TDB value.
-    ///
-    /// # Errors
-    ///
-    /// [`TimeError::NonFinite`] if `bjd` is NaN or infinite.
+    /// The epoch in days, on the scale it was made on.
     ///
     /// # Examples
     ///
     /// ```
     /// use rustellar_core::Epoch;
     ///
-    /// assert_eq!(Epoch::from_bjd(2_458_325.5)?.as_btjd(), 1325.5);
-    /// # Ok::<(), rustellar_core::TimeError>(())
-    /// ```
-    pub fn from_bjd(bjd: f64) -> Result<Self, TimeError> {
-        Self::new(bjd - BTJD_OFFSET)
-    }
-
-    /// The epoch as BTJD.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rustellar_core::Epoch;
-    ///
-    /// assert_eq!(Epoch::from_btjd(1325.5)?.as_btjd(), 1325.5);
+    /// assert_eq!(Epoch::from_days(1325.5)?.as_days(), 1325.5);
     /// # Ok::<(), rustellar_core::TimeError>(())
     /// ```
     #[must_use]
-    pub fn as_btjd(self) -> f64 {
-        self.btjd
-    }
-
-    /// The epoch as BJD_TDB.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use rustellar_core::Epoch;
-    ///
-    /// assert_eq!(Epoch::from_btjd(1325.5)?.as_bjd(), 2_458_325.5);
-    /// # Ok::<(), rustellar_core::TimeError>(())
-    /// ```
-    #[must_use]
-    pub fn as_bjd(self) -> f64 {
-        self.btjd + BTJD_OFFSET
+    pub fn as_days(self) -> f64 {
+        self.days
     }
 }
 
@@ -266,7 +230,7 @@ impl Sub for Epoch {
 
     fn sub(self, rhs: Self) -> Self::Output {
         TimeDelta {
-            days: self.btjd - rhs.btjd,
+            days: self.days - rhs.days,
         }
     }
 }
@@ -276,7 +240,7 @@ impl Add<TimeDelta> for Epoch {
 
     fn add(self, rhs: TimeDelta) -> Self::Output {
         Self {
-            btjd: self.btjd + rhs.days,
+            days: self.days + rhs.days,
         }
     }
 }
@@ -286,7 +250,7 @@ impl Sub<TimeDelta> for Epoch {
 
     fn sub(self, rhs: TimeDelta) -> Self::Output {
         Self {
-            btjd: self.btjd - rhs.days,
+            days: self.days - rhs.days,
         }
     }
 }

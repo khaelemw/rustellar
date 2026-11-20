@@ -210,10 +210,10 @@ impl Aliases {
 ///         1.0 + noise - if dip { 3e-3 } else { 0.0 }
 ///     })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 1728])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 1728])?;
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(0.75)?,
+///     Epoch::from_days(0.75)?,
 ///     TimeDelta::from_days(0.1)?,
 /// )?;
 /// let table = aliases(&lc, &candidate, Shape::BOX)?;
@@ -287,11 +287,11 @@ pub(crate) fn split(
         return None;
     }
     let profile = shape.profile(period, duration).ok()?;
-    let t0 = candidate.transit_time().as_btjd();
+    let t0 = candidate.transit_time().as_days();
     let (p, q) = (i64::from(ratio.p), i64::from(ratio.q));
     let (mut shapes, mut group) = (vec![], vec![]);
     for t in lc.time() {
-        let dt = t.as_btjd() - t0;
+        let dt = t.as_days() - t0;
         let ph = phase(dt, fine);
         #[expect(clippy::cast_possible_truncation, reason = "a whole number of steps")]
         let m = ((dt - ph) / fine).round() as i64;

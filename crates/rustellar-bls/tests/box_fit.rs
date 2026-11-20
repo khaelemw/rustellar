@@ -34,17 +34,17 @@ fn days(value: f64) -> TimeDelta {
     TimeDelta::from_days(value).unwrap()
 }
 
-fn btjd(value: f64) -> Epoch {
-    Epoch::from_btjd(value).unwrap()
+fn at(value: f64) -> Epoch {
+    Epoch::from_days(value).unwrap()
 }
 
 fn transit(period: f64, duration: f64, transit_time: f64) -> TransitBox {
-    TransitBox::new(days(period), days(duration), btjd(transit_time)).unwrap()
+    TransitBox::new(days(period), days(duration), at(transit_time)).unwrap()
 }
 
 // Eight points a day apart, the third and fourth one lower, all weights 1.
 fn worked_example() -> (LightCurve, TransitBox) {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         (0..8).map(f64::from).collect(),
         vec![0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0],
         vec![1.0; 8],
@@ -64,7 +64,7 @@ fn random_light_curve(rng: &mut Random, n: usize) -> LightCurve {
     }
     let flux = (0..n).map(|_| 1.0 + rng.uniform(-3e-3, 3e-3)).collect();
     let flux_err = (0..n).map(|_| rng.uniform(5e-4, 2e-3)).collect();
-    LightCurve::from_btjd(time, flux, flux_err).unwrap()
+    LightCurve::from_days(time, flux, flux_err).unwrap()
 }
 
 fn random_transit(rng: &mut Random) -> TransitBox {
@@ -228,14 +228,14 @@ fn shallow_depth_keeps_its_digits() {
     let flux = time
         .iter()
         .map(|&t| {
-            if transit.contains(btjd(t)) {
+            if transit.contains(at(t)) {
                 0.999_999
             } else {
                 1.0
             }
         })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; n as usize]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; n as usize]).unwrap();
     let fit = transit.fit(&lc).unwrap();
     let exact = 1.0 - 0.999_999; // the depth between the two floats
     assert!(
@@ -270,13 +270,13 @@ fn in_transit_rows() -> Vec<(f64, f64, f64, f64, bool, bool)> {
 }
 
 // Times within 1e-12 days (86 ns) of a box edge, 1,000 to 3,000 orbits from
-// the mid-transit time, near BTJD 3000.
+// the mid-transit time, near day 3000.
 #[test]
 fn in_transit_agrees_with_exact_arithmetic() {
     let rows = in_transit_rows();
     assert_eq!(rows.len(), 2_000);
     for (period, duration, transit_time, time, exact, _) in rows {
-        let ours = transit(period, duration, transit_time).contains(btjd(time));
+        let ours = transit(period, duration, transit_time).contains(at(time));
         assert_eq!(
             ours, exact,
             "P {period}, D {duration}, t0 {transit_time}, t {time}"
@@ -304,11 +304,11 @@ fn astropys_mask_does_not() {
 #[test]
 fn edges_are_outside() {
     let transit = transit(2.0, 0.5, 10.0);
-    assert!(!transit.contains(btjd(9.75)));
-    assert!(!transit.contains(btjd(10.25)));
-    assert!(transit.contains(btjd(10.249_999_999_999_998)));
-    assert!(!transit.contains(btjd(12.25)));
-    assert!(transit.contains(btjd(6.0)));
+    assert!(!transit.contains(at(9.75)));
+    assert!(!transit.contains(at(10.25)));
+    assert!(transit.contains(at(10.249_999_999_999_998)));
+    assert!(!transit.contains(at(12.25)));
+    assert!(transit.contains(at(6.0)));
 }
 
 // ==========================
@@ -324,7 +324,7 @@ fn edges_are_outside() {
 #[case::duration_longer(1.0, 1.5, BlsError::DurationNotShorterThanPeriod)]
 fn bad_box(#[case] period: f64, #[case] duration: f64, #[case] error: BlsError) {
     assert_eq!(
-        TransitBox::new(days(period), days(duration), btjd(0.0)),
+        TransitBox::new(days(period), days(duration), at(0.0)),
         Err(error)
     );
 }
@@ -334,7 +334,7 @@ fn accessors_return_what_was_given() {
     let transit = transit(3.0, 0.1, 1325.5);
     assert_eq!(transit.period(), days(3.0));
     assert_eq!(transit.duration(), days(0.1));
-    assert_eq!(transit.transit_time(), btjd(1325.5));
+    assert_eq!(transit.transit_time(), at(1325.5));
 }
 
 #[test]
@@ -363,7 +363,7 @@ fn weights_out_of_range(
     #[values(1e-160, 1e-155, 1e155, 1e200)] bad: f64,
     #[values(0.0, 1.0)] transit_time: f64,
 ) {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.0, 1.0, 2.0],
         vec![1.0, 0.9, 1.0],
         vec![bad, 1.0, 1.0],
@@ -380,7 +380,7 @@ fn weights_out_of_range(
 #[case(1e-153)]
 #[case(1e153)]
 fn weights_at_the_edge_of_range(#[case] err: f64) {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.0, 1.0, 2.0, 3.0],
         vec![1.0, 0.9, 1.0, 1.0],
         vec![err; 4],
@@ -404,14 +404,14 @@ fn fit_is_plain_data() {
 #[test]
 fn statistics_that_overflow() {
     let lc =
-        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
+        LightCurve::from_days(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
     assert_eq!(transit(10.0, 0.5, 1.0).fit(&lc), Err(BlsError::OutOfRange));
 }
 
 // Four weights of 1e308, each a normal float, sum past the largest f64.
 #[test]
 fn weights_that_sum_out_of_range() {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.0, 1.0, 2.0, 3.0],
         vec![1.0, 0.9, 1.0, 1.0],
         vec![1e-154; 4],

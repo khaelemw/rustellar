@@ -52,7 +52,7 @@
 //!
 //! let candidate = Candidate::new(
 //!     TimeDelta::from_days(3.0)?,
-//!     Epoch::from_btjd(1000.0)?,
+//!     Epoch::from_days(1000.0)?,
 //!     TimeDelta::from_hours(2.4)?,
 //! )?;
 //! assert_eq!(candidate.depth(), None);

@@ -97,10 +97,10 @@ impl Secondary {
 ///         1.0 + noise - dip
 ///     })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 1728])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 1728])?;
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(0.75)?,
+///     Epoch::from_days(0.75)?,
 ///     TimeDelta::from_days(0.1)?,
 /// )?;
 /// let s = secondary(&lc, &candidate);
@@ -113,7 +113,7 @@ impl Secondary {
 pub fn secondary(lc: &LightCurve, candidate: &Candidate) -> Secondary {
     let period = candidate.period().as_days();
     let duration = candidate.duration().as_days();
-    let t0 = candidate.transit_time().as_btjd();
+    let t0 = candidate.transit_time().as_days();
     // Every point at least a duration from mid-transit: its phase in days
     // after it (from `duration` to `period - duration`), weight and flux.
     let mut points: Vec<(f64, f64, f64)> = lc
@@ -122,7 +122,7 @@ pub fn secondary(lc: &LightCurve, candidate: &Candidate) -> Secondary {
         .zip(lc.flux())
         .zip(lc.flux_err())
         .filter_map(|((t, &y), &e)| {
-            let ph = phase(t.as_btjd() - t0, period);
+            let ph = phase(t.as_days() - t0, period);
             (ph.abs() >= duration).then(|| (ph.rem_euclid(period), 1.0 / (e * e), y))
         })
         .collect();

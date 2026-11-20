@@ -122,7 +122,7 @@ impl Curve {
 
     pub(crate) fn light_curve(&self, time: &[f64], flux: &[f64]) -> LightCurve {
         let error = vec![self.scale * self.noise; time.len()];
-        LightCurve::from_btjd(time.to_vec(), flux.to_vec(), error).unwrap()
+        LightCurve::from_days(time.to_vec(), flux.to_vec(), error).unwrap()
     }
 
     pub(crate) fn detrend(&self) -> Detrend {

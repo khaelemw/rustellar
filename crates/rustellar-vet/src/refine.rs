@@ -53,15 +53,15 @@ const PASSES: u32 = 2;
 ///     .iter()
 ///     .map(|&t| if (t - 0.7).rem_euclid(3.0) < 0.1 { 0.995 } else { 1.0 })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 576])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 576])?;
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(0.73)?,
+///     Epoch::from_days(0.73)?,
 ///     TimeDelta::from_days(0.07)?,
 /// )?;
 ///
 /// let refined = refine(&lc, &candidate, Shape::BOX)?;
-/// assert!((refined.candidate.transit_time().as_btjd() - 0.75).abs() < 0.011);
+/// assert!((refined.candidate.transit_time().as_days() - 0.75).abs() < 0.011);
 /// assert!((refined.fit.depth - 0.005).abs() < 1e-15);
 /// assert_eq!(refined.fit.points_in_transit, 20);
 /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -91,7 +91,7 @@ pub fn refine(lc: &LightCurve, candidate: &Candidate, shape: Shape) -> Result<Re
 
 /// The candidate moved by `shift` days with `length` days' duration.
 fn at(candidate: &Candidate, shift: f64, length: f64) -> Result<Candidate, VetError> {
-    let t0 = Epoch::from_btjd(candidate.transit_time().as_btjd() + shift).expect("finite");
+    let t0 = Epoch::from_days(candidate.transit_time().as_days() + shift).expect("finite");
     let duration = TimeDelta::from_days(length).expect("finite");
     Candidate::new(candidate.period(), t0, duration)
 }
@@ -104,14 +104,14 @@ fn best_run(lc: &LightCurve, candidate: &Candidate, longest: f64) -> Option<(f64
     // Every point that any allowed box can hold: within half the longest
     // duration of a centre at most `reach` from the candidate's.
     let bound = (reach + 0.5 * longest).min(0.5 * period);
-    let t0 = candidate.transit_time().as_btjd();
+    let t0 = candidate.transit_time().as_days();
     // The points no box can hold, summed apart, so that a run's
     // complement is exactly the rest (zero for a run of every point).
     let (mut far_w, mut far_wy) = (Sum::default(), Sum::default());
     let mut near: Vec<(f64, f64, f64)> = vec![];
     for ((t, &y), &e) in lc.time().iter().zip(lc.flux()).zip(lc.flux_err()) {
         let w = 1.0 / (e * e);
-        let p = phase(t.as_btjd() - t0, period);
+        let p = phase(t.as_days() - t0, period);
         if p.abs() < bound {
             near.push((p, w, w * y));
         } else {
@@ -204,7 +204,7 @@ fn best_grid(
 ) -> Option<(f64, f64)> {
     let period = candidate.period().as_days();
     let duration = candidate.duration().as_days();
-    let t0 = candidate.transit_time().as_btjd();
+    let t0 = candidate.transit_time().as_days();
     let (mut w_all, mut wy_all) = (Sum::default(), Sum::default());
     for (&y, &e) in lc.flux().iter().zip(lc.flux_err()) {
         let w = 1.0 / (e * e);
@@ -222,7 +222,7 @@ fn best_grid(
         .iter()
         .zip(lc.flux())
         .zip(lc.flux_err())
-        .map(|((t, &y), &e)| (phase(t.as_btjd() - t0, period), 1.0 / (e * e), y - mean))
+        .map(|((t, &y), &e)| (phase(t.as_days() - t0, period), 1.0 / (e * e), y - mean))
         .filter(|&(ph, _, _)| ph.abs() < reach)
         .collect();
     near.sort_by(|a, b| a.0.total_cmp(&b.0));

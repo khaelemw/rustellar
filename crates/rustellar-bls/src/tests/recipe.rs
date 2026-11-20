@@ -58,7 +58,7 @@ impl Recipe {
             y.push(yi);
             e.push(self.noise * (0.75 + 0.5 * u_e));
         }
-        LightCurve::from_btjd(t, y, e).unwrap()
+        LightCurve::from_days(t, y, e).unwrap()
     }
 }
 
@@ -104,7 +104,7 @@ impl Survey {
                 e.push(self.noise * (0.75 + 0.5 * u_e));
             }
         }
-        LightCurve::from_btjd(t, y, e).unwrap()
+        LightCurve::from_days(t, y, e).unwrap()
     }
 }
 
@@ -119,7 +119,7 @@ pub(super) fn check_samples(lc: &LightCurve, samples: &str) {
             v[2].parse().unwrap(),
             v[3].parse().unwrap(),
         ];
-        let ours = [lc.time()[i].as_btjd(), lc.flux()[i], lc.flux_err()[i]];
+        let ours = [lc.time()[i].as_days(), lc.flux()[i], lc.flux_err()[i]];
         for (a, b) in ours.iter().zip(expected) {
             assert_eq!(a.to_bits(), b.to_bits(), "point {i}: {a} vs {b}");
         }

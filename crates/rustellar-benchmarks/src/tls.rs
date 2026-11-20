@@ -61,16 +61,16 @@ pub fn search(kind: Kind, row: &Row, options: &SearchOptions) -> Curve {
     let sde = result.spectra().map_or(0.0, |s| s.sde);
     let ours = result.best().map(|b| Found {
         period: b.period.as_days(),
-        t0: b.transit_time.as_btjd(),
+        t0: b.transit_time.as_days(),
         depth: b.depth,
         duration: b.duration.as_days(),
         sde,
     });
     Curve {
         row: *row,
-        depth: 1.0 - params.flux_at(Epoch::from_btjd(row.t0).expect("finite")),
+        depth: 1.0 - params.flux_at(Epoch::from_days(row.t0).expect("finite")),
         duration: params.t14().expect("a transit").as_days(),
-        span: lc.time()[lc.time().len() - 1].as_btjd(),
+        span: lc.time()[lc.time().len() - 1].as_days(),
         ours,
     }
 }

@@ -54,7 +54,7 @@ pub(crate) struct Points {
 impl Points {
     pub(crate) fn new(lc: &LightCurve) -> Self {
         Self {
-            time: lc.time().iter().map(|t| t.as_btjd()).collect(),
+            time: lc.time().iter().map(|t| t.as_days()).collect(),
             residual: lc.flux().iter().map(|y| 1.0 - y).collect(),
             weight: lc.flux_err().iter().map(|dy| 1.0 / (dy * dy)).collect(),
         }

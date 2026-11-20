@@ -13,7 +13,7 @@ use crate::{
 
 fn hot_jupiter() -> TransitParams {
     TransitParams::new(
-        Epoch::from_btjd(0.0).unwrap(),
+        Epoch::from_days(0.0).unwrap(),
         TimeDelta::from_days(3.0).unwrap(),
         RadiusRatio::new(0.1).unwrap(),
         ScaledSemiMajorAxis::new(10.0).unwrap(),
@@ -100,7 +100,7 @@ fn clear_is_half_the_transit_and_half_the_exposure() {
 fn light_curves_are_flux_at_to_the_bit() {
     let at = |a_rs: f64, b: f64| {
         TransitParams::new(
-            Epoch::from_btjd(0.0).unwrap(),
+            Epoch::from_days(0.0).unwrap(),
             TimeDelta::from_days(3.0).unwrap(),
             RadiusRatio::new(0.1).unwrap(),
             ScaledSemiMajorAxis::new(a_rs).unwrap(),
@@ -112,11 +112,11 @@ fn light_curves_are_flux_at_to_the_bit() {
     for params in [hot_jupiter(), at(10.0, 1.2), at(1.05, 0.0)] {
         let edge = params.clear() / (2.0 * PI) * 3.0;
         let mut times: Vec<Epoch> = (0..=3000)
-            .map(|i| Epoch::from_btjd(-3.0 + 2e-3 * f64::from(i)).unwrap())
+            .map(|i| Epoch::from_days(-3.0 + 2e-3 * f64::from(i)).unwrap())
             .collect();
         for offset in [-1e-9, 0.0, 1e-9] {
             for t in [edge + offset, -edge - offset] {
-                times.push(Epoch::from_btjd(t).unwrap());
+                times.push(Epoch::from_days(t).unwrap());
             }
         }
         let expected: Vec<f64> = times.iter().map(|&t| params.flux_at(t)).collect();

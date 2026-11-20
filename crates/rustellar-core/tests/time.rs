@@ -9,8 +9,8 @@ fn days(x: f64) -> TimeDelta {
     TimeDelta::from_days(x).unwrap()
 }
 
-fn btjd(x: f64) -> Epoch {
-    Epoch::from_btjd(x).unwrap()
+fn at(x: f64) -> Epoch {
+    Epoch::from_days(x).unwrap()
 }
 
 // ==========================
@@ -54,43 +54,18 @@ fn time_delta_hours_round_trip() {
 }
 
 #[rstest]
-#[case::zero_btjd(0.0, 2_457_000.0)]
-#[case::positive_btjd(10.0, 2_457_010.0)]
-#[case::fractional_btjd(5.7, 2_457_005.7)]
-#[case::negative_btjd(-5.0, 2_456_995.0)]
-#[case::typical_tess_btjd(3000.123456, 2_460_000.123456)]
-fn epoch_accessors_return_correct_value(#[case] btjd: f64, #[case] expected_bjd: f64) {
-    let epoch = Epoch::from_btjd(btjd).unwrap();
-    assert_eq!(epoch.as_btjd(), btjd);
-    assert_eq!(epoch.as_bjd(), expected_bjd);
+#[case::zero(0.0)]
+#[case::fractional(5.7)]
+#[case::negative(-5.0)]
+#[case::offset_scale(3000.123456)]
+#[case::full_bjd(2_460_000.123456)]
+fn epoch_keeps_its_days(#[case] value: f64) {
+    assert_eq!(Epoch::from_days(value).unwrap().as_days(), value);
 }
 
 #[rstest]
-fn epoch_constructors_reject_non_finite(
-    #[values(Epoch::from_btjd, Epoch::from_bjd)] constructor_function: fn(
-        f64,
-    ) -> Result<
-        Epoch,
-        TimeError,
-    >,
-    #[values(f64::NAN, f64::INFINITY, f64::NEG_INFINITY)] value: f64,
-) {
-    assert_eq!(constructor_function(value), Err(TimeError::NonFinite));
-}
-
-#[rstest]
-#[case::typical_tess_bjd(2_460_000.123456, 3000.123456)]
-#[case::tess_reference_bjd(2_457_000.0, 0.0)]
-#[case::before_tess_bjd(2_455_765.25, -1234.75)]
-fn epoch_from_bjd_round_trips(#[case] bjd: f64, #[case] expected_btjd: f64) {
-    let epoch = Epoch::from_bjd(bjd).unwrap();
-
-    assert!(
-        (epoch.as_btjd() - expected_btjd).abs() < 1e-9,
-        "got {} BTJD, expected {expected_btjd}",
-        epoch.as_btjd()
-    );
-    assert_eq!(epoch.as_bjd(), bjd);
+fn epoch_rejects_non_finite(#[values(f64::NAN, f64::INFINITY, f64::NEG_INFINITY)] value: f64) {
+    assert_eq!(Epoch::from_days(value), Err(TimeError::NonFinite));
 }
 
 #[rstest]
@@ -99,9 +74,9 @@ fn epoch_from_bjd_round_trips(#[case] bjd: f64, #[case] expected_btjd: f64) {
 #[case::time_delta_div(|a, b| days(a) / days(b), 3.0, 1.5, 2.0)]
 #[case::time_delta_mul(|a, b| (days(a) * b).as_days(), 2.0, 4.0, 8.0)]
 #[case::time_delta_neg(|a, _| (-days(a)).as_days(), 2.0, 0.0, -2.0)]
-#[case::epoch_minus_epoch(|a, b| (btjd(a) - btjd(b)).as_days(), 10.0, 4.0, 6.0)]
-#[case::epoch_plus_time_delta(|a, b| (btjd(a) + days(b)).as_btjd(), 3000.0, 0.25, 3000.25)]
-#[case::epoch_minus_time_delta(|a, b| (btjd(a) - days(b)).as_btjd(), 3000.0, 0.25, 2999.75)]
+#[case::epoch_minus_epoch(|a, b| (at(a) -  at(b)).as_days(), 10.0, 4.0, 6.0)]
+#[case::epoch_plus_time_delta(|a, b| (at(a) + days(b)).as_days(), 3000.0, 0.25, 3000.25)]
+#[case::epoch_minus_time_delta(|a, b| (at(a) - days(b)).as_days(), 3000.0, 0.25, 2999.75)]
 fn time_ops_give_expected_value(
     #[case] op: fn(f64, f64) -> f64,
     #[case] a: f64,
@@ -113,7 +88,7 @@ fn time_ops_give_expected_value(
 
 #[test]
 fn epoch_and_time_delta_ops_undo_each_other() {
-    let e = btjd(3000.5);
+    let e = at(3000.5);
     let d = days(0.25);
 
     assert_eq!((e + d) - e, d);

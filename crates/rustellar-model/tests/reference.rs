@@ -35,7 +35,7 @@ struct Set {
 impl Set {
     fn params(&self) -> TransitParams {
         TransitParams::new(
-            Epoch::from_btjd(self.t0).unwrap(),
+            Epoch::from_days(self.t0).unwrap(),
             TimeDelta::from_days(self.period).unwrap(),
             RadiusRatio::new(self.k).unwrap(),
             ScaledSemiMajorAxis::new(self.a_rs).unwrap(),
@@ -126,7 +126,7 @@ fn points() -> &'static [Point] {
         for (set, (params, rows)) in sets.iter().map(Set::params).zip(&by_set).enumerate() {
             let times: Vec<Epoch> = rows
                 .iter()
-                .map(|&(t, _)| Epoch::from_btjd(t).unwrap())
+                .map(|&(t, _)| Epoch::from_days(t).unwrap())
                 .collect();
             let model = params.light_curve(&times);
 

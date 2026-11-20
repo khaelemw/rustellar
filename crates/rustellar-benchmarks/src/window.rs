@@ -114,7 +114,7 @@ pub fn cases(count: u64) -> Vec<Case> {
             };
             let waves = [wave(), wave()];
             let transit = TransitParams::new(
-                Epoch::from_btjd(t0).expect("finite"),
+                Epoch::from_days(t0).expect("finite"),
                 TimeDelta::from_days(period).expect("finite"),
                 RadiusRatio::new(k).expect("a radius ratio"),
                 ScaledSemiMajorAxis::new(a_rs).expect("above 1"),
@@ -164,7 +164,7 @@ pub(crate) fn inject_with(case: &Case, red: f64, transit: bool) -> (LightCurve, 
     let mut random = Random::new(case.seed);
     let epochs: Vec<Epoch> = times
         .iter()
-        .map(|&t| Epoch::from_btjd(t).expect("finite"))
+        .map(|&t| Epoch::from_days(t).expect("finite"))
         .collect();
     let model = if transit {
         case.transit.light_curve(&epochs)
@@ -193,7 +193,7 @@ pub(crate) fn inject_with(case: &Case, red: f64, transit: bool) -> (LightCurve, 
             m * (1.0 + star) + NOISE * noise
         })
         .collect();
-    let lc = LightCurve::from_btjd(times.clone(), flux, vec![NOISE; times.len()])
+    let lc = LightCurve::from_days(times.clone(), flux, vec![NOISE; times.len()])
         .expect("a light curve");
     (lc, shape)
 }

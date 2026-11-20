@@ -47,7 +47,7 @@ fn the_transit_is_the_models_on_its_orbit() {
             panic!("a transit");
         };
         let params = TransitParams::new(
-            Epoch::from_btjd(0.0).unwrap(),
+            Epoch::from_days(0.0).unwrap(),
             TimeDelta::from_days(period).unwrap(),
             RadiusRatio::new(k).unwrap(),
             ScaledSemiMajorAxis::new(a2.sqrt()).unwrap(),
@@ -60,7 +60,7 @@ fn the_transit_is_the_models_on_its_orbit() {
         let profile = shape.profile(period, duration).unwrap();
         for i in -60..=60 {
             let phase = f64::from(i) / 100.0 * duration;
-            let model = 1.0 - params.flux_at(Epoch::from_btjd(phase).unwrap());
+            let model = 1.0 - params.flux_at(Epoch::from_days(phase).unwrap());
             let ours = profile.at(phase) * centre;
             assert!(
                 (model - ours).abs() < 1e-15,

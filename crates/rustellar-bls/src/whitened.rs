@@ -42,7 +42,7 @@ impl Bls {
     ///     .iter()
     ///     .map(|t| if (t % 3.0 - 1.0).abs() < 0.075 { 0.995 } else { 1.0 })
     ///     .collect();
-    /// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 960])?;
+    /// let lc = LightCurve::from_days(time, flux, vec![1e-3; 960])?;
     ///
     /// let periods: Vec<f64> = (0..200).map(|k| 2.0 + 0.01 * f64::from(k)).collect();
     /// let periods = Periods::from_days(&periods)?;

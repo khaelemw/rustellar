@@ -188,7 +188,7 @@ fn without_cuda_a_gpu_is_an_error() {
     let why = Gpu::new(0).unwrap_err();
     assert!(why.contains("not installed"), "{why}");
     let points = points(8, 10.0, 1.0 / 48.0);
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         points.time.clone(),
         points.residual.iter().map(|r| 1.0 - r).collect(),
         vec![1e-3; points.time.len()],
@@ -221,7 +221,7 @@ fn a_missing_gpu_is_an_error() {
 fn the_whole_search_is_the_cpus() {
     let Some(_) = gpu() else { return };
     let points = points(6, 27.0, 1.0 / 48.0);
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         points.time.clone(),
         points.residual.iter().map(|r| 1.0 - r).collect(),
         vec![1e-3; points.time.len()],

@@ -40,7 +40,7 @@
 //!
 //! let time: Vec<f64> = (0..720).map(|i| i as f64 / 720.0).collect();
 //! let flux: Vec<f64> = time.iter().map(|&t| 100.0 + 2.0 * t).collect();
-//! let lc = LightCurve::from_btjd(time, flux, vec![0.1; 720])?;
+//! let lc = LightCurve::from_days(time, flux, vec![0.1; 720])?;
 //!
 //! let flat = Detrend::default()
 //!     .with_window(TimeDelta::from_days(0.25)?)

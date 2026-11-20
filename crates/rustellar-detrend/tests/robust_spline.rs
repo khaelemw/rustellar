@@ -65,7 +65,7 @@ fn detrend(window: f64, tolerance: BreakTolerance, sigma: f64) -> Detrend {
 
 fn trend(c: &Case) -> Vec<Option<f64>> {
     let n = c.time.len();
-    let lc = LightCurve::from_btjd(c.time.clone(), c.flux.clone(), vec![1.0; n]).unwrap();
+    let lc = LightCurve::from_days(c.time.clone(), c.flux.clone(), vec![1.0; n]).unwrap();
     detrend(c.window, BreakTolerance::Fixed(days(c.tolerance)), c.sigma)
         .trend(&lc, Some(&c.masked))
         .unwrap()
@@ -124,7 +124,7 @@ fn flares_and_dips_drop_out() {
             star(t) + flare - dip
         })
         .collect();
-    let lc = LightCurve::from_btjd(time.clone(), flux, vec![1e-3; 2160]).unwrap();
+    let lc = LightCurve::from_days(time.clone(), flux, vec![1e-3; 2160]).unwrap();
     let robust = detrend(0.5, BreakTolerance::Never, 3.0)
         .trend(&lc, None)
         .unwrap();
@@ -149,7 +149,7 @@ fn flares_and_dips_drop_out() {
 // loop stops at once with the plain spline.
 #[test]
 fn no_scatter_stops_the_loop() {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.0, 0.3, 0.5, 1.0],
         vec![1.0, 3.0, -2.0, 5.0],
         vec![1.0; 4],
@@ -169,7 +169,7 @@ fn no_scatter_stops_the_loop() {
 
 #[test]
 fn sigma_is_checked() {
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0; 2], vec![1.0; 2]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0; 2], vec![1.0; 2]).unwrap();
     for sigma in [0.0, -1.0, f64::NAN, 1e31] {
         assert_eq!(
             detrend(1.0, BreakTolerance::Never, sigma).trend(&lc, None),
@@ -198,7 +198,7 @@ fn no_bias_on_noise() {
                 1.0 + 1e-3 * (-2.0 * u.ln()).sqrt() * (std::f64::consts::TAU * v).cos()
             })
             .collect();
-        let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 7200]).unwrap();
+        let lc = LightCurve::from_days(time, flux, vec![1e-3; 7200]).unwrap();
         for t in detrend(0.5, BreakTolerance::Never, 3.0)
             .trend(&lc, None)
             .unwrap()

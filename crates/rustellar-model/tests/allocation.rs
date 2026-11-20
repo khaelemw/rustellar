@@ -57,7 +57,7 @@ fn allocations_in(f: impl FnOnce()) -> usize {
 
 fn params(k: f64) -> TransitParams {
     TransitParams::new(
-        Epoch::from_btjd(0.0).unwrap(),
+        Epoch::from_days(0.0).unwrap(),
         TimeDelta::from_days(3.0).unwrap(),
         RadiusRatio::new(k).unwrap(),
         ScaledSemiMajorAxis::new(10.0).unwrap(),
@@ -69,7 +69,7 @@ fn params(k: f64) -> TransitParams {
 
 fn times() -> Vec<Epoch> {
     (-500..=500)
-        .map(|i| Epoch::from_btjd(f64::from(i) * 1e-4).unwrap())
+        .map(|i| Epoch::from_days(f64::from(i) * 1e-4).unwrap())
         .collect()
 }
 

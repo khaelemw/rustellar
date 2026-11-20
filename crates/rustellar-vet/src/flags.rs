@@ -129,7 +129,7 @@ pub struct PeriodFlag {
 ///
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(6.851)?,
-///     Epoch::from_btjd(1.0)?,
+///     Epoch::from_days(1.0)?,
 ///     TimeDelta::from_hours(3.0)?,
 /// )?;
 /// // An orbit of 13.7 days, and its half, third and quarter, within 0.5%.
@@ -190,7 +190,7 @@ pub fn flag_periods(candidate: &Candidate, suspects: &[SuspectPeriod]) -> Vec<Pe
 /// ```
 /// use rustellar_vet::{Epoch, TimeDelta, TimeWindow};
 ///
-/// let event = TimeWindow::around(Epoch::from_btjd(10.0)?, TimeDelta::from_hours(1.0)?)?;
+/// let event = TimeWindow::around(Epoch::from_days(10.0)?, TimeDelta::from_hours(1.0)?)?;
 /// assert!(((event.end() - event.start()).as_hours() - 2.0).abs() < 1e-9);
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
@@ -259,14 +259,14 @@ pub struct TimeFlag {
 /// use rustellar_vet::{Candidate, Epoch, LightCurve, TimeDelta, TimeWindow, flag_times};
 ///
 /// let time: Vec<f64> = (0..480).map(|i| f64::from(i) / 48.0).collect();
-/// let lc = LightCurve::from_btjd(time, vec![1.0; 480], vec![1e-3; 480])?;
+/// let lc = LightCurve::from_days(time, vec![1.0; 480], vec![1e-3; 480])?;
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(1.0)?,
+///     Epoch::from_days(1.0)?,
 ///     TimeDelta::from_hours(3.0)?,
 /// )?;
 /// // An event at 7.05: the transit at 7.0 overlaps it.
-/// let event = TimeWindow::around(Epoch::from_btjd(7.05)?, TimeDelta::from_hours(0.5)?)?;
+/// let event = TimeWindow::around(Epoch::from_days(7.05)?, TimeDelta::from_hours(0.5)?)?;
 /// let flags = flag_times(&lc, &candidate, &[event]);
 /// assert_eq!(flags.len(), 1);
 /// assert_eq!((flags[0].epoch, flags[0].windows.as_slice()), (2, &[0][..]));
@@ -274,7 +274,7 @@ pub struct TimeFlag {
 /// ```
 #[must_use]
 pub fn flag_times(lc: &LightCurve, candidate: &Candidate, windows: &[TimeWindow]) -> Vec<TimeFlag> {
-    let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+    let times: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
     let period = candidate.period();
     let half = candidate.duration().as_days() / 2.0;
     layout(&times, candidate)
@@ -282,17 +282,17 @@ pub fn flag_times(lc: &LightCurve, candidate: &Candidate, windows: &[TimeWindow]
         .into_iter()
         .filter_map(|n| {
             #[expect(clippy::cast_precision_loss, reason = "a transit number")]
-            let centre = candidate.transit_time().as_btjd() + n as f64 * period.as_days();
+            let centre = candidate.transit_time().as_days() + n as f64 * period.as_days();
             let (from, to) = (centre - half, centre + half);
             let hit: Vec<usize> = windows
                 .iter()
                 .enumerate()
-                .filter(|(_, w)| w.start.as_btjd() < to && w.end.as_btjd() > from)
+                .filter(|(_, w)| w.start.as_days() < to && w.end.as_days() > from)
                 .map(|(k, _)| k)
                 .collect();
             (!hit.is_empty()).then(|| TimeFlag {
                 epoch: n,
-                time: Epoch::from_btjd(centre).expect("finite"),
+                time: Epoch::from_days(centre).expect("finite"),
                 windows: hit,
             })
         })

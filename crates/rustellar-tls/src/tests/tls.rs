@@ -27,7 +27,7 @@ fn light_curve() -> LightCurve {
             1.0 - dip + ripple
         })
         .collect();
-    LightCurve::from_btjd(time, flux, vec![1e-3; 576]).unwrap()
+    LightCurve::from_days(time, flux, vec![1e-3; 576]).unwrap()
 }
 
 fn grid(from: f64, count: u32) -> Vec<f64> {
@@ -42,13 +42,13 @@ fn cpu() -> SearchOptions {
 
 #[test]
 fn a_light_curve_is_checked() {
-    let one = LightCurve::from_btjd(vec![1.0], vec![1.0], vec![1e-3]).unwrap();
+    let one = LightCurve::from_days(vec![1.0], vec![1.0], vec![1e-3]).unwrap();
     assert_eq!(Tls::new(&one).unwrap_err(), TlsError::NoBaseline);
     // A weight too large for full precision.
-    let tiny = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0; 2], vec![1e-200, 1e-3]).unwrap();
+    let tiny = LightCurve::from_days(vec![0.0, 1.0], vec![1.0; 2], vec![1e-200, 1e-3]).unwrap();
     assert_eq!(Tls::new(&tiny).unwrap_err(), TlsError::OutOfRange);
     // Weights fine, but the flat model's chi-squared overflows.
-    let far = LightCurve::from_btjd(vec![0.0, 1.0], vec![1e10, 1.0], vec![1e-150, 1e-3]).unwrap();
+    let far = LightCurve::from_days(vec![0.0, 1.0], vec![1e10, 1.0], vec![1e-150, 1e-3]).unwrap();
     assert_eq!(Tls::new(&far).unwrap_err(), TlsError::OutOfRange);
     assert!(format!("{:?}", Tls::new(&light_curve()).unwrap()).starts_with("Tls"));
 }
@@ -132,7 +132,7 @@ fn the_result_is_the_searchs() {
         for (fit, period) in result.periods().iter().zip(&inside.periods) {
             assert_eq!(fit.period.as_days(), period.period);
             assert_eq!(fit.duration.as_days(), period.duration);
-            assert_eq!(fit.transit_time.as_btjd(), period.t0);
+            assert_eq!(fit.transit_time.as_days(), period.t0);
             assert_eq!((fit.depth, fit.chi2), (period.depth, period.chi2));
         }
         let spectra = result.spectra().unwrap();
@@ -148,7 +148,7 @@ fn the_result_is_the_searchs() {
         let best = result.best().unwrap();
         let b = inside.best.unwrap();
         assert_eq!(best.period.as_days(), b.position.period);
-        assert_eq!(best.transit_time.as_btjd(), b.position.t0);
+        assert_eq!(best.transit_time.as_days(), b.position.t0);
         assert_eq!(best.duration.as_days(), b.position.duration);
         assert_eq!((best.depth, best.chi2), (b.fit.depth, b.fit.chi2));
         assert_eq!(best.points_in_transit, b.fit.in_transit);
@@ -169,7 +169,7 @@ fn the_result_is_the_searchs() {
         assert_eq!(e.depth, ie.depth);
         assert_eq!(best.transits.len(), inside.transits.len());
         for (t, it) in best.transits.iter().zip(&inside.transits) {
-            assert_eq!((t.number, t.time.as_btjd()), (it.number, it.time));
+            assert_eq!((t.number, t.time.as_days()), (it.number, it.time));
             assert_eq!(
                 (t.depth, t.error, t.points),
                 (it.depth, it.error, it.points)
@@ -187,7 +187,7 @@ fn the_result_is_the_searchs() {
         );
         let (h, ih) = (best.shape.unwrap(), inside.shape.unwrap());
         assert_eq!(h.period.as_days(), ih.period);
-        assert_eq!(h.transit_time.as_btjd(), ih.t0);
+        assert_eq!(h.transit_time.as_days(), ih.t0);
         assert_eq!(h.duration.as_days(), ih.duration);
         assert_eq!(
             (h.k, h.b, h.depth, h.a, h.chi2),
@@ -229,7 +229,7 @@ fn without_resamples_no_bootstrap() {
 #[test]
 fn no_candidate_and_a_peak_at_the_edge() {
     let time: Vec<f64> = (0..200).map(|i| f64::from(i) / 20.0).collect();
-    let above = LightCurve::from_btjd(time, vec![1.001; 200], vec![1e-3; 200]).unwrap();
+    let above = LightCurve::from_days(time, vec![1.001; 200], vec![1e-3; 200]).unwrap();
     let result = Tls::new(&above)
         .unwrap()
         .search(&Periods::from_days(&[1.0, 2.0]).unwrap(), &cpu())

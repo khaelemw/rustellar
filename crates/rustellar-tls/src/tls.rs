@@ -44,7 +44,7 @@ const TABLE_SAMPLES: usize = 4096;
 ///         if phase.abs() < 0.05 { 0.99 } else { 1.0 }
 ///     })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 480])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 480])?;
 ///
 /// let periods: Vec<f64> = (0..200).map(|i| 1.5 + 0.01 * f64::from(i)).collect();
 /// let result = Tls::new(&lc)?.search(&Periods::from_days(&periods)?, &SearchOptions::default())?;
@@ -77,7 +77,7 @@ impl Tls {
     /// use rustellar_tls::{Tls, TlsError};
     /// use rustellar_tls::LightCurve;
     ///
-    /// let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-200, 1e-3])?;
+    /// let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-200, 1e-3])?;
     /// assert_eq!(Tls::new(&lc).unwrap_err(), TlsError::OutOfRange);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```

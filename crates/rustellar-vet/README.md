@@ -182,7 +182,7 @@ use rustellar_vet::{Candidate, Epoch, TimeDelta};
 
 let candidate = Candidate::new(
     TimeDelta::from_days(4.7)?,
-    Epoch::from_btjd(1326.3)?,
+    Epoch::from_days(1326.3)?,
     TimeDelta::from_hours(2.9)?,
 )?
 .with_depth(1e-3)?;

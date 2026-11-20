@@ -11,7 +11,7 @@ use std::fmt;
 /// use rustellar_core::{LightCurve, TimeDelta};
 /// use rustellar_detrend::{Detrend, DetrendError};
 ///
-/// let lc = LightCurve::from_btjd(vec![1.0, 2.0], vec![1.0, 0.99], vec![0.01; 2])?;
+/// let lc = LightCurve::from_days(vec![1.0, 2.0], vec![1.0, 0.99], vec![0.01; 2])?;
 /// let detrend = Detrend::default().with_window(TimeDelta::from_days(0.0)?);
 /// let err = detrend.trend(&lc, None).unwrap_err();
 /// assert_eq!(err, DetrendError::NotPositive { name: "window" });

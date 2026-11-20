@@ -34,6 +34,6 @@ fn core_types_are_re_exported_unchanged() {
         assert_eq!(here, core);
     }
     let made_here =
-        rustellar_detrend::LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0; 2], vec![1e-3; 2]);
+        rustellar_detrend::LightCurve::from_days(vec![0.0, 1.0], vec![1.0; 2], vec![1e-3; 2]);
     let _: rustellar_core::LightCurve = made_here.unwrap();
 }

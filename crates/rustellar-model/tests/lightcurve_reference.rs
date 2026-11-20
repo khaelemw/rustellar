@@ -50,7 +50,7 @@ struct Set {
 impl Set {
     fn params(&self) -> TransitParams {
         TransitParams::new(
-            Epoch::from_btjd(self.t0).unwrap(),
+            Epoch::from_days(self.t0).unwrap(),
             TimeDelta::from_days(self.period).unwrap(),
             RadiusRatio::new(self.k).unwrap(),
             ScaledSemiMajorAxis::new(self.a_rs).unwrap(),
@@ -76,7 +76,7 @@ impl Point {
     }
 
     fn time(&self) -> Epoch {
-        Epoch::from_btjd(self.t).unwrap()
+        Epoch::from_days(self.t).unwrap()
     }
 
     fn behind(&self) -> bool {

@@ -126,7 +126,7 @@ fn close_to_the_curved_path_of_tls_planet() {
     let worst = |a_rs: f64, b: f64, period: f64| {
         let k = RadiusRatio::new(0.03).unwrap();
         let ld = LimbDarkening::quadratic(0.4804, 0.1867).unwrap();
-        let t0 = Epoch::from_btjd(0.0).unwrap();
+        let t0 = Epoch::from_days(0.0).unwrap();
         let params = TransitParams::new(
             t0,
             TimeDelta::from_days(period).unwrap(),
@@ -142,7 +142,7 @@ fn close_to_the_curved_path_of_tls_planet() {
         (0..=1000)
             .map(|i| {
                 let x = f64::from(i) / 2000.0;
-                let t = Epoch::from_btjd(x * t14).unwrap();
+                let t = Epoch::from_days(x * t14).unwrap();
                 let curved = (1.0 - params.flux_at(t)) / bottom;
                 (curved - template.shape(x)).abs()
             })

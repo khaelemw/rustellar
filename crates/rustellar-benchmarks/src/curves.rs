@@ -189,7 +189,7 @@ pub fn rows(csv: &str) -> Vec<Row> {
 #[must_use]
 pub fn transit(row: &Row) -> TransitParams {
     TransitParams::new(
-        Epoch::from_btjd(row.t0).expect("finite"),
+        Epoch::from_days(row.t0).expect("finite"),
         TimeDelta::from_days(row.period).expect("finite"),
         RadiusRatio::new(row.k).expect("a radius ratio"),
         ScaledSemiMajorAxis::new(12.0).expect("12"),
@@ -217,8 +217,8 @@ pub fn light_curve(kind: Kind, row: &Row) -> LightCurve {
             continue;
         }
         time.push(t);
-        flux.push(params.flux_at(Epoch::from_btjd(t).expect("finite")) + e * n);
+        flux.push(params.flux_at(Epoch::from_days(t).expect("finite")) + e * n);
         error.push(e);
     }
-    LightCurve::from_btjd(time, flux, error).expect("a light curve")
+    LightCurve::from_days(time, flux, error).expect("a light curve")
 }

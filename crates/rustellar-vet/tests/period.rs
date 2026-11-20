@@ -36,13 +36,13 @@ fn curve(period: f64, sign: f64, seed: u64) -> LightCurve {
             1.0 - if inside { sign * 2e-3 } else { 0.0 } + 4e-4 * r.normal()
         })
         .collect();
-    LightCurve::from_btjd(time, flux, vec![4e-4; 7776]).unwrap()
+    LightCurve::from_days(time, flux, vec![4e-4; 7776]).unwrap()
 }
 
 fn candidate(period: f64, t0: f64) -> Candidate {
     Candidate::new(
         TimeDelta::from_days(period).unwrap(),
-        Epoch::from_btjd(t0).unwrap(),
+        Epoch::from_days(t0).unwrap(),
         TimeDelta::from_days(0.1).unwrap(),
     )
     .unwrap()
@@ -57,7 +57,7 @@ fn the_true_period_from_one_off() {
         let lc = curve(truth, 1.0, seed);
         let c = candidate(truth * 1.005, 1.32);
         let found = search_period(&lc, &c, Shape::BOX, 0.01).unwrap();
-        let step = 0.1 * c.period().as_days() / (4.0 * (lc.time()[7775].as_btjd()));
+        let step = 0.1 * c.period().as_days() / (4.0 * (lc.time()[7775].as_days()));
         let p = found.best.period().as_days();
         assert!((p - truth).abs() < step, "{p}");
         assert_eq!(found.best.depth(), Some(found.fit.depth));
@@ -72,7 +72,7 @@ fn the_true_period_from_one_off() {
             .fold(f64::NEG_INFINITY, f64::max);
         assert_eq!(top, found.fit.delta_chi2);
         // The best time is a transit's.
-        let t = found.best.transit_time().as_btjd();
+        let t = found.best.transit_time().as_days();
         let off = ((t - 1.3 + 0.5 * p).rem_euclid(p) - 0.5 * p).abs();
         assert!(off < 0.0126, "{off}");
     }
@@ -95,7 +95,7 @@ fn the_limits() {
         Err(VetError::NoPointsInTransit)
     );
     // The widest search allowed runs.
-    let short = LightCurve::from_btjd(
+    let short = LightCurve::from_days(
         (0..200).map(|i| f64::from(i) * 0.05).collect(),
         (0..200)
             .map(|i| if i % 37 == 26 { 0.99 } else { 1.0 })

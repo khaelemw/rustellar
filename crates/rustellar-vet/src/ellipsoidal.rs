@@ -77,10 +77,10 @@ pub struct Ellipsoidal {
 ///     .iter()
 ///     .map(|&t| 1.0 - 5e-4 * (2.0 * TAU * (t - 0.75) / 3.0).cos())
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-4; 1728])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-4; 1728])?;
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(0.75)?,
+///     Epoch::from_days(0.75)?,
 ///     TimeDelta::from_days(0.1)?,
 /// )?;
 /// let e = ellipsoidal(&lc, &candidate).unwrap();
@@ -92,7 +92,7 @@ pub struct Ellipsoidal {
 pub fn ellipsoidal(lc: &LightCurve, candidate: &Candidate) -> Option<Ellipsoidal> {
     let period = candidate.period().as_days();
     let duration = candidate.duration().as_days();
-    let t0 = candidate.transit_time().as_btjd();
+    let t0 = candidate.transit_time().as_days();
     let omega = TAU / period;
     // Out of both eclipses: phase, weight, flux.
     let points: Vec<(f64, f64, f64)> = lc
@@ -101,7 +101,7 @@ pub fn ellipsoidal(lc: &LightCurve, candidate: &Candidate) -> Option<Ellipsoidal
         .zip(lc.flux())
         .zip(lc.flux_err())
         .filter_map(|((t, &y), &e)| {
-            let ph = phase(t.as_btjd() - t0, period);
+            let ph = phase(t.as_days() - t0, period);
             let far = ph.abs() >= duration && (ph.abs() - 0.5 * period).abs() >= duration;
             far.then(|| (ph, 1.0 / (e * e), y))
         })

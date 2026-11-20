@@ -24,7 +24,7 @@ use crate::{
 /// };
 ///
 /// let params = TransitParams::new(
-///     Epoch::from_btjd(0.0)?,
+///     Epoch::from_days(0.0)?,
 ///     TimeDelta::from_days(3.0)?,
 ///     RadiusRatio::new(0.1)?,
 ///     ScaledSemiMajorAxis::new(10.0)?,
@@ -68,7 +68,7 @@ impl TransitParams {
     /// };
     ///
     /// let result = TransitParams::new(
-    ///     Epoch::from_btjd(0.0)?,
+    ///     Epoch::from_days(0.0)?,
     ///     TimeDelta::from_days(3.0)?,
     ///     RadiusRatio::new(0.1)?,
     ///     ScaledSemiMajorAxis::new(10.0)?,
@@ -123,7 +123,7 @@ impl TransitParams {
     /// use rustellar_model::{LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams};
     ///
     /// let params = TransitParams::from_inclination_deg(
-    ///     Epoch::from_btjd(0.0)?,
+    ///     Epoch::from_days(0.0)?,
     ///     TimeDelta::from_days(3.0)?,
     ///     RadiusRatio::new(0.1)?,
     ///     ScaledSemiMajorAxis::new(10.0)?,
@@ -168,16 +168,16 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
     /// #     ImpactParameter::new(0.3)?,
     /// #     LimbDarkening::quadratic(0.3, 0.25)?,
     /// # )?;
-    /// assert_eq!(params.t0().as_btjd(), 0.0);
+    /// assert_eq!(params.t0().as_days(), 0.0);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
@@ -194,9 +194,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -220,9 +220,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -248,9 +248,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -274,9 +274,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -300,9 +300,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -327,9 +327,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -357,9 +357,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -368,11 +368,11 @@ impl TransitParams {
     /// # )?;
     /// use std::f64::consts::PI;
     ///
-    /// assert_eq!(params.phase_angle(Epoch::from_btjd(0.0)?), 0.0);
+    /// assert_eq!(params.phase_angle(Epoch::from_days(0.0)?), 0.0);
     /// // A quarter of the way round the 3-day orbit.
-    /// assert!((params.phase_angle(Epoch::from_btjd(0.75)?) - PI / 2.0).abs() < 1e-15);
+    /// assert!((params.phase_angle(Epoch::from_days(0.75)?) - PI / 2.0).abs() < 1e-15);
     /// // Half an orbit away is -pi, never +pi.
-    /// assert_eq!(params.phase_angle(Epoch::from_btjd(1.5)?), -PI);
+    /// assert_eq!(params.phase_angle(Epoch::from_days(1.5)?), -PI);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
@@ -394,9 +394,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -404,9 +404,9 @@ impl TransitParams {
     /// #     LimbDarkening::quadratic(0.3, 0.25)?,
     /// # )?;
     /// // At mid-transit the separation is the impact parameter.
-    /// assert!((params.separation(Epoch::from_btjd(0.0)?) - 0.3).abs() < 1e-15);
+    /// assert!((params.separation(Epoch::from_days(0.0)?) - 0.3).abs() < 1e-15);
     /// // A quarter orbit later the planet is a_rs from the star on the sky.
-    /// assert!((params.separation(Epoch::from_btjd(0.75)?) - 10.0).abs() < 1e-12);
+    /// assert!((params.separation(Epoch::from_days(0.75)?) - 10.0).abs() < 1e-12);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
@@ -428,17 +428,17 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
     /// #     ImpactParameter::new(0.3)?,
     /// #     LimbDarkening::quadratic(0.3, 0.25)?,
     /// # )?;
-    /// assert!(params.in_front(Epoch::from_btjd(0.0)?));
-    /// assert!(!params.in_front(Epoch::from_btjd(1.5)?)); // behind the star
+    /// assert!(params.in_front(Epoch::from_days(0.0)?));
+    /// assert!(!params.in_front(Epoch::from_days(1.5)?)); // behind the star
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
@@ -459,9 +459,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -496,9 +496,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -546,9 +546,9 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
@@ -584,19 +584,19 @@ impl TransitParams {
     /// # use rustellar_model::{
     /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
     /// # };
-    /// # // A hot Jupiter: t0 = BTJD 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
+    /// # // A hot Jupiter: t0 = 0, P = 3 d, k = 0.1, a_rs = 10, b = 0.3.
     /// # let params = TransitParams::new(
-    /// #     Epoch::from_btjd(0.0)?,
+    /// #     Epoch::from_days(0.0)?,
     /// #     TimeDelta::from_days(3.0)?,
     /// #     RadiusRatio::new(0.1)?,
     /// #     ScaledSemiMajorAxis::new(10.0)?,
     /// #     ImpactParameter::new(0.3)?,
     /// #     LimbDarkening::quadratic(0.3, 0.25)?,
     /// # )?;
-    /// // A 27-day TESS sector starting at BTJD 1.
-    /// let start = Epoch::from_btjd(1.0)?;
-    /// let end = Epoch::from_btjd(28.0)?;
-    /// let mid_times: Vec<f64> = params.transit_times(start, end).map(|t| t.as_btjd()).collect();
+    /// // A 27-day TESS sector starting at day 1.
+    /// let start = Epoch::from_days(1.0)?;
+    /// let end = Epoch::from_days(28.0)?;
+    /// let mid_times: Vec<f64> = params.transit_times(start, end).map(|t| t.as_days()).collect();
     /// assert_eq!(mid_times, [3.0, 6.0, 9.0, 12.0, 15.0, 18.0, 21.0, 24.0, 27.0]);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -639,7 +639,7 @@ impl TransitParams {
     /// };
     ///
     /// let params = TransitParams::new(
-    ///     Epoch::from_btjd(0.0)?,
+    ///     Epoch::from_days(0.0)?,
     ///     TimeDelta::from_days(3.0)?,
     ///     RadiusRatio::new(0.1)?,
     ///     ScaledSemiMajorAxis::new(10.0)?,
@@ -647,11 +647,11 @@ impl TransitParams {
     ///     LimbDarkening::quadratic(0.3, 0.25)?,
     /// )?;
     ///
-    /// let mid_transit = params.flux_at(Epoch::from_btjd(0.0)?);
+    /// let mid_transit = params.flux_at(Epoch::from_days(0.0)?);
     /// assert!((mid_transit - 0.988_527_81).abs() < 1e-8);
     ///
     /// // Half an orbit later the planet is behind the star.
-    /// assert_eq!(params.flux_at(Epoch::from_btjd(1.5)?), 1.0);
+    /// assert_eq!(params.flux_at(Epoch::from_days(1.5)?), 1.0);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
@@ -691,7 +691,7 @@ impl TransitParams {
     /// };
     ///
     /// let params = TransitParams::new(
-    ///     Epoch::from_btjd(0.0)?,
+    ///     Epoch::from_days(0.0)?,
     ///     TimeDelta::from_days(3.0)?,
     ///     RadiusRatio::new(0.1)?,
     ///     ScaledSemiMajorAxis::new(10.0)?,
@@ -699,7 +699,7 @@ impl TransitParams {
     ///     LimbDarkening::quadratic(0.3, 0.25)?,
     /// )?;
     ///
-    /// let times = [0.0, 0.02, 0.04, 0.06].map(|t| Epoch::from_btjd(t).unwrap());
+    /// let times = [0.0, 0.02, 0.04, 0.06].map(|t| Epoch::from_days(t).unwrap());
     /// let flux = params.light_curve(&times);
     ///
     /// let expected = [0.988_527_81, 0.988_925_66, 0.991_248_45, 1.0];
@@ -734,7 +734,7 @@ impl TransitParams {
     /// };
     ///
     /// let params = TransitParams::new(
-    ///     Epoch::from_btjd(0.0)?,
+    ///     Epoch::from_days(0.0)?,
     ///     TimeDelta::from_days(3.0)?,
     ///     RadiusRatio::new(0.1)?,
     ///     ScaledSemiMajorAxis::new(10.0)?,
@@ -742,7 +742,7 @@ impl TransitParams {
     ///     LimbDarkening::quadratic(0.3, 0.25)?,
     /// )?;
     ///
-    /// let times = [0.0, 0.06].map(|t| Epoch::from_btjd(t).unwrap());
+    /// let times = [0.0, 0.06].map(|t| Epoch::from_days(t).unwrap());
     /// let mut flux = [0.0; 2];
     /// params.light_curve_into(&times, &mut flux)?;
     ///
@@ -780,7 +780,7 @@ impl TransitParams {
     /// };
     ///
     /// let params = TransitParams::new(
-    ///     Epoch::from_btjd(0.0)?,
+    ///     Epoch::from_days(0.0)?,
     ///     TimeDelta::from_days(3.0)?,
     ///     RadiusRatio::new(0.1)?,
     ///     ScaledSemiMajorAxis::new(10.0)?,

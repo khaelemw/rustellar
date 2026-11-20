@@ -16,7 +16,7 @@ use rustellar_vet::{
 // A 3.7-day planet (k 0.05, b 0.5, a/R* 15) over `days` days every `step`
 // days, with noise of 5e-4 from a fixed sequence.
 fn case(days: f64, step: f64) -> (LightCurve, Candidate) {
-    let at = |t: f64| Epoch::from_btjd(t).unwrap();
+    let at = |t: f64| Epoch::from_days(t).unwrap();
     let p = TransitParams::new(
         at(1.3),
         TimeDelta::from_days(3.7).unwrap(),
@@ -45,7 +45,7 @@ fn case(days: f64, step: f64) -> (LightCurve, Candidate) {
             p.flux_at(at(t)) + 1e-3 * (u - 0.5)
         })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![5e-4; n as usize]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![5e-4; n as usize]).unwrap();
     let candidate = Candidate::new(p.period(), at(1.3), p.t14().unwrap()).unwrap();
     (lc, candidate)
 }

@@ -84,10 +84,10 @@ impl Multiple {
 ///         1.0 - if dip { 3e-3 } else { 0.0 }
 ///     })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 3456])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 3456])?;
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(0.75)?,
+///     Epoch::from_days(0.75)?,
 ///     TimeDelta::from_days(0.1)?,
 /// )?;
 /// let split = multiples(&lc, &candidate, Shape::BOX, 4)?;
@@ -109,7 +109,7 @@ pub fn multiples(
     let duration = candidate.duration().as_days();
     let profile = shape.profile(period, duration)?;
     let s = shapes(lc, candidate, &profile);
-    let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+    let times: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
     let Layout { epochs, .. } = layout(&times, candidate);
     let (flux, err) = (lc.flux(), lc.flux_err());
     let one = solve(flux, err, &s, &vec![Some(0); s.len()], 1)?;

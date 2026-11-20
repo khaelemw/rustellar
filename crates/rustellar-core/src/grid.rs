@@ -172,7 +172,7 @@ const MAXIMUM_COUNT: f64 = 1e8;
 /// use rustellar_core::{LightCurve, OfirPeriod};
 ///
 /// // One TESS sector, a Sun-like star.
-/// let lc = LightCurve::from_btjd(vec![1325.293, 1353.177], vec![1.0; 2], vec![1e-3; 2])?;
+/// let lc = LightCurve::from_days(vec![1325.293, 1353.177], vec![1.0; 2], vec![1e-3; 2])?;
 /// let periods = OfirPeriod::default().periods(&lc)?;
 /// assert_eq!(periods.as_slice().len(), 2552);
 /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -236,7 +236,7 @@ impl OfirPeriod {
     /// ```
     /// use rustellar_core::{GridError, LightCurve, OfirPeriod, TimeDelta};
     ///
-    /// let lc = LightCurve::from_btjd(vec![1325.293, 1353.177], vec![1.0; 2], vec![1e-3; 2])?;
+    /// let lc = LightCurve::from_days(vec![1325.293, 1353.177], vec![1.0; 2], vec![1e-3; 2])?;
     ///
     /// // The pipeline's range, 0.5 to 15 days.
     /// let range = OfirPeriod {

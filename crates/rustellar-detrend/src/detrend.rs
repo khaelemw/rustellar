@@ -209,7 +209,7 @@ pub enum BreakTolerance {
 ///     .iter()
 ///     .map(|&t| 1.0 + 0.01 * t - if (1.0..1.05).contains(&t) { 0.005 } else { 0.0 })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 1440])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 1440])?;
 ///
 /// let detrend = Detrend::default().with_window(TimeDelta::from_days(0.5)?);
 /// let flat = detrend.flatten(&lc, None)?;
@@ -411,7 +411,7 @@ impl Detrend {
     /// use rustellar_core::{LightCurve, TimeDelta};
     /// use rustellar_detrend::{Detrend, Method};
     ///
-    /// let lc = LightCurve::from_btjd(
+    /// let lc = LightCurve::from_days(
     ///     vec![0.0, 0.125, 0.25, 0.375, 0.5],
     ///     vec![1.0, 2.0, 3.0, 4.0, 50.0],
     ///     vec![0.1; 5],
@@ -438,7 +438,7 @@ impl Detrend {
         if mask.is_some_and(|m| m.len() != lc.len()) {
             return Err(DetrendError::MaskLengthMismatch);
         }
-        let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+        let times: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
         Ok(match estimator {
             Estimator::Window(location) => {
                 let threads = self.threads.get().min(lc.len().div_ceil(POINTS_PER_THREAD));
@@ -467,7 +467,7 @@ impl Detrend {
     /// use rustellar_core::{LightCurve, TimeDelta};
     /// use rustellar_detrend::{Detrend, Method};
     ///
-    /// let lc = LightCurve::from_btjd(
+    /// let lc = LightCurve::from_days(
     ///     vec![0.0, 0.125, 0.25, 0.375],
     ///     vec![2.0, 2.0, 1.0, 2.0],
     ///     vec![0.2; 4],
@@ -593,7 +593,7 @@ enum Estimator {
 /// use rustellar_core::LightCurve;
 /// use rustellar_detrend::Detrend;
 ///
-/// let lc = LightCurve::from_btjd(vec![0.0, 0.1, 0.2], vec![4.0, 4.0, 4.0], vec![0.4; 3])?;
+/// let lc = LightCurve::from_days(vec![0.0, 0.1, 0.2], vec![4.0, 4.0, 4.0], vec![0.4; 3])?;
 /// let flat = Detrend::default().flatten(&lc, None)?;
 /// assert_eq!(flat.light_curve().flux(), [1.0, 1.0, 1.0]);
 /// let lc = flat.into_light_curve();

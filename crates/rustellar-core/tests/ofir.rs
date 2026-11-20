@@ -74,7 +74,7 @@ fn sampled_periods() -> Vec<(usize, usize, f64)> {
 // The grid depends only on the first and last times.
 fn light_curve(t_min: f64, t_max: f64) -> LightCurve {
     let time = vec![t_min, 0.5 * (t_min + t_max), t_max];
-    LightCurve::from_btjd(time, vec![1.0; 3], vec![1e-3; 3]).unwrap()
+    LightCurve::from_days(time, vec![1.0; 3], vec![1e-3; 3]).unwrap()
 }
 
 fn sector() -> LightCurve {
@@ -319,7 +319,7 @@ fn set_period_not_positive(
 
 #[test]
 fn single_time_has_no_baseline() {
-    let lc = LightCurve::from_btjd(vec![1325.0], vec![1.0], vec![1e-3]).unwrap();
+    let lc = LightCurve::from_days(vec![1325.0], vec![1.0], vec![1e-3]).unwrap();
     assert_eq!(
         OfirPeriod::default().periods(&lc),
         Err(GridError::NoBaseline)

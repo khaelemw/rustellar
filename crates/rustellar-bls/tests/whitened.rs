@@ -31,7 +31,7 @@ fn curve() -> LightCurve {
             dip + noise
         })
         .collect();
-    LightCurve::from_btjd(time, flux, vec![1e-3; 960]).unwrap()
+    LightCurve::from_days(time, flux, vec![1e-3; 960]).unwrap()
 }
 
 fn grid() -> (Periods, Durations) {

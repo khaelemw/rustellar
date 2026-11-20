@@ -69,7 +69,7 @@ impl TransitBox {
     ///     .iter()
     ///     .map(|t| if (t % 5.0 - 2.1).abs() < 0.2 { 0.99 } else { 1.0 })
     ///     .collect();
-    /// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 40])?;
+    /// let lc = LightCurve::from_days(time, flux, vec![1e-3; 40])?;
     ///
     /// let best = TransitBox::best(&lc, TimeDelta::from_days(5.0)?, TimeDelta::from_days(0.5)?)?
     ///     .expect("there is a dip");
@@ -86,7 +86,7 @@ impl TransitBox {
         // Checks the period and duration; the mid-transit time is replaced.
         Self::new(period, duration, reference)?;
         let weighted = Weighted::new(lc)?;
-        let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+        let times: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
         let folded = Folded::new(&times, &weighted, period.as_days());
         Ok(folded
             .best(&weighted, duration.as_days(), Objective::DeltaChi2)?
@@ -113,7 +113,7 @@ pub(crate) struct Folded {
 }
 
 impl Folded {
-    /// `times` in BTJD, with weights `weighted`, folded at `period` days.
+    /// `times` in days, with weights `weighted`, folded at `period` days.
     pub(crate) fn new(times: &[f64], weighted: &Weighted, period: f64) -> Self {
         let n = times.len();
         // Each time's offset from the first, from its exact elapsed time.

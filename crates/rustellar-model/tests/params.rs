@@ -29,7 +29,7 @@ fn a_rs(x: f64) -> Result<f64, ParamError> {
 // that `TransitParams::new` checks against each other.
 fn transit(period_days: f64, a_rs: f64, b: f64) -> Result<TransitParams, ParamError> {
     TransitParams::new(
-        Epoch::from_btjd(0.0).unwrap(),
+        Epoch::from_days(0.0).unwrap(),
         TimeDelta::from_days(period_days).unwrap(),
         RadiusRatio::new(0.1).unwrap(),
         ScaledSemiMajorAxis::new(a_rs).unwrap(),
@@ -45,7 +45,7 @@ fn transit_from_inc(
     inc_deg: f64,
 ) -> Result<TransitParams, ParamError> {
     TransitParams::from_inclination_deg(
-        Epoch::from_btjd(0.0).unwrap(),
+        Epoch::from_days(0.0).unwrap(),
         TimeDelta::from_days(period_days).unwrap(),
         RadiusRatio::new(0.1).unwrap(),
         ScaledSemiMajorAxis::new(a_rs).unwrap(),
@@ -204,7 +204,7 @@ fn disk_integral_is_positive_for_every_accepted_law() {
 
 #[test]
 fn transit_params_keep_inputs() {
-    let t0 = Epoch::from_btjd(1234.5).unwrap();
+    let t0 = Epoch::from_days(1234.5).unwrap();
     let period = TimeDelta::from_days(3.0).unwrap();
     let k = RadiusRatio::new(0.1).unwrap();
     let a_rs = ScaledSemiMajorAxis::new(10.0).unwrap();

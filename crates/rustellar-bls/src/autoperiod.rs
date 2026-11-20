@@ -36,7 +36,7 @@ use crate::{BlsError, Durations, grid::positive_days};
 /// use rustellar_bls::{AutoPeriod, Durations};
 /// use rustellar_core::LightCurve;
 ///
-/// let lc = LightCurve::from_btjd(vec![0.0, 13.5, 27.0], vec![1.0; 3], vec![1e-3; 3])?;
+/// let lc = LightCurve::from_days(vec![0.0, 13.5, 27.0], vec![1.0; 3], vec![1e-3; 3])?;
 /// let durations = Durations::from_days(&[0.05, 0.1, 0.2])?;
 ///
 /// let periods = AutoPeriod::default().periods(&lc, &durations)?;
@@ -100,7 +100,7 @@ impl AutoPeriod {
     /// use rustellar_bls::{AutoPeriod, BlsError, Durations};
     /// use rustellar_core::{LightCurve, TimeDelta};
     ///
-    /// let lc = LightCurve::from_btjd(vec![1325.3, 1353.2], vec![1.0; 2], vec![1e-3; 2])?;
+    /// let lc = LightCurve::from_days(vec![1325.3, 1353.2], vec![1.0; 2], vec![1e-3; 2])?;
     /// let durations = Durations::from_days(&[0.05, 0.1])?;
     ///
     /// // The pipeline's range, 0.5 to 15 days.

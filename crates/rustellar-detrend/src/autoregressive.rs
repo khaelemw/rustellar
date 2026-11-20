@@ -67,7 +67,7 @@ impl Default for Order {
 ///     flux.push(0.5 + 0.5 * flux[i - 1] + noise());
 /// }
 /// let time: Vec<f64> = (0..400).map(|i| f64::from(i) / 720.0).collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 400])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 400])?;
 ///
 /// let white = Autoregressive::default().with_order(Order::Fixed(1)).whiten(&lc)?;
 /// assert_eq!(white.order(), 1);

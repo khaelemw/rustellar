@@ -18,7 +18,7 @@ fn survey_recipe_structure() {
     };
     let lc = survey.light_curve();
     assert_eq!(lc.len(), 300);
-    let time: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+    let time: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
     assert!(time.windows(2).all(|w| w[0] < w[1]));
     // Each segment from its start to one jittered cadence past its last.
     assert!(time[..200].iter().all(|&t| (1325.0..1329.01).contains(&t)));
@@ -36,5 +36,5 @@ fn survey_recipe_structure() {
     }
     .light_curve();
     assert!(thinned.len() < 150);
-    assert!(thinned.time().iter().all(|t| time.contains(&t.as_btjd())));
+    assert!(thinned.time().iter().all(|t| time.contains(&t.as_days())));
 }

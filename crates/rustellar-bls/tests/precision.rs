@@ -60,8 +60,8 @@ fn curve(v: &[&str]) -> LightCurve {
     .light_curve();
     let offset = f(5);
     let flux = lc.flux().iter().map(|y| y + offset).collect();
-    let time = lc.time().iter().map(|t| t.as_btjd()).collect();
-    let lc = LightCurve::from_btjd(time, flux, lc.flux_err().to_vec()).unwrap();
+    let time = lc.time().iter().map(|t| t.as_days()).collect();
+    let lc = LightCurve::from_days(time, flux, lc.flux_err().to_vec()).unwrap();
     assert_eq!(lc.len(), v[10].parse::<usize>().unwrap());
     check_samples(&lc, v[11]);
     lc
@@ -144,10 +144,10 @@ fn bounds(lc: &LightCurve, inside: &[bool], plain: usize, totals: usize) -> [f64
 // The most points in one of the `m` bins at `period`, our way: phases from
 // the first time.
 fn most_in_a_bin(lc: &LightCurve, period: f64, m: usize) -> usize {
-    let t0 = lc.time()[0].as_btjd();
+    let t0 = lc.time()[0].as_days();
     let mut counts = vec![0_usize; m];
     for t in lc.time() {
-        let phase = (t.as_btjd() - t0).rem_euclid(period) / period;
+        let phase = (t.as_days() - t0).rem_euclid(period) / period;
         counts[((phase * m as f64) as usize).min(m - 1)] += 1;
     }
     counts.into_iter().max().unwrap()
@@ -196,9 +196,9 @@ fn exact_statistics_on_long_light_curves() {
         let binned = result.boxes()[0].unwrap();
         assert_eq!(binned.fit.n_in, n_in, "period {period}");
         assert_eq!(binned.transit.duration().as_days(), bins as f64 * BIN);
-        let first = lc.time()[0].as_btjd();
+        let first = lc.time()[0].as_days();
         let centre = (start as f64 + 0.5 * bins as f64) * BIN;
-        let offset = (binned.transit.transit_time().as_btjd() - first - centre).rem_euclid(period);
+        let offset = (binned.transit.transit_time().as_days() - first - centre).rem_euclid(period);
         assert!(
             offset.min(period - offset) <= 0.5 * BIN,
             "period {period}: {offset}"

@@ -20,10 +20,10 @@ use crate::{BlsError, sums::Sum};
 /// let transit = TransitBox::new(
 ///     TimeDelta::from_days(3.0)?,
 ///     TimeDelta::from_hours(3.0)?,
-///     Epoch::from_btjd(1325.5)?,
+///     Epoch::from_days(1325.5)?,
 /// )?;
-/// assert!(transit.contains(Epoch::from_btjd(1331.5)?));
-/// assert!(!transit.contains(Epoch::from_btjd(1330.0)?));
+/// assert!(transit.contains(Epoch::from_days(1331.5)?));
+/// assert!(!transit.contains(Epoch::from_days(1330.0)?));
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -50,7 +50,7 @@ impl TransitBox {
     /// use rustellar_core::{Epoch, TimeDelta};
     ///
     /// let one_day = TimeDelta::from_days(1.0)?;
-    /// let t0 = Epoch::from_btjd(0.0)?;
+    /// let t0 = Epoch::from_days(0.0)?;
     /// assert_eq!(
     ///     TransitBox::new(one_day, one_day, t0),
     ///     Err(BlsError::DurationNotShorterThanPeriod)
@@ -103,7 +103,7 @@ impl TransitBox {
     /// right to about a picosecond at the edge of the box, thousands of
     /// orbits from `transit_time`. astropy's
     /// `abs((t - t0 + P/2) % P - P/2) < D/2` rounds at the size of `t`, about
-    /// 20 ns at BTJD 3000, so it can put a point on the wrong side of an edge
+    /// 20 ns at a time of 3000 days, so it can put a point on the wrong side of an edge
     /// that close.
     ///
     /// # Examples
@@ -115,17 +115,17 @@ impl TransitBox {
     /// let transit = TransitBox::new(
     ///     TimeDelta::from_days(2.0)?,
     ///     TimeDelta::from_days(0.2)?,
-    ///     Epoch::from_btjd(0.0)?,
+    ///     Epoch::from_days(0.0)?,
     /// )?;
-    /// assert!(transit.contains(Epoch::from_btjd(-3.95)?));
-    /// assert!(!transit.contains(Epoch::from_btjd(0.1)?)); // the edge is outside
+    /// assert!(transit.contains(Epoch::from_days(-3.95)?));
+    /// assert!(!transit.contains(Epoch::from_days(0.1)?)); // the edge is outside
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
     pub fn contains(&self, time: Epoch) -> bool {
         let offset = offset_from_transit(
-            time.as_btjd(),
-            self.transit_time.as_btjd(),
+            time.as_days(),
+            self.transit_time.as_days(),
             self.period.as_days(),
         );
         offset.abs() < 0.5 * self.duration.as_days()
@@ -149,7 +149,7 @@ impl TransitBox {
     /// use rustellar_core::{Epoch, LightCurve, TimeDelta};
     ///
     /// // Eight points a day apart, the third and fourth one lower.
-    /// let lc = LightCurve::from_btjd(
+    /// let lc = LightCurve::from_days(
     ///     (0..8).map(f64::from).collect(),
     ///     vec![0.0, 0.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0],
     ///     vec![1.0; 8],
@@ -157,7 +157,7 @@ impl TransitBox {
     /// let transit = TransitBox::new(
     ///     TimeDelta::from_days(100.0)?,
     ///     TimeDelta::from_days(2.0)?,
-    ///     Epoch::from_btjd(2.5)?,
+    ///     Epoch::from_days(2.5)?,
     /// )?;
     /// let fit = transit.fit(&lc)?;
     /// assert_eq!(fit.depth, 1.0);
@@ -237,8 +237,8 @@ impl Weighted {
         if !(mean.is_finite() && centred.iter().all(|x| x.is_finite())) {
             return Err(BlsError::OutOfRange);
         }
-        let t0 = lc.time()[0].as_btjd();
-        let elapsed: Vec<(f64, f64)> = lc.time().iter().map(|t| elapsed(t.as_btjd(), t0)).collect();
+        let t0 = lc.time()[0].as_days();
+        let elapsed: Vec<(f64, f64)> = lc.time().iter().map(|t| elapsed(t.as_days(), t0)).collect();
         Ok(Self {
             mean,
             weights,

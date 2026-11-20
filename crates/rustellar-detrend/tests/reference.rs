@@ -37,7 +37,7 @@ fn rows(text: &'static str) -> impl Iterator<Item = Vec<&'static str>> {
 fn over(method: Method, values: &[f64]) -> f64 {
     let n = values.len();
     let time: Vec<f64> = (0..n).map(|i| i as f64 / 1024.0).collect();
-    let lc = LightCurve::from_btjd(time, values.to_vec(), vec![1.0; n]).unwrap();
+    let lc = LightCurve::from_days(time, values.to_vec(), vec![1.0; n]).unwrap();
     let detrend = Detrend::default()
         .with_method(method)
         .with_window(days(4.0 * (n as f64 / 1024.0) + 1.0))
@@ -286,7 +286,7 @@ fn numpys_median_and_the_exact_mean() {
         let time: Vec<f64> = rows.iter().map(|r| r[2].parse().unwrap()).collect();
         let flux: Vec<f64> = rows.iter().map(|r| r[3].parse().unwrap()).collect();
         let masked: Vec<bool> = rows.iter().map(|r| r[4] == "1").collect();
-        let lc = LightCurve::from_btjd(time, flux, vec![1.0; rows.len()]).unwrap();
+        let lc = LightCurve::from_days(time, flux, vec![1.0; rows.len()]).unwrap();
         let detrend = Detrend::default()
             .with_window(days(number(2)))
             .with_break_tolerance(break_tolerance(number(3)))
@@ -365,7 +365,7 @@ fn wotan_windows_but_the_last_point() {
         let square = |k: usize| linear(k) * linear(k);
         let trend = |f: &dyn Fn(usize) -> f64| {
             let flux: Vec<f64> = (0..n).map(f).collect();
-            let lc = LightCurve::from_btjd(time.clone(), flux, vec![1.0; n]).unwrap();
+            let lc = LightCurve::from_days(time.clone(), flux, vec![1.0; n]).unwrap();
             detrend.trend(&lc, Some(&masked)).unwrap()
         };
         let (by_linear, by_square) = (trend(&linear), trend(&square));

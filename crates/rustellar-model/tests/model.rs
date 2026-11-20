@@ -15,7 +15,7 @@ use rustellar_model::{
 const T0: f64 = 3_000.123_456;
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 fn params(k: f64, b: f64) -> TransitParams {
@@ -142,7 +142,7 @@ fn no_times_gives_an_empty_light_curve() {
 
 #[test]
 fn model_takes_times_from_a_light_curve() {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![T0 - 0.05, T0, T0 + 0.05],
         vec![1.0, 0.99, 1.0],
         vec![1e-4; 3],

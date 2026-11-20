@@ -328,7 +328,7 @@ fn search(lc: &LightCurve) -> Found {
     let best = result.best().expect("a box with a dip");
     Found {
         period: best.transit.period().as_days(),
-        t0: best.transit.transit_time().as_btjd(),
+        t0: best.transit.transit_time().as_days(),
         depth: best.fit.depth,
     }
 }
@@ -349,7 +349,7 @@ fn detrend_then_search() {
             .iter()
             .map(|w| curve.scale * curve.noise / w)
             .collect();
-        let theirs = LightCurve::from_btjd(b.time.clone(), flux, error).unwrap();
+        let theirs = LightCurve::from_days(b.time.clone(), flux, error).unwrap();
         let tc = curve.t_start + curve.tc;
         // Errors: period relative, mid-transit time in days (to the nearest
         // injected transit), depth relative.

@@ -14,7 +14,7 @@ use crate::{Epoch, LightCurveError, TimeDelta};
 /// ```
 /// use rustellar_core::LightCurve;
 ///
-/// let lc = LightCurve::from_btjd(vec![1.0, 2.0], vec![1.0, 0.99], vec![0.01, 0.01])?;
+/// let lc = LightCurve::from_days(vec![1.0, 2.0], vec![1.0, 0.99], vec![0.01, 0.01])?;
 /// assert_eq!(lc.flux(), &[1.0, 0.99]);
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
@@ -52,11 +52,11 @@ impl LightCurve {
     /// ```
     /// use rustellar_core::{Epoch, LightCurve, LightCurveError};
     ///
-    /// let time = vec![Epoch::from_btjd(1.0)?, Epoch::from_btjd(2.0)?];
+    /// let time = vec![Epoch::from_days(1.0)?, Epoch::from_days(2.0)?];
     /// let lc = LightCurve::new(time, vec![1.0, 0.99], vec![0.01, 0.01])?;
     /// assert_eq!(lc.len(), 2);
     ///
-    /// let unsorted = vec![Epoch::from_btjd(2.0)?, Epoch::from_btjd(1.0)?];
+    /// let unsorted = vec![Epoch::from_days(2.0)?, Epoch::from_days(1.0)?];
     /// let result = LightCurve::new(unsorted, vec![1.0, 1.0], vec![0.1, 0.1]);
     /// assert_eq!(result, Err(LightCurveError::NotSorted));
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -100,10 +100,11 @@ impl LightCurve {
         })
     }
 
-    /// Builds a light curve from times given as BTJD values.
+    /// Builds a light curve from times given as plain numbers of days, on
+    /// the data's own time scale (see [`Epoch`]).
     ///
-    /// The same as [`new`](Self::new), but takes plain numbers for time, as
-    /// read from a TESS light curve file.
+    /// The same as [`new`](Self::new), but takes the times as read from a
+    /// file.
     ///
     /// # Errors
     ///
@@ -116,18 +117,18 @@ impl LightCurve {
     /// ```
     /// use rustellar_core::LightCurve;
     ///
-    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0], vec![1.0, 0.99], vec![0.01, 0.01])?;
-    /// assert_eq!(lc.time()[1].as_btjd(), 2.0);
+    /// let lc = LightCurve::from_days(vec![1.0, 2.0], vec![1.0, 0.99], vec![0.01, 0.01])?;
+    /// assert_eq!(lc.time()[1].as_days(), 2.0);
     /// # Ok::<(), rustellar_core::LightCurveError>(())
     /// ```
-    pub fn from_btjd(
+    pub fn from_days(
         time: Vec<f64>,
         flux: Vec<f64>,
         flux_err: Vec<f64>,
     ) -> Result<Self, LightCurveError> {
         let time = time
             .into_iter()
-            .map(Epoch::from_btjd)
+            .map(Epoch::from_days)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|_| LightCurveError::NonFinite)?;
 
@@ -141,7 +142,7 @@ impl LightCurve {
     ///
     /// ```
     /// # use rustellar_core::LightCurve;
-    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let lc = LightCurve::from_days(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
     /// assert_eq!(lc.len(), 3);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -160,9 +161,9 @@ impl LightCurve {
     ///
     /// ```
     /// # use rustellar_core::LightCurve;
-    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
-    /// let btjd: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
-    /// assert_eq!(btjd, [1.0, 2.0, 3.0]);
+    /// let lc = LightCurve::from_days(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let days: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
+    /// assert_eq!(days, [1.0, 2.0, 3.0]);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     #[must_use]
@@ -176,7 +177,7 @@ impl LightCurve {
     ///
     /// ```
     /// # use rustellar_core::LightCurve;
-    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let lc = LightCurve::from_days(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
     /// assert_eq!(lc.flux(), &[1.0, 0.99, 1.0]);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -191,7 +192,7 @@ impl LightCurve {
     ///
     /// ```
     /// # use rustellar_core::LightCurve;
-    /// let lc = LightCurve::from_btjd(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let lc = LightCurve::from_days(vec![1.0, 2.0, 3.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
     /// assert_eq!(lc.flux_err(), &[0.01, 0.01, 0.01]);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -218,12 +219,12 @@ impl LightCurve {
     /// ```
     /// use rustellar_core::{TimeDelta, Epoch, LightCurve};
     ///
-    /// let lc = LightCurve::from_btjd(
+    /// let lc = LightCurve::from_days(
     ///     vec![0.0, 0.5, 1.0, 1.5],
     ///     vec![10.0, 11.0, 12.0, 13.0],
     ///     vec![0.1, 0.1, 0.1, 0.1],
     /// )?;
-    /// let folded = lc.fold(TimeDelta::from_days(2.0)?, Epoch::from_btjd(0.0)?)?;
+    /// let folded = lc.fold(TimeDelta::from_days(2.0)?, Epoch::from_days(0.0)?)?;
     /// assert_eq!(folded.phase(), &[-0.5, -0.25, 0.0, 0.25]);
     /// assert_eq!(folded.flux(), &[12.0, 13.0, 10.0, 11.0]);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -264,8 +265,8 @@ impl LightCurve {
 /// ```
 /// use rustellar_core::{Epoch, LightCurve, TimeDelta};
 ///
-/// let lc = LightCurve::from_btjd(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
-/// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_btjd(0.5)?)?;
+/// let lc = LightCurve::from_days(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+/// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_days(0.5)?)?;
 /// assert_eq!(folded.phase(), &[-0.5, -0.5, 0.0]);
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
@@ -283,8 +284,8 @@ impl FoldedLightCurve {
     ///
     /// ```
     /// # use rustellar_core::{Epoch, LightCurve, TimeDelta};
-    /// # let lc = LightCurve::from_btjd(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
-    /// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_btjd(0.5)?)?;
+    /// # let lc = LightCurve::from_days(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_days(0.5)?)?;
     /// // Times 0.0 and 1.0 are half a period from t0; 0.5 is at t0.
     /// assert_eq!(folded.phase(), &[-0.5, -0.5, 0.0]);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -300,8 +301,8 @@ impl FoldedLightCurve {
     ///
     /// ```
     /// # use rustellar_core::{Epoch, LightCurve, TimeDelta};
-    /// # let lc = LightCurve::from_btjd(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
-    /// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_btjd(0.5)?)?;
+    /// # let lc = LightCurve::from_days(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_days(0.5)?)?;
     /// assert_eq!(folded.flux(), &[1.0, 1.0, 0.99]);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
@@ -316,8 +317,8 @@ impl FoldedLightCurve {
     ///
     /// ```
     /// # use rustellar_core::{Epoch, LightCurve, TimeDelta};
-    /// # let lc = LightCurve::from_btjd(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
-    /// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_btjd(0.5)?)?;
+    /// # let lc = LightCurve::from_days(vec![0.0, 0.5, 1.0], vec![1.0, 0.99, 1.0], vec![0.01; 3])?;
+    /// let folded = lc.fold(TimeDelta::from_days(1.0)?, Epoch::from_days(0.5)?)?;
     /// assert_eq!(folded.flux_err(), &[0.01, 0.01, 0.01]);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```

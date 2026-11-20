@@ -11,12 +11,12 @@ use crate::{
     exact::Folded,
 };
 
-fn btjd(lc: &LightCurve) -> Vec<f64> {
-    lc.time().iter().map(|t| t.as_btjd()).collect()
+fn days_of(lc: &LightCurve) -> Vec<f64> {
+    lc.time().iter().map(|t| t.as_days()).collect()
 }
 
 fn dip() -> LightCurve {
-    LightCurve::from_btjd(
+    LightCurve::from_days(
         vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
         vec![1.0, 0.9, 0.9, 1.0, 1.0, 1.0],
         vec![1e-3; 6],
@@ -30,7 +30,7 @@ fn dip() -> LightCurve {
 fn best_of_the_durations() {
     let lc = dip();
     let weighted = Weighted::new(&lc).unwrap();
-    let folded = Folded::new(&btjd(&lc), &weighted, 10.0);
+    let folded = Folded::new(&days_of(&lc), &weighted, 10.0);
     let (duration, centre, fit) = folded
         .best_of(&weighted, &[0.5, 3.0, 12.0], Objective::DeltaChi2)
         .unwrap()
@@ -53,7 +53,7 @@ fn best_of_the_durations() {
 fn every_duration_too_long() {
     let lc = dip();
     let weighted = Weighted::new(&lc).unwrap();
-    let folded = Folded::new(&btjd(&lc), &weighted, 2.5);
+    let folded = Folded::new(&days_of(&lc), &weighted, 2.5);
     assert_eq!(
         folded
             .best_of(&weighted, &[2.5, 3.0], Objective::DeltaChi2)
@@ -89,7 +89,7 @@ fn dense(seed: u64, depth: f64) -> LightCurve {
         .collect();
     let mut err = vec![1e-3; n];
     err[n / 2] = 1e10;
-    LightCurve::from_btjd(time, flux, err).unwrap()
+    LightCurve::from_days(time, flux, err).unwrap()
 }
 
 // Every run that a box from `shortest` to `longest` days holds, scored from
@@ -101,7 +101,7 @@ fn every_run(
     longest: f64,
     objective: Objective,
 ) -> (usize, f64) {
-    let times = btjd(lc);
+    let times = days_of(lc);
     let weighted = Weighted::new(lc).unwrap();
     let n = times.len();
     let mut order: Vec<(f64, usize)> = times
@@ -163,7 +163,7 @@ fn skipping_blocks_finds_the_best_run(
     let (shortest, longest, period) = durations_period;
     let lc = dense(seed, depth);
     let weighted = Weighted::new(&lc).unwrap();
-    let folded = Folded::new(&btjd(&lc), &weighted, period);
+    let folded = Folded::new(&days_of(&lc), &weighted, period);
     let (_, _, fit) = folded
         .best_between(&weighted, shortest, longest, objective, 0.0)
         .unwrap()
@@ -180,7 +180,7 @@ fn skipping_blocks_finds_the_best_run(
 fn a_fold_of_many_orbits_finds_the_best_run() {
     let (shortest, longest, period) = (1e-9, 4e-8, 3e-7);
     let lc = dense(4, 0.0);
-    let times = btjd(&lc);
+    let times = days_of(&lc);
     let last = times[times.len() - 1] - times[0];
     assert!(!AtPeriod::new(period).short_up_to(last));
     let weighted = Weighted::new(&lc).unwrap();
@@ -216,7 +216,7 @@ fn a_bar_to_beat_keeps_the_best_run(
     let (shortest, longest, period) = durations_period;
     let lc = dense(seed, 1e-3);
     let weighted = Weighted::new(&lc).unwrap();
-    let folded = Folded::new(&btjd(&lc), &weighted, period);
+    let folded = Folded::new(&days_of(&lc), &weighted, period);
     let search = |beat| {
         folded
             .best_between(&weighted, shortest, longest, objective, beat)

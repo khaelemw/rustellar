@@ -12,10 +12,10 @@ fn days(d: f64) -> TimeDelta {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
-// 27 days every 10 minutes from BTJD 1500.
+// 27 days every 10 minutes from day 1500.
 fn times() -> Vec<f64> {
     (0..3888).map(|i| 1500.0 + f64::from(i) / 144.0).collect()
 }
@@ -44,7 +44,7 @@ fn a_limb_darkened_transit_comes_back() {
     let centre = 1.0 - p.flux_at(at(1501.3));
     for scale in [1.0, 2e4, 3e-5] {
         let flux: Vec<f64> = t.iter().map(|&x| scale * p.flux_at(at(x))).collect();
-        let lc = LightCurve::from_btjd(t.clone(), flux, vec![1e-3 * scale; t.len()]).unwrap();
+        let lc = LightCurve::from_days(t.clone(), flux, vec![1e-3 * scale; t.len()]).unwrap();
         let candidate = Candidate::new(days(3.7), at(1501.3 + 2.0 * 3.7), duration).unwrap();
         let fit = fit_depth(&lc, &candidate, Shape::default()).unwrap();
         assert!(
@@ -66,7 +66,7 @@ fn a_box_on_a_rounded_transit() {
     let p = planet();
     let t = times();
     let flux: Vec<f64> = t.iter().map(|&x| p.flux_at(at(x))).collect();
-    let lc = LightCurve::from_btjd(t.clone(), flux, vec![1e-4; t.len()]).unwrap();
+    let lc = LightCurve::from_days(t.clone(), flux, vec![1e-4; t.len()]).unwrap();
     let candidate = Candidate::new(days(3.7), at(1501.3), p.t14().unwrap()).unwrap();
     let shaped = fit_depth(&lc, &candidate, Shape::default()).unwrap();
     let boxed = fit_depth(&lc, &candidate, Shape::BOX).unwrap();
@@ -79,7 +79,7 @@ fn a_box_on_a_rounded_transit() {
 #[test]
 fn what_cannot_be_fitted() {
     let t: Vec<f64> = (0..100).map(|i| f64::from(i) / 100.0).collect();
-    let lc = LightCurve::from_btjd(t, vec![1.0; 100], vec![1e-3; 100]).unwrap();
+    let lc = LightCurve::from_days(t, vec![1.0; 100], vec![1e-3; 100]).unwrap();
     // No point within a transit at 5.5 (the light curve covers one day).
     let late = Candidate::new(days(10.0), at(5.5), days(0.2)).unwrap();
     assert_eq!(

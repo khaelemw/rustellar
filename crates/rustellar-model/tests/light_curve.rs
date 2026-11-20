@@ -19,7 +19,7 @@ const T0: f64 = 3_000.123_456;
 // independently.
 fn reference_transit(t0: f64) -> TransitParams {
     TransitParams::new(
-        Epoch::from_btjd(t0).unwrap(),
+        Epoch::from_days(t0).unwrap(),
         TimeDelta::from_days(PERIOD_DAYS).unwrap(),
         RadiusRatio::new(0.1).unwrap(),
         ScaledSemiMajorAxis::new(10.0).unwrap(),
@@ -30,7 +30,7 @@ fn reference_transit(t0: f64) -> TransitParams {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 // ==========================
@@ -108,7 +108,7 @@ fn flux_repeats_every_orbit(#[case] orbits: f64) {
 fn far_from_t0_matches_the_nearby_transit(#[case] orbits: f64) {
     let far = reference_transit(T0);
     let shift = TimeDelta::from_days(orbits * PERIOD_DAYS).unwrap();
-    let near = reference_transit((at(T0) + shift).as_btjd());
+    let near = reference_transit((at(T0) + shift).as_days());
 
     let mut worst: f64 = 0.0;
     for i in -100..=100 {
@@ -187,7 +187,7 @@ fn light_curve_of_no_times_is_empty() {
 fn light_curve_takes_times_from_a_light_curve() {
     let time: Vec<f64> = (0..50).map(|i| T0 - 0.1 + 0.004 * f64::from(i)).collect();
     let n = time.len();
-    let observed = LightCurve::from_btjd(time, vec![1.0; n], vec![0.001; n]).unwrap();
+    let observed = LightCurve::from_days(time, vec![1.0; n], vec![0.001; n]).unwrap();
 
     let model = reference_transit(T0).light_curve(observed.time());
 

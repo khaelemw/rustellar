@@ -35,14 +35,14 @@
 //! use rustellar::{Epoch, TimeDelta};
 //!
 //! let params = TransitParams::new(
-//!     Epoch::from_btjd(1000.0)?,
+//!     Epoch::from_days(1000.0)?,
 //!     TimeDelta::from_days(3.0)?,
 //!     RadiusRatio::new(0.1)?,
 //!     ScaledSemiMajorAxis::new(10.0)?,
 //!     ImpactParameter::new(0.3)?,
 //!     LimbDarkening::quadratic(0.3, 0.25)?,
 //! )?;
-//! assert!(params.flux_at(Epoch::from_btjd(1000.0)?) < 0.99);
+//! assert!(params.flux_at(Epoch::from_days(1000.0)?) < 0.99);
 //! # }
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```

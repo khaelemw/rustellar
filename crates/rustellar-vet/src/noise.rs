@@ -101,10 +101,10 @@ pub struct SignalToNoise {
 ///         1.0 + noise - if dip { 3e-3 } else { 0.0 }
 ///     })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 1728])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 1728])?;
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(0.75)?,
+///     Epoch::from_days(0.75)?,
 ///     TimeDelta::from_days(0.1)?,
 /// )?;
 /// let snr = signal_to_noise(&lc, &candidate, Shape::BOX)?;
@@ -121,7 +121,7 @@ pub fn signal_to_noise(
     let duration = candidate.duration().as_days();
     let profile = shape.profile(period, duration)?;
     let s = shapes(lc, candidate, &profile);
-    let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+    let times: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
     let Layout { epochs, predicted } = layout(&times, candidate);
     let (flux, err) = (lc.flux(), lc.flux_err());
     // One depth for all, then one for each transit.

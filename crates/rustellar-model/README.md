@@ -41,7 +41,7 @@ use rustellar_model::{
 };
 
 let params = TransitParams::new(
-    Epoch::from_btjd(1000.0)?,           // mid-transit time
+    Epoch::from_days(1000.0)?,           // mid-transit time
     TimeDelta::from_days(3.0)?,          // orbital period
     RadiusRatio::new(0.1)?,              // planet radius / star radius
     ScaledSemiMajorAxis::new(10.0)?,     // orbit radius / star radius
@@ -49,7 +49,7 @@ let params = TransitParams::new(
     LimbDarkening::quadratic(0.3, 0.25)?,
 )?;
 
-let flux = params.flux_at(Epoch::from_btjd(1000.0)?);
+let flux = params.flux_at(Epoch::from_days(1000.0)?);
 let t14 = params.t14().expect("this planet transits");
 ```
 

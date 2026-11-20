@@ -13,7 +13,7 @@ fn days(d: f64) -> TimeDelta {
 }
 
 fn curve(time: &[f64], flux: &[f64]) -> LightCurve {
-    LightCurve::from_btjd(time.to_vec(), flux.to_vec(), vec![0.5; time.len()]).unwrap()
+    LightCurve::from_days(time.to_vec(), flux.to_vec(), vec![0.5; time.len()]).unwrap()
 }
 
 /// xorshift64*: portable, so the data are the same everywhere.
@@ -422,7 +422,7 @@ fn the_break_tolerance_settings() {
 fn flattening() {
     let time = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75];
     let flux = [3.0, -3.0, 0.0, 0.0, 6.0, 6.0, 6.0];
-    let lc = LightCurve::from_btjd(time.to_vec(), flux.to_vec(), vec![0.3; 7]).unwrap();
+    let lc = LightCurve::from_days(time.to_vec(), flux.to_vec(), vec![0.3; 7]).unwrap();
     // Each point with its two neighbours (one at the ends).
     let d = Detrend::default()
         .with_method(Method::Mean)
@@ -444,7 +444,7 @@ fn flattening() {
     // by its magnitude.
     assert_eq!(flat.indices(), [2, 3, 4, 5, 6]);
     let lc = flat.light_curve();
-    assert_eq!(lc.time()[0].as_btjd(), 0.25);
+    assert_eq!(lc.time()[0].as_days(), 0.25);
     assert_eq!(lc.flux(), [-0.0, 0.0, 1.5, 1.0, 1.0]);
     assert_eq!(
         lc.flux_err(),
@@ -460,7 +460,7 @@ fn flattening() {
     assert_eq!(flat.indices(), [1, 2, 3]);
 
     // An error far below its trend underflows: left out.
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1e300, 1e300], vec![1e-300, 1.0]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1e300, 1e300], vec![1e-300, 1.0]).unwrap();
     let flat = Detrend::default().flatten(&lc, None).unwrap();
     assert_eq!(flat.indices(), [1]);
 
@@ -526,7 +526,7 @@ fn the_transit_mask_by_definition() {
         let mask = transit_mask(
             &lc,
             days(period),
-            Epoch::from_btjd(t0).unwrap(),
+            Epoch::from_days(t0).unwrap(),
             days(duration),
         )
         .unwrap();
@@ -551,14 +551,14 @@ fn the_transit_mask_edges_and_checks() {
     let time: Vec<f64> = (0..30).map(|i| f64::from(i) / 16.0).collect();
     let lc = curve(&time, &[1.0; 30]);
     let steps = |n: f64| days(n / 16.0);
-    let t0 = Epoch::from_btjd(5.0 / 16.0).unwrap();
+    let t0 = Epoch::from_days(5.0 / 16.0).unwrap();
     let mask = transit_mask(&lc, steps(8.0), t0, steps(4.0)).unwrap();
     let masked: Vec<usize> = (0..30).filter(|&i| mask[i]).collect();
     assert_eq!(masked, [4, 5, 6, 12, 13, 14, 20, 21, 22, 28, 29]);
     let mask = transit_mask(&lc, steps(8.0), t0, steps(4.0 + 1e-9)).unwrap();
     assert_eq!(mask.iter().filter(|&&m| m).count(), 11 + 7);
 
-    let t0 = Epoch::from_btjd(0.0).unwrap();
+    let t0 = Epoch::from_days(0.0).unwrap();
     for (period, duration, name) in [
         (0.0, 1.0, "period"),
         (-1.0, 1.0, "period"),

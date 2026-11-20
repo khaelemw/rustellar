@@ -206,13 +206,13 @@ impl Detrend {
     ///         (1.0 + 1e-3 * t) * if dip { 0.99 } else { 1.0 }
     ///     })
     ///     .collect();
-    /// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 576])?;
+    /// let lc = LightCurve::from_days(time, flux, vec![1e-3; 576])?;
     ///
     /// // A stand-in for a real search: always the same transit.
     /// let search = |_: &LightCurve| {
     ///     Some(Candidate {
     ///         period: TimeDelta::from_days(2.0).ok()?,
-    ///         t0: Epoch::from_btjd(0.5).ok()?,
+    ///         t0: Epoch::from_days(0.5).ok()?,
     ///         duration: TimeDelta::from_days(0.2).ok()?,
     ///     })
     /// };

@@ -61,7 +61,7 @@ fn regular(flux: &[f64]) -> LightCurve {
     let n = flux.len();
     #[expect(clippy::cast_precision_loss, reason = "small")]
     let time = (0..n).map(|i| i as f64 / 720.0).collect();
-    LightCurve::from_btjd(time, flux.to_vec(), vec![1e-3; n]).unwrap()
+    LightCurve::from_days(time, flux.to_vec(), vec![1e-3; n]).unwrap()
 }
 
 /// The largest error of `got` from `exact` in the prediction's terms (`c`,
@@ -165,7 +165,7 @@ fn residuals_by_definition_with_gaps() {
     let err: Vec<f64> = (0..n)
         .map(|i| 1e-3 + 1e-6 * f64::from(u32::try_from(i).unwrap()))
         .collect();
-    let lc = LightCurve::from_btjd(time, flux.clone(), err.clone()).unwrap();
+    let lc = LightCurve::from_days(time, flux.clone(), err.clone()).unwrap();
     let white = Autoregressive::default()
         .with_order(Order::Fixed(2))
         .whiten(&lc)
@@ -294,7 +294,7 @@ fn gapped() -> LightCurve {
         flux.push(1.0 + 1e-3 * noise + 5e-4 * (f64::from(i) / 40.0).sin());
     }
     let n = time.len();
-    LightCurve::from_btjd(time, flux, vec![1e-3; n]).unwrap()
+    LightCurve::from_days(time, flux, vec![1e-3; n]).unwrap()
 }
 
 #[test]
@@ -371,7 +371,7 @@ fn matched_errors_and_white_noise() {
     // Order 0: the residuals themselves, each point its own information.
     assert_eq!(matched.information(TimeDelta::from_days(0.1).unwrap()), 1.0);
     assert_eq!(matched.light_curve().flux(), white.light_curve().flux());
-    let short = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 1.0], vec![1.0; 2]).unwrap();
+    let short = LightCurve::from_days(vec![0.0, 1.0], vec![1.0, 1.0], vec![1.0; 2]).unwrap();
     assert_eq!(
         white.matched(&short).unwrap_err(),
         DetrendError::LightCurveMismatch
@@ -401,7 +401,7 @@ fn matched_errors_and_white_noise() {
     let flux: Vec<f64> = (0..51_u32)
         .map(|i| 1.0 + 1e-3 * f64::from(i * 7 % 11))
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 51]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 51]).unwrap();
     let white = Autoregressive::default()
         .with_order(Order::Fixed(1))
         .whiten(&lc)

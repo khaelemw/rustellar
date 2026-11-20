@@ -212,7 +212,7 @@ fn on_both(
 #[test]
 fn a_flat_curve_has_no_box() {
     let time: Vec<f64> = (0..2000).map(|i| 0.01 * f64::from(i)).collect();
-    let lc = LightCurve::from_btjd(time, vec![1.0; 2000], vec![1e-3; 2000]).unwrap();
+    let lc = LightCurve::from_days(time, vec![1.0; 2000], vec![1e-3; 2000]).unwrap();
     let bls = Bls::new(&lc).unwrap();
     let Some([gpu, cpu]) = on_both(
         &bls,
@@ -267,7 +267,7 @@ fn errors_are_the_cpus() {
     let flux: Vec<f64> = (0..40)
         .map(|i| if i % 9 == 4 { 0.0 } else { 1e5 })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-150; 40]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-150; 40]).unwrap();
     let bls = Bls::new(&lc).unwrap();
     for options in [
         SearchOptions::default(),

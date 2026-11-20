@@ -32,7 +32,7 @@ fn example_3() -> LightCurve {
         flux.push(v[1].parse().unwrap());
         flux_err.push(v[2].parse().unwrap());
     }
-    LightCurve::from_btjd(time, flux, flux_err).unwrap()
+    LightCurve::from_days(time, flux, flux_err).unwrap()
 }
 
 // astropy's slow search: each period and its snr.
@@ -180,8 +180,8 @@ fn snr_picks_the_same_boxes_as_delta_chi2() {
 fn one_error_for_every_point_is_unweighted() {
     let lc = example_3();
     let with_error = |sigma: f64| {
-        let time = lc.time().iter().map(|t| t.as_btjd()).collect();
-        LightCurve::from_btjd(time, lc.flux().to_vec(), vec![sigma; lc.len()]).unwrap()
+        let time = lc.time().iter().map(|t| t.as_days()).collect();
+        LightCurve::from_days(time, lc.flux().to_vec(), vec![sigma; lc.len()]).unwrap()
     };
     let search = |lc: &LightCurve| {
         let days: Vec<f64> = slow_power().iter().map(|s| s.0).collect();
@@ -293,7 +293,7 @@ fn default_options() {
 #[test]
 fn flat_flux_has_no_dip() {
     let time: Vec<f64> = (0..300).map(|i| 0.05 * f64::from(i)).collect();
-    let lc = LightCurve::from_btjd(time, vec![1.0; 300], vec![1e-3; 300]).unwrap();
+    let lc = LightCurve::from_days(time, vec![1.0; 300], vec![1e-3; 300]).unwrap();
     let result = Bls::new(&lc)
         .unwrap()
         .search(
@@ -310,7 +310,7 @@ fn flat_flux_has_no_dip() {
 
 #[test]
 fn one_point() {
-    let lc = LightCurve::from_btjd(vec![1325.0], vec![1.0], vec![1e-3]).unwrap();
+    let lc = LightCurve::from_days(vec![1325.0], vec![1.0], vec![1e-3]).unwrap();
     let result = Bls::new(&lc)
         .unwrap()
         .search(
@@ -342,7 +342,7 @@ fn duration_not_shorter_than_period() {
 #[case(122.070_4, Err(BlsError::TooManyBins))]
 #[case(1e300, Err(BlsError::TooManyBins))]
 fn too_many_bins(#[case] longest: f64, #[case] expected: Result<(), BlsError>) {
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 0.9], vec![1e-3; 2]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0, 0.9], vec![1e-3; 2]).unwrap();
     let options = SearchOptions::default()
         .with_oversample(NonZeroUsize::new(8).unwrap())
         .with_threads(NonZeroUsize::MIN);
@@ -359,7 +359,7 @@ fn too_many_bins(#[case] longest: f64, #[case] expected: Result<(), BlsError>) {
 
 #[test]
 fn weights_out_of_range() {
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-200, 1e-3]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-200, 1e-3]).unwrap();
     assert_eq!(Bls::new(&lc).unwrap_err(), BlsError::OutOfRange);
 }
 
@@ -368,7 +368,7 @@ fn weights_out_of_range() {
 #[rstest]
 fn statistics_that_overflow(#[values(1, 3)] n: usize) {
     let lc =
-        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
+        LightCurve::from_days(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
     assert_eq!(
         Bls::new(&lc).unwrap().search(
             &periods(&[5.0, 10.0, 20.0]),
@@ -386,7 +386,7 @@ fn statistics_that_overflow(#[values(1, 3)] n: usize) {
 // stops the search.
 #[rstest]
 fn refinement_that_overflows(#[values(1, 3)] n: usize) {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.09, 0.12, 0.14, 0.32, 0.35, 0.58, 0.73],
         vec![1e5, 0.0, 0.0, -1e5, 1e5, -1e5, 1e5],
         vec![1.0, 1e-150, 1.0, 1.0, 1.0, 1.0, 1.0],
@@ -406,7 +406,7 @@ fn without_the_cuda_feature_the_search_is_on_the_cpu() {
     use rustellar_bls::Device;
 
     let time: Vec<f64> = (0..400).map(|i| 0.05 * f64::from(i)).collect();
-    let lc = LightCurve::from_btjd(time, vec![1.0; 400], vec![1e-3; 400]).unwrap();
+    let lc = LightCurve::from_days(time, vec![1.0; 400], vec![1e-3; 400]).unwrap();
     let bls = Bls::new(&lc).unwrap();
     let periods = Periods::from_days(&[1.5, 2.0, 2.5]).unwrap();
     let durations = Durations::from_days(&[0.1]).unwrap();

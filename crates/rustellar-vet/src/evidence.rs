@@ -142,10 +142,10 @@ impl Evidence {
 ///         if (t - 0.75 - 3.0 * n).abs() < 0.05 { 1.0 - deep } else { 1.0 }
 ///     })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 1728])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 1728])?;
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(3.0)?,
-///     Epoch::from_btjd(0.75)?,
+///     Epoch::from_days(0.75)?,
 ///     TimeDelta::from_days(0.1)?,
 /// )?;
 ///
@@ -163,10 +163,10 @@ pub fn evidence(
 ) -> Result<Evidence, VetError> {
     let period = candidate.period().as_days();
     let duration = candidate.duration().as_days();
-    let t0 = candidate.transit_time().as_btjd();
+    let t0 = candidate.transit_time().as_days();
     let profile = shape.profile(period, duration)?;
     let s = shapes(lc, candidate, &profile);
-    let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+    let times: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
     let Layout { epochs, predicted } = layout(&times, candidate);
     let index = |n: i64| predicted.binary_search(&n).ok();
     // Each transit its own group.
@@ -182,7 +182,7 @@ pub fn evidence(
             let centre = t0 + n as f64 * period;
             Transit {
                 epoch: n,
-                time: Epoch::from_btjd(centre).expect("finite"),
+                time: Epoch::from_days(centre).expect("finite"),
                 points: each.points[k],
                 expected,
                 depth: each.depth(k),
@@ -263,7 +263,7 @@ pub(crate) struct Layout {
 pub(crate) fn layout(times: &[f64], candidate: &Candidate) -> Layout {
     let period = candidate.period().as_days();
     let duration = candidate.duration().as_days();
-    let t0 = candidate.transit_time().as_btjd();
+    let t0 = candidate.transit_time().as_days();
     let epochs: Vec<i64> = times
         .iter()
         .map(|&t| {

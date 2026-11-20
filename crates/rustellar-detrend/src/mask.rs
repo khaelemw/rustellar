@@ -30,12 +30,12 @@ use crate::DetrendError;
 ///     .iter()
 ///     .map(|&t| if ((t - 0.5) / 2.0 + 0.05).rem_euclid(1.0) < 0.1 { 0.99 } else { 1.0 })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 576])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 576])?;
 ///
 /// let mask = transit_mask(
 ///     &lc,
 ///     TimeDelta::from_days(2.0)?,
-///     Epoch::from_btjd(0.5)?,
+///     Epoch::from_days(0.5)?,
 ///     TimeDelta::from_days(0.25)?,
 /// )?;
 /// assert!(mask[72] && mask[360] && !mask[0]);

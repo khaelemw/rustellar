@@ -31,7 +31,7 @@ fn exposure(duration: f64, n: usize) -> Exposure {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 // A hot Jupiter: T14 is about 2.4 hours.

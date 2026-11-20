@@ -18,7 +18,7 @@ fn days(d: f64) -> TimeDelta {
 fn candidate(period: f64, t0: f64, duration: f64) -> Candidate {
     Candidate {
         period: days(period),
-        t0: Epoch::from_btjd(t0).unwrap(),
+        t0: Epoch::from_days(t0).unwrap(),
         duration: days(duration),
     }
 }
@@ -39,7 +39,7 @@ fn star() -> LightCurve {
             (1.0 + 0.01 * (2.0 * PI * t / 1.5).sin()) * transit + noise
         })
         .collect();
-    LightCurve::from_btjd(time, flux, vec![1e-4; 1152]).unwrap()
+    LightCurve::from_days(time, flux, vec![1e-4; 1152]).unwrap()
 }
 
 fn five() -> NonZeroUsize {
@@ -58,7 +58,7 @@ fn depth(lc: &LightCurve) -> f64 {
     let inside = transit_mask(
         lc,
         days(TRUE.0),
-        Epoch::from_btjd(TRUE.1).unwrap(),
+        Epoch::from_days(TRUE.1).unwrap(),
         days(0.14),
     )
     .unwrap();
@@ -185,7 +185,7 @@ fn the_same_candidate_twice_settles() {
     let mask = transit_mask(
         &lc,
         days(TRUE.0),
-        Epoch::from_btjd(TRUE.1).unwrap(),
+        Epoch::from_days(TRUE.1).unwrap(),
         days(TRUE.2 * MASK_PER_DURATION),
     )
     .unwrap();
@@ -224,7 +224,7 @@ fn a_moving_candidate_runs_out_of_rounds() {
     let mask = transit_mask(
         &lc,
         days(2.3),
-        Epoch::from_btjd(0.8).unwrap(),
+        Epoch::from_days(0.8).unwrap(),
         days(0.15 * MASK_PER_DURATION),
     )
     .unwrap();

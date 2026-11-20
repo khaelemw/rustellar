@@ -13,7 +13,7 @@ fn days(d: f64) -> TimeDelta {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 fn candidate(period: f64) -> Candidate {
@@ -122,7 +122,7 @@ fn suspect_settings_and_errors() {
 /// 10 days every 30 minutes.
 fn curve() -> LightCurve {
     let time: Vec<f64> = (0..480).map(|i| f64::from(i) / 48.0).collect();
-    LightCurve::from_btjd(time, vec![1.0; 480], vec![1e-3; 480]).unwrap()
+    LightCurve::from_days(time, vec![1.0; 480], vec![1e-3; 480]).unwrap()
 }
 
 #[test]
@@ -161,7 +161,7 @@ fn times_as_brute_force() {
             .iter()
             .enumerate()
             .filter(|(_, w)| {
-                w.start().as_btjd() < centre + 0.0625 && w.end().as_btjd() > centre - 0.0625
+                w.start().as_days() < centre + 0.0625 && w.end().as_days() > centre - 0.0625
             })
             .map(|(k, _)| k)
             .collect();

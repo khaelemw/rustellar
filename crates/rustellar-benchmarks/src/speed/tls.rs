@@ -45,9 +45,9 @@ fn sectors(seed: u64, count: u32, cadence: f64, n: u32) -> LightCurve {
         depth: 1e-3,
     }
     .light_curve();
-    let time = lc.time().iter().map(|t| t.as_btjd()).collect();
+    let time = lc.time().iter().map(|t| t.as_days()).collect();
     let flux = lc.flux().iter().map(|f| 1.0 + f).collect();
-    LightCurve::from_btjd(time, flux, lc.flux_err().to_vec()).expect("valid")
+    LightCurve::from_days(time, flux, lc.flux_err().to_vec()).expect("valid")
 }
 
 /// A case: its name (as in the reference file), the light curve, its

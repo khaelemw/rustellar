@@ -49,7 +49,7 @@ let flux = time
     .iter()
     .map(|t| if (t % 3.0 - 1.0).abs() < 0.075 { 0.995 } else { 1.0 })
     .collect();
-let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 960])?;
+let lc = LightCurve::from_days(time, flux, vec![1e-3; 960])?;
 
 // Ofir's (2014) optimal period grid for a Sun-like star.
 let periods = OfirPeriod::default().periods(&lc)?;

@@ -28,7 +28,7 @@ fn with_b(t0: f64, b: f64) -> TransitParams {
 
 fn orbit(t0: f64, k: f64, a_rs: f64, b: f64) -> TransitParams {
     TransitParams::new(
-        Epoch::from_btjd(t0).unwrap(),
+        Epoch::from_days(t0).unwrap(),
         TimeDelta::from_days(PERIOD_DAYS).unwrap(),
         RadiusRatio::new(k).unwrap(),
         ScaledSemiMajorAxis::new(a_rs).unwrap(),
@@ -39,7 +39,7 @@ fn orbit(t0: f64, k: f64, a_rs: f64, b: f64) -> TransitParams {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 // ==========================

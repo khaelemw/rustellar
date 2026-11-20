@@ -13,7 +13,7 @@ fn days(d: f64) -> TimeDelta {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 // A small deterministic generator (SplitMix64) and normal draws.
@@ -51,7 +51,7 @@ fn planet() -> TransitParams {
     .unwrap()
 }
 
-// 12 days every 30 minutes from BTJD 1500, the planet's transits in white
+// 12 days every 30 minutes from day 1500, the planet's transits in white
 // noise of `noise`.
 fn light_curve(seed: u64, noise: f64) -> LightCurve {
     let p = planet();
@@ -61,13 +61,13 @@ fn light_curve(seed: u64, noise: f64) -> LightCurve {
         .iter()
         .map(|&t| p.flux_at(at(t)) + noise * r.normal())
         .collect();
-    LightCurve::from_btjd(time, flux, vec![noise.max(1e-6); 576]).unwrap()
+    LightCurve::from_days(time, flux, vec![noise.max(1e-6); 576]).unwrap()
 }
 
 // The best drop in chi-squared on a dense grid of mid-transit times (within
 // half a duration) and durations (half to twice), by plain fits.
 fn dense(lc: &LightCurve, c: &Candidate, shape: Shape, steps: u32) -> f64 {
-    let (t0, d) = (c.transit_time().as_btjd(), c.duration().as_days());
+    let (t0, d) = (c.transit_time().as_days(), c.duration().as_days());
     let mut best = f64::NEG_INFINITY;
     for a in 0..=steps {
         let shift = d * (f64::from(a) / f64::from(steps) - 0.5);
@@ -101,7 +101,7 @@ fn the_box_beats_every_grid_point() {
             refined.fit.delta_chi2
         );
         // Within the ranges.
-        let shift = refined.candidate.transit_time().as_btjd() - c.transit_time().as_btjd();
+        let shift = refined.candidate.transit_time().as_days() - c.transit_time().as_days();
         let length = refined.candidate.duration().as_days();
         assert!(shift.abs() <= 0.04 && (0.04..=0.16).contains(&length));
         assert_eq!(refined.candidate.depth(), Some(refined.fit.depth));
@@ -144,7 +144,7 @@ fn a_long_transit_over_a_gap() {
         })
         .collect();
     let n = time.len();
-    let lc = LightCurve::from_btjd(time, flux, vec![4e-4; n]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![4e-4; n]).unwrap();
     let c = Candidate::new(days(1.0), at(0.5), days(0.3)).unwrap();
     let refined = refine(&lc, &c, Shape::default()).unwrap();
     let grid = dense(&lc, &c, Shape::default(), 80);
@@ -164,7 +164,7 @@ fn the_truth_from_a_candidate_off() {
     let truth = p.t14().unwrap().as_days();
     let c = Candidate::new(days(3.7), at(1501.3 + 0.3 * truth), days(1.4 * truth)).unwrap();
     let refined = refine(&lc, &c, Shape::default()).unwrap();
-    let t0 = refined.candidate.transit_time().as_btjd();
+    let t0 = refined.candidate.transit_time().as_days();
     let length = refined.candidate.duration().as_days();
     assert!((t0 - 1501.3).abs() < 2e-5, "{t0}");
     assert!((length / truth - 1.0).abs() < 1e-3, "{length} {truth}");
@@ -175,7 +175,7 @@ fn the_truth_from_a_candidate_off() {
 #[test]
 fn no_dip_to_find() {
     let time: Vec<f64> = (0..200).map(|i| f64::from(i) / 48.0).collect();
-    let flat = LightCurve::from_btjd(time.clone(), vec![1.0; 200], vec![1e-3; 200]).unwrap();
+    let flat = LightCurve::from_days(time.clone(), vec![1.0; 200], vec![1e-3; 200]).unwrap();
     let c = Candidate::new(days(1.0), at(0.5), days(0.1)).unwrap();
     for shape in [Shape::BOX, Shape::default()] {
         assert_eq!(refine(&flat, &c, shape), Err(VetError::NoPointsInTransit));
@@ -198,7 +198,7 @@ fn a_run_of_every_point_is_no_box() {
         .iter()
         .map(|&t| if (t - 0.5).abs() < 0.3 { 0.99 } else { 1.0 })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 48]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 48]).unwrap();
     let c = Candidate::new(days(1.0), at(0.5), days(0.6)).unwrap();
     let refined = refine(&lc, &c, Shape::BOX).unwrap();
     assert!(refined.fit.points_in_transit < 48);

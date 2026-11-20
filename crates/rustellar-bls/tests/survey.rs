@@ -140,7 +140,7 @@ fn compare(curve: &Curve, astropy: &[&Astropy]) -> Vec<Row> {
             let fast_box = TransitBox::new(
                 days(a.period),
                 days(a.fast_duration),
-                Epoch::from_btjd(a.fast_transit_time).unwrap(),
+                Epoch::from_days(a.fast_transit_time).unwrap(),
             )
             .unwrap();
             Row {

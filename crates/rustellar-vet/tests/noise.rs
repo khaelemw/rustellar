@@ -14,7 +14,7 @@ fn days(d: f64) -> TimeDelta {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 struct Random(u64);
@@ -52,7 +52,7 @@ fn planet() -> TransitParams {
     .unwrap()
 }
 
-// 27 days every 10 minutes from BTJD 1500.
+// 27 days every 10 minutes from day 1500.
 fn times() -> Vec<f64> {
     (0..3888).map(|i| 1500.0 + f64::from(i) / 144.0).collect()
 }
@@ -75,7 +75,7 @@ fn curve(flux: impl Fn(f64) -> f64, white: f64, red: f64, seed: u64) -> LightCur
         })
         .collect();
     let n = time.len();
-    LightCurve::from_btjd(time, f, vec![white; n]).unwrap()
+    LightCurve::from_days(time, f, vec![white; n]).unwrap()
 }
 
 fn candidate() -> Candidate {
@@ -96,7 +96,7 @@ fn a_noiseless_planet() {
     let p = planet();
     let time = times();
     let flux: Vec<f64> = time.iter().map(|&t| p.flux_at(at(t))).collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 3888]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 3888]).unwrap();
     let s = signal_to_noise(&lc, &candidate(), Shape::default()).unwrap();
     let centre = 1.0 - p.flux_at(at(1501.3));
     assert!((s.depth / centre - 1.0).abs() < 1e-10);
@@ -223,7 +223,7 @@ fn a_single_event() {
 
 #[test]
 fn what_cannot_be_measured() {
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-3; 2]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-3; 2]).unwrap();
     let late = Candidate::new(days(10.0), at(5.0), days(0.1)).unwrap();
     assert_eq!(
         signal_to_noise(&lc, &late, Shape::BOX),
@@ -235,7 +235,7 @@ fn what_cannot_be_measured() {
         Err(VetError::DurationTooLongForShape)
     );
     // Two points, one in transit: one transit, nothing to compare.
-    let two = LightCurve::from_btjd(vec![0.0, 0.5], vec![0.99, 1.0], vec![1e-3; 2]).unwrap();
+    let two = LightCurve::from_days(vec![0.0, 0.5], vec![0.99, 1.0], vec![1e-3; 2]).unwrap();
     let c = Candidate::new(days(10.0), at(0.0), days(0.1)).unwrap();
     let s = signal_to_noise(&two, &c, Shape::BOX).unwrap();
     assert_eq!((s.transits.len(), s.consistency_dof), (1, 0));

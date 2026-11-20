@@ -240,7 +240,7 @@ pub fn export(cases: &[Case]) -> String {
         let (lc, shape) = inject(case);
         let t14 = case.transit.t14().expect("a transit").as_days();
         for ((t, f), s) in lc.time().iter().zip(lc.flux()).zip(&shape) {
-            let _ = writeln!(out, "{},{t14:?},{:?},{f:?},{s:?}", case.seed, t.as_btjd());
+            let _ = writeln!(out, "{},{t14:?},{:?},{f:?},{s:?}", case.seed, t.as_days());
         }
     }
     out
@@ -287,7 +287,7 @@ pub fn search_flattened(lines: impl Iterator<Item = String>, threads: NonZeroUsi
                 scope.spawn(move || {
                     part.iter()
                         .map(|(seed, method, factor, t, f)| {
-                            let lc = rustellar_core::LightCurve::from_btjd(
+                            let lc = rustellar_core::LightCurve::from_days(
                                 t.clone(),
                                 f.clone(),
                                 vec![1e-3; t.len()],

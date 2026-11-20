@@ -13,8 +13,8 @@ use crate::{
     refine::{peaks, refine},
 };
 
-fn btjd(lc: &LightCurve) -> Vec<f64> {
-    lc.time().iter().map(|t| t.as_btjd()).collect()
+fn days_of(lc: &LightCurve) -> Vec<f64> {
+    lc.time().iter().map(|t| t.as_days()).collect()
 }
 
 #[rstest]
@@ -57,7 +57,7 @@ fn equals_the_exact_search_at_each_period() {
         depth: 3e-3,
     }
     .light_curve();
-    let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
+    let times: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
     let weighted = Weighted::new(&lc).unwrap();
     let periods: Vec<f64> = (0..400).map(|i| 1.0 + 9.0 * f64::from(i) / 399.0).collect();
     let durations = [0.05, 0.08, 0.12, 0.16];
@@ -79,7 +79,7 @@ fn equals_the_exact_search_at_each_period() {
         .collect();
     let top = peaks(&power, 3);
     let refined = refine(
-        &btjd(&lc),
+        &days_of(&lc),
         &weighted,
         &periods,
         &durations,
@@ -151,7 +151,7 @@ fn equals_the_exact_search_at_each_period() {
         let refit = TransitBox::new(
             days(r.days),
             days(r.duration),
-            Epoch::from_btjd(times[0] + r.centre).unwrap(),
+            Epoch::from_days(times[0] + r.centre).unwrap(),
         )
         .unwrap()
         .fit(&lc)
@@ -174,12 +174,12 @@ fn reach_stops_at_the_ends() {
         .iter()
         .map(|t| if (t - 1325.0) % 2.0 < 0.1 { 0.99 } else { 1.0 })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 200]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 200]).unwrap();
     let weighted = Weighted::new(&lc).unwrap();
     let periods = [1.9, 2.0, 2.1];
     // The 3-day duration is longer than every period, and is skipped.
     let refined = refine(
-        &btjd(&lc),
+        &days_of(&lc),
         &weighted,
         &periods,
         &[0.1, 3.0],
@@ -194,8 +194,8 @@ fn reach_stops_at_the_ends() {
         assert_eq!((r.period, r.duration), (1, 0.1));
     }
     // Flat flux: no box has a dip, and no peak is kept.
-    let flat = LightCurve::from_btjd(
-        lc.time().iter().map(|t| t.as_btjd()).collect(),
+    let flat = LightCurve::from_days(
+        lc.time().iter().map(|t| t.as_days()).collect(),
         vec![1.0; 200],
         vec![1e-3; 200],
     )
@@ -203,7 +203,7 @@ fn reach_stops_at_the_ends() {
     let weighted = Weighted::new(&flat).unwrap();
     assert!(
         refine(
-            &btjd(&flat),
+            &days_of(&flat),
             &weighted,
             &periods,
             &[0.1],
@@ -226,10 +226,10 @@ fn periods_near_a_peak_without_a_box() {
     let flux = (0..20)
         .map(|i| if i % 5 == 0 { 0.99 } else { 1.0 })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 20]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 20]).unwrap();
     let weighted = Weighted::new(&lc).unwrap();
     let refined = refine(
-        &btjd(&lc),
+        &days_of(&lc),
         &weighted,
         &[0.4, 1.0, 5.0],
         &[0.5],
@@ -253,10 +253,10 @@ fn refined_period_without_a_box() {
     let flux = (0..30)
         .map(|i| if i % 3 == 0 { 0.99 } else { 1.0 })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 30]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 30]).unwrap();
     let weighted = Weighted::new(&lc).unwrap();
     let refined = refine(
-        &btjd(&lc),
+        &days_of(&lc),
         &weighted,
         &[0.5, 1.5],
         &[0.2],
@@ -276,11 +276,11 @@ fn refined_period_without_a_box() {
 #[test]
 fn statistics_that_overflow() {
     let lc =
-        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
+        LightCurve::from_days(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
     let weighted = Weighted::new(&lc).unwrap();
     assert_eq!(
         refine(
-            &btjd(&lc),
+            &days_of(&lc),
             &weighted,
             &[10.0],
             &[0.5],
@@ -304,14 +304,14 @@ fn statistics_that_overflow() {
 // box fits.
 #[test]
 fn second_step_overflows() {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.09, 0.12, 0.14, 0.32, 0.35, 0.58, 0.73],
         vec![1e5, 0.0, 0.0, -1e5, 1e5, -1e5, 1e5],
         vec![1.0, 1e-150, 1.0, 1.0, 1.0, 1.0, 1.0],
     )
     .unwrap();
     let weighted = Weighted::new(&lc).unwrap();
-    let folded = crate::exact::Folded::new(&btjd(&lc), &weighted, 1.0);
+    let folded = crate::exact::Folded::new(&days_of(&lc), &weighted, 1.0);
     assert!(
         folded
             .best_of(&weighted, &[0.2, 0.3], Objective::DeltaChi2)
@@ -320,7 +320,7 @@ fn second_step_overflows() {
     );
     assert_eq!(
         refine(
-            &btjd(&lc),
+            &days_of(&lc),
             &weighted,
             &[1.0],
             &[0.2, 0.3],
@@ -350,7 +350,7 @@ fn same_on_any_number_of_threads(#[values(2, 3, 7, 64)] threads: usize) {
         depth: 2e-3,
     }
     .light_curve();
-    let times = btjd(&lc);
+    let times = days_of(&lc);
     let weighted = Weighted::new(&lc).unwrap();
     let periods: Vec<f64> = (0..60).map(|i| 1.5 + 0.03 * f64::from(i)).collect();
     let durations = [0.05, 0.1, 0.2];

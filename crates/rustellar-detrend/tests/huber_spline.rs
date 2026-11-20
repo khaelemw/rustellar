@@ -67,7 +67,7 @@ fn detrend(window: f64, tolerance: BreakTolerance, c: f64) -> Detrend {
 
 fn trend(c: &Case) -> Vec<Option<f64>> {
     let n = c.time.len();
-    let lc = LightCurve::from_btjd(c.time.clone(), c.flux.clone(), vec![1.0; n]).unwrap();
+    let lc = LightCurve::from_days(c.time.clone(), c.flux.clone(), vec![1.0; n]).unwrap();
     detrend(c.window, BreakTolerance::Fixed(days(c.tolerance)), c.c)
         .trend(&lc, Some(&c.masked))
         .unwrap()
@@ -132,7 +132,7 @@ fn flares_and_dips_pull_less() {
             star(t) + flare - dip + noise
         })
         .collect();
-    let lc = LightCurve::from_btjd(time.clone(), flux, vec![1e-3; 2160]).unwrap();
+    let lc = LightCurve::from_days(time.clone(), flux, vec![1e-3; 2160]).unwrap();
     let worst = |method| {
         Detrend::default()
             .with_method(method)
@@ -156,7 +156,7 @@ fn flares_and_dips_pull_less() {
 // the plain spline to rounding.
 #[test]
 fn no_scatter_stops_the_loop() {
-    let lc = LightCurve::from_btjd(
+    let lc = LightCurve::from_days(
         vec![0.0, 0.3, 0.5, 1.0],
         vec![1.0, 3.0, -2.0, 5.0],
         vec![1.0; 4],
@@ -181,7 +181,7 @@ fn no_scatter_stops_the_loop() {
 
 #[test]
 fn c_is_checked() {
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0; 2], vec![1.0; 2]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0; 2], vec![1.0; 2]).unwrap();
     for c in [0.0, -1.0, f64::NAN, 1e31] {
         assert_eq!(
             detrend(1.0, BreakTolerance::Never, c).trend(&lc, None),
@@ -196,7 +196,7 @@ fn c_is_checked() {
 #[test]
 fn no_scale_and_a_tiny_c() {
     let time: Vec<f64> = (0..200).map(|i| f64::from(i) * 0.01).collect();
-    let zero = LightCurve::from_btjd(time.clone(), vec![0.0; 200], vec![1.0; 200]).unwrap();
+    let zero = LightCurve::from_days(time.clone(), vec![0.0; 200], vec![1.0; 200]).unwrap();
     let got = detrend(0.5, BreakTolerance::Never, 1.345)
         .trend(&zero, None)
         .unwrap();
@@ -207,7 +207,7 @@ fn no_scale_and_a_tiny_c() {
         .enumerate()
         .map(|(i, &t)| star(t) + if i % 2 == 0 { 1e-4 } else { -1e-4 })
         .collect();
-    let lc = LightCurve::from_btjd(time.clone(), flux, vec![1.0; 200]).unwrap();
+    let lc = LightCurve::from_days(time.clone(), flux, vec![1.0; 200]).unwrap();
     let got = detrend(0.5, BreakTolerance::Never, 1e-30)
         .trend(&lc, None)
         .unwrap();

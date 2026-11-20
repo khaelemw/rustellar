@@ -82,7 +82,7 @@ fn a_noiseless_transit_is_fitted() {
 fn a_planet_is_fitted() {
     let (k, b, a) = (0.06, 0.4, 12.0);
     let params = TransitParams::new(
-        Epoch::from_btjd(1.3).unwrap(),
+        Epoch::from_days(1.3).unwrap(),
         TimeDelta::from_days(3.1).unwrap(),
         RadiusRatio::new(k).unwrap(),
         ScaledSemiMajorAxis::new(a).unwrap(),
@@ -93,7 +93,7 @@ fn a_planet_is_fitted() {
     let t14 = params.t14().unwrap().as_days();
     let mut random = Random::new(2);
     let p = points(&mut random, 1.0 / 720.0, 5e-4, |t| {
-        1.0 - params.flux_at(Epoch::from_btjd(t).unwrap())
+        1.0 - params.flux_at(Epoch::from_days(t).unwrap())
     });
     let start = Position {
         period: 3.1,

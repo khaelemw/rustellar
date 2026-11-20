@@ -56,7 +56,7 @@ let flux: Vec<f64> = time
     .iter()
     .map(|&t| (1.0 + 0.01 * t) * if dip(t) { 0.995 } else { 1.0 })
     .collect();
-let lc = LightCurve::from_btjd(time.clone(), flux, vec![1e-3; 1440])?;
+let lc = LightCurve::from_days(time.clone(), flux, vec![1e-3; 1440])?;
 
 // Mask the dip so the trend passes under it.
 let mask: Vec<bool> = time.iter().map(|&t| dip(t)).collect();

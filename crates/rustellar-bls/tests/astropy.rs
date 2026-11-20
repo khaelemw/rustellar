@@ -63,7 +63,7 @@ fn in_bins(b: &BestBox, bin: f64) -> usize {
 /// The box's start and end, in days of phase from the first point (its
 /// mid-transit time is within one period after it).
 fn phase_span(lc: &LightCurve, b: &BestBox) -> (f64, f64) {
-    let centre = b.transit.transit_time().as_btjd() - lc.time()[0].as_btjd();
+    let centre = b.transit.transit_time().as_days() - lc.time()[0].as_days();
     let half = 0.5 * b.transit.duration().as_days();
     (centre - half, centre + half)
 }
@@ -336,7 +336,7 @@ fn injected() -> Vec<Errors> {
                 .unwrap();
             let ours = result.best().expect("a box with a dip");
             let ours_time = at_middle(
-                ours.transit.transit_time().as_btjd(),
+                ours.transit.transit_time().as_days(),
                 ours.transit.period().as_days(),
             );
             let theirs_time = at_middle(f(7), f(6));

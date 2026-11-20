@@ -53,13 +53,13 @@ fn curve(
         })
         .collect();
     let n = time.len();
-    LightCurve::from_btjd(time, flux, vec![noise.max(1e-6); n]).unwrap()
+    LightCurve::from_days(time, flux, vec![noise.max(1e-6); n]).unwrap()
 }
 
 fn candidate() -> Candidate {
     Candidate::new(
         TimeDelta::from_days(P).unwrap(),
-        Epoch::from_btjd(T0).unwrap(),
+        Epoch::from_days(T0).unwrap(),
         TimeDelta::from_days(0.1).unwrap(),
     )
     .unwrap()
@@ -158,14 +158,14 @@ fn none_or_errors() {
             .unwrap()
             .is_empty()
     );
-    let empty = LightCurve::from_btjd(vec![0.2, 0.3], vec![1.0; 2], vec![1e-3; 2]).unwrap();
+    let empty = LightCurve::from_days(vec![0.2, 0.3], vec![1.0; 2], vec![1e-3; 2]).unwrap();
     assert_eq!(
         multiples(&empty, &candidate(), Shape::BOX, 3),
         Err(VetError::NoPointsInTransit)
     );
     let long = Candidate::new(
         TimeDelta::from_days(P).unwrap(),
-        Epoch::from_btjd(T0).unwrap(),
+        Epoch::from_days(T0).unwrap(),
         TimeDelta::from_days(1.5).unwrap(),
     )
     .unwrap();

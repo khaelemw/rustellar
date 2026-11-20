@@ -17,7 +17,7 @@ use crate::VetError;
 ///
 /// let candidate = Candidate::new(
 ///     TimeDelta::from_days(4.7)?,
-///     Epoch::from_btjd(1326.3)?,
+///     Epoch::from_days(1326.3)?,
 ///     TimeDelta::from_hours(2.9)?,
 /// )?
 /// .with_depth(1e-3)?;
@@ -116,7 +116,7 @@ impl Candidate {
     ///
     /// let c = Candidate::new(
     ///     TimeDelta::from_days(3.0)?,
-    ///     Epoch::from_btjd(0.0)?,
+    ///     Epoch::from_days(0.0)?,
     ///     TimeDelta::from_days(0.15)?,
     /// )?;
     /// assert!((c.duty_cycle() - 0.05).abs() < 1e-15);

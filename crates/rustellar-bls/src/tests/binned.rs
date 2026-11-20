@@ -85,11 +85,11 @@ fn equals_fitting_each_box_point_by_point() {
                 err.push(1e-3 * (0.5 + rng.unit()));
             }
         }
-        let lc = LightCurve::from_btjd(time, flux, err).unwrap();
+        let lc = LightCurve::from_days(time, flux, err).unwrap();
         let ours = binned(&lc, period, &durations, 4).unwrap();
         holds_its_own_points(&lc, &ours, period);
 
-        let first = lc.time()[0].as_btjd();
+        let first = lc.time()[0].as_days();
         let mut best = 0.0_f64;
         for &d in &durations {
             let k = (d / bin).round();
@@ -98,7 +98,7 @@ fn equals_fitting_each_box_point_by_point() {
                 let transit = TransitBox::new(
                     TimeDelta::from_days(period).unwrap(),
                     TimeDelta::from_days(d).unwrap(),
-                    Epoch::from_btjd(centre).unwrap(),
+                    Epoch::from_days(centre).unwrap(),
                 )
                 .unwrap();
                 if let Ok(fit) = transit.fit(&lc) {
@@ -125,7 +125,7 @@ fn a_box_of_every_bin_is_skipped() {
         .iter()
         .map(|t| if t % 1.0 < 0.2 { 0.99 } else { 1.0 })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 40]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 40]).unwrap();
     let both = binned(&lc, 1.0, &[0.25, 1.0], 1).unwrap();
     assert_eq!(both, binned(&lc, 1.0, &[0.25], 1).unwrap());
     assert_eq!((both.start, both.bins, both.duration), (0, 1, 0));
@@ -135,7 +135,7 @@ fn a_box_of_every_bin_is_skipped() {
 #[test]
 fn statistics_that_overflow() {
     let lc =
-        LightCurve::from_btjd(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
+        LightCurve::from_days(vec![0.0, 1.0, 2.0], vec![1e5, 0.0, 1e5], vec![1e-150; 3]).unwrap();
     assert_eq!(
         best_binned(
             &Weighted::new(&lc).unwrap(),
@@ -247,7 +247,7 @@ fn below_the_exact_search_by_at_most_half_a_bin() {
                     }
                 })
                 .collect();
-            let lc = LightCurve::from_btjd(time.clone(), flux, vec![1e-3; time.len()]).unwrap();
+            let lc = LightCurve::from_days(time.clone(), flux, vec![1e-3; time.len()]).unwrap();
             let duration = transit * (0.6 + 0.8 * rng.unit());
             let ours = binned(&lc, period, &[duration], oversample).unwrap();
             let length = ours.bins as f64 * ours.bin;
@@ -269,7 +269,7 @@ fn below_the_exact_search_by_at_most_half_a_bin() {
 #[test]
 fn flat_flux_has_no_dip() {
     let time: Vec<f64> = (0..50).map(|i| 0.1 * f64::from(i)).collect();
-    let lc = LightCurve::from_btjd(time, vec![1.0; 50], vec![1e-3; 50]).unwrap();
+    let lc = LightCurve::from_days(time, vec![1.0; 50], vec![1e-3; 50]).unwrap();
     assert_eq!(binned(&lc, 1.3, &[0.2], 4), None);
 }
 
@@ -297,7 +297,7 @@ fn a_box_with_most_of_the_weight() {
         flux.push(f);
         err.push(e);
     }
-    let lc = LightCurve::from_btjd(time, flux, err).unwrap();
+    let lc = LightCurve::from_days(time, flux, err).unwrap();
     let ours = binned(&lc, 1.0, &[0.25], 5).unwrap();
     let total: f64 = lc.flux_err().iter().map(|e| 1.0 / (e * e)).sum();
     assert!(ours.fit.weight_in > 0.5 * total, "{ours:?}");
@@ -311,7 +311,7 @@ fn a_box_with_most_of_the_weight() {
 // about 5e309. The search picks the box by delta_chi2; its fit overflows.
 #[test]
 fn best_box_whose_fit_overflows() {
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![0.0, 1e5], vec![1e-150, 1.0]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![0.0, 1e5], vec![1e-150, 1.0]).unwrap();
     assert_eq!(
         best_binned(
             &Weighted::new(&lc).unwrap(),
@@ -493,7 +493,7 @@ fn skipping_finds_the_brute_forces_box() {
         .iter()
         .map(|_| 1e-3 * (0.8 + 0.4 * random.unit()))
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, error).unwrap();
+    let lc = LightCurve::from_days(time, flux, error).unwrap();
     let durations = [0.01, 0.04, 0.08, 0.15, 0.3];
     let mut windows = [0, 0];
     for objective in [
@@ -538,7 +538,7 @@ fn bins_of_many_orbits_find_the_brute_forces_box() {
         .iter()
         .map(|_| 1.0 + 1e-3 * (random.unit() - 0.5))
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 2000]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 2000]).unwrap();
     let (period, durations) = (2e-6, [2e-7, 5e-7]);
     let weighted = Weighted::new(&lc).unwrap();
     let last = weighted.elapsed.last().unwrap().0;
@@ -640,7 +640,7 @@ fn the_best_boxs_points_are_the_eager_ones() {
                     })
                     .collect();
                 let error = vec![1e-3; time.len()];
-                let lc = LightCurve::from_btjd(time.clone(), flux, error).unwrap();
+                let lc = LightCurve::from_days(time.clone(), flux, error).unwrap();
                 let weighted = Weighted::new(&lc).unwrap();
                 let m = bin_count(period, &durations, 10) as usize;
                 windows[usize::from(m > WINDOW)] += 1;

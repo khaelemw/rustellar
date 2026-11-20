@@ -45,7 +45,7 @@ fn allocations_do_not_grow_with_the_periods() {
         .iter()
         .map(|t| if t % 2.7 < 0.1 { 0.995 } else { 1.0 })
         .collect();
-    let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 3000]).unwrap();
+    let lc = LightCurve::from_days(time, flux, vec![1e-3; 3000]).unwrap();
     let bls = Bls::new(&lc).unwrap();
     let durations = Durations::from_days(&[0.05, 0.1, 0.2]).unwrap();
     // The same longest period, so the same bins.

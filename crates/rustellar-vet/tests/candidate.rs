@@ -8,7 +8,7 @@ fn days(d: f64) -> TimeDelta {
 }
 
 fn at(t: f64) -> Epoch {
-    Epoch::from_btjd(t).unwrap()
+    Epoch::from_days(t).unwrap()
 }
 
 #[test]
@@ -88,7 +88,7 @@ fn dips() -> LightCurve {
             }
         })
         .collect();
-    LightCurve::from_btjd(time, flux, vec![1e-3; 576]).unwrap()
+    LightCurve::from_days(time, flux, vec![1e-3; 576]).unwrap()
 }
 
 #[cfg(feature = "bls")]

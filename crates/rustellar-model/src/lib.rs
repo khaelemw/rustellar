@@ -17,7 +17,7 @@
 //! };
 //!
 //! let params = TransitParams::new(
-//!     Epoch::from_btjd(1000.0)?,           // mid-transit time
+//!     Epoch::from_days(1000.0)?,           // mid-transit time
 //!     TimeDelta::from_days(3.0)?,          // orbital period
 //!     RadiusRatio::new(0.1)?,              // planet radius / star radius
 //!     ScaledSemiMajorAxis::new(10.0)?,     // orbit radius / star radius
@@ -26,7 +26,7 @@
 //! )?;
 //!
 //! let times: Vec<Epoch> = (-50..=50)
-//!     .map(|i| Epoch::from_btjd(1000.0 + 0.002 * f64::from(i)))
+//!     .map(|i| Epoch::from_days(1000.0 + 0.002 * f64::from(i)))
 //!     .collect::<Result<_, _>>()?;
 //! let flux = params.light_curve(&times);
 //!
@@ -63,7 +63,7 @@
 //!
 //! - Lengths are in stellar radii: the separation `z`, the radius ratio `k`,
 //!   the impact parameter `b`, and the semi-major axis `a_rs`.
-//! - Times are [`Epoch`]s (BJD_TDB) and
+//! - Times are [`Epoch`]s (days on the data's own time scale) and
 //!   [`TimeDelta`]s, so units cannot be mixed up.
 //! - Flux is relative to the star's flux out of transit: 1 out of transit,
 //!   and never outside `[0, 1]`.

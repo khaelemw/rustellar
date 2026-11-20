@@ -61,7 +61,7 @@ fn days(d: f64) -> TimeDelta {
 
 fn trend(c: &Case) -> Vec<Option<f64>> {
     let n = c.time.len();
-    let lc = LightCurve::from_btjd(c.time.clone(), c.flux.clone(), vec![1.0; n]).unwrap();
+    let lc = LightCurve::from_days(c.time.clone(), c.flux.clone(), vec![1.0; n]).unwrap();
     let tolerance = if c.tolerance.is_infinite() {
         BreakTolerance::Never
     } else {
@@ -122,7 +122,7 @@ fn against_scipy_and_the_exact_spline() {
 }
 
 fn spline(time: &[f64], flux: &[f64], window: f64, mask: Option<&[bool]>) -> Vec<Option<f64>> {
-    let lc = LightCurve::from_btjd(time.to_vec(), flux.to_vec(), vec![1.0; time.len()]).unwrap();
+    let lc = LightCurve::from_days(time.to_vec(), flux.to_vec(), vec![1.0; time.len()]).unwrap();
     Detrend::default()
         .with_method(Method::Spline)
         .with_window(days(window))
@@ -217,7 +217,7 @@ fn few_points() {
 fn segments_and_edges() {
     let time = [0.0, 0.1, 0.2, 0.3, 5.0, 9.0, 9.1, 9.2];
     let flux = [1.0, 2.0, 3.0, 4.0, 7.0, 1.0, 1.5, 2.0];
-    let lc = LightCurve::from_btjd(time.to_vec(), flux.to_vec(), vec![1.0; 8]).unwrap();
+    let lc = LightCurve::from_days(time.to_vec(), flux.to_vec(), vec![1.0; 8]).unwrap();
     let masked = [false, false, false, false, false, true, true, true];
     let d = Detrend::default()
         .with_method(Method::Spline)
@@ -239,7 +239,7 @@ fn segments_and_edges() {
 
 #[test]
 fn the_window_is_checked() {
-    let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0; 2], vec![1.0; 2]).unwrap();
+    let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0; 2], vec![1.0; 2]).unwrap();
     let d = Detrend::default()
         .with_method(Method::Spline)
         .with_window(days(-1.0));

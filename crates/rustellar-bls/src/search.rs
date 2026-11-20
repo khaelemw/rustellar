@@ -59,7 +59,7 @@ impl Objective {
     /// use rustellar_bls::{Objective, TransitBox};
     /// use rustellar_core::{Device, Epoch, LightCurve, Periods, TimeDelta};
     ///
-    /// let lc = LightCurve::from_btjd(
+    /// let lc = LightCurve::from_days(
     ///     vec![0.0, 1.0, 2.0, 3.0],
     ///     vec![1.0, 0.99, 1.0, 1.0],
     ///     vec![1e-3; 4],
@@ -67,7 +67,7 @@ impl Objective {
     /// let transit = TransitBox::new(
     ///     TimeDelta::from_days(10.0)?,
     ///     TimeDelta::from_days(0.5)?,
-    ///     Epoch::from_btjd(1.0)?,
+    ///     Epoch::from_days(1.0)?,
     /// )?;
     /// let fit = transit.fit(&lc)?;
     /// assert_eq!(Objective::Snr.of(&fit), fit.snr);
@@ -447,7 +447,7 @@ pub(crate) fn prepare(
 ///     .iter()
 ///     .map(|t| if (t % 3.0 - 1.0).abs() < 0.075 { 0.995 } else { 1.0 })
 ///     .collect();
-/// let lc = LightCurve::from_btjd(time, flux, vec![1e-3; 960])?;
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 960])?;
 ///
 /// let periods: Vec<f64> = (0..200).map(|k| 2.0 + 0.01 * f64::from(k)).collect();
 /// let result = Bls::new(&lc)?.search(
@@ -491,14 +491,14 @@ impl Bls {
     /// use rustellar_bls::{Bls, BlsError};
     /// use rustellar_core::LightCurve;
     ///
-    /// let lc = LightCurve::from_btjd(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-200, 1e-3])?;
+    /// let lc = LightCurve::from_days(vec![0.0, 1.0], vec![1.0, 1.0], vec![1e-200, 1e-3])?;
     /// assert_eq!(Bls::new(&lc).unwrap_err(), BlsError::OutOfRange);
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn new(lc: &LightCurve) -> Result<Self, BlsError> {
         Ok(Self {
             first: lc.time()[0],
-            times: lc.time().iter().map(|t| t.as_btjd()).collect(),
+            times: lc.time().iter().map(|t| t.as_days()).collect(),
             weighted: Weighted::new(lc)?,
             #[cfg(feature = "cuda")]
             gpus: GpuCache::default(),
@@ -572,7 +572,7 @@ impl Bls {
     /// use rustellar_core::LightCurve;
     ///
     /// let time: Vec<f64> = (0..100).map(|i| 0.1 * f64::from(i)).collect();
-    /// let lc = LightCurve::from_btjd(time, vec![1.0; 100], vec![1e-3; 100])?;
+    /// let lc = LightCurve::from_days(time, vec![1.0; 100], vec![1e-3; 100])?;
     /// let bls = Bls::new(&lc)?;
     /// let durations = Durations::from_days(&[0.2])?;
     /// let options = SearchOptions::default();
