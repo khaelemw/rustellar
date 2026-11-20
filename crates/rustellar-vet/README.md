@@ -103,6 +103,27 @@ to settle, and the table is right on 1 of them. For one depth and one
 baseline the lowest chi-squared is the highest signal to noise, so
 choosing by either gives the same row.
 
+## Odd and even depths against exovetter
+
+On the same 200 light curves of a planet (27 days at 2 minutes, a 3e-3
+box transit every 3 days, white noise of 1e-3) and one eclipsing binary
+whose alternate depths differ by 10% (about 3.8 standard errors), the odd
+and even significance of `evidence` and of exovetter 0.0.16's
+`calc_odd_even`:
+
+| | rustellar-vet | exovetter 0.0.16 |
+|---|---|---|
+| Planets: mean absolute significance (a standard normal: 0.80) | 0.79 | 0.052 |
+| Planets: spread of the significance (should be 1) | 1.03 | 0.04 |
+| Binary | -3.75 | 0.21 |
+
+exovetter takes the scatter of single points as each depth's error rather
+than the error of the depth, so its significance is too small by about
+the square root of the points in a transit, and the binary does not
+stand out. rustellar-vet's depths are fitted with their standard errors
+and the shared baseline's correlation, so its significance is a standard
+normal for a planet.
+
 ## Speed
 
 Milliseconds on one thread of an AMD Ryzen 7 5700G, for a 3.7-day planet
