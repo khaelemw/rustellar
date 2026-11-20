@@ -16,6 +16,11 @@ All notable changes to this crate are recorded here. The format follows
   exactly; the same results, to the bit, on any number of threads.
 - `Detrend::flatten` and `Flattened`: the light curve divided by its trend,
   with the original index of each point kept.
+- `Method::HuberJoint`: Huber's proposal 2, the location and scale
+  estimated together (statsmodels' `Huber`, wotan's `method='huber'`),
+  solved exactly: each split of the points solved as a quadratic, the last
+  in double-double, with bisection on the scale where the splits do not
+  settle.
 - `transit_mask`: the points within half a duration of a candidate's
   mid-transit times, to detrend again with its transits left out.
 - `Detrend::with_window_for_transit` and `WINDOW_PER_DURATION` (2.5): a

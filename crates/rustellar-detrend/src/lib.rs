@@ -44,6 +44,7 @@ mod detrend;
 mod double;
 mod error;
 mod exact_sum;
+mod huber_joint;
 mod location;
 mod m_estimate;
 mod mask;

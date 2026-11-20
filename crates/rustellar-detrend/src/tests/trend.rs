@@ -5,6 +5,7 @@
 use super::Random;
 use crate::{
     exact_sum::ExactSum,
+    huber_joint::{JointScratch, gamma, huber_joint},
     location::{Location, median},
     m_estimate::{Scratch, biweight, solve},
     order::{Rows, hodges_lehmann, trimmed_mean, winsorized_mean},
@@ -129,15 +130,18 @@ const LOCATIONS: [Location; 4] = [
     Location::Biweight(3.0),
 ];
 
-const MORE_LOCATIONS: [Location; 7] = [
-    Location::Welsch(2.11),
-    Location::Andrews(1.339),
-    Location::Huber(1.28),
-    Location::HodgesLehmann,
-    Location::Trimmed(0.1),
-    Location::Winsorized(0.1),
-    Location::Winsorized(0.3),
-];
+fn more_locations() -> [Location; 8] {
+    [
+        Location::Welsch(2.11),
+        Location::Andrews(1.339),
+        Location::Huber(1.28),
+        Location::HodgesLehmann,
+        Location::Trimmed(0.1),
+        Location::Winsorized(0.1),
+        Location::Winsorized(0.3),
+        Location::HuberJoint(1.5, gamma(1.5)),
+    ]
+}
 
 // The location of one window by itself, sorted afresh.
 fn alone(location: Location, values: &mut [f64]) -> f64 {
@@ -157,6 +161,9 @@ fn alone(location: Location, values: &mut [f64]) -> f64 {
         Location::HodgesLehmann => hodges_lehmann(values, &mut Rows::default(), &mut sum),
         Location::Trimmed(p) => trimmed_mean(values, p, &mut sum),
         Location::Winsorized(p) => winsorized_mean(values, p, &mut sum),
+        Location::HuberJoint(c, gamma) => {
+            huber_joint(values, &mut JointScratch::default(), c, gamma)
+        }
     }
 }
 
@@ -165,7 +172,7 @@ fn any_number_of_threads() {
     let (times, flux, masked) = curve(0x5eed_0401, 3000);
     for edges in [Edges::Symmetric, Edges::HalfOpen] {
         let o = options(0.5, 0.25, 0.1, edges);
-        for location in LOCATIONS.into_iter().chain(MORE_LOCATIONS) {
+        for location in LOCATIONS.into_iter().chain(more_locations()) {
             let one = trend(&times, &flux, Some(&masked), &o, location, 1);
             for threads in [2, 3, 7, 16, 5000] {
                 let many = trend(&times, &flux, Some(&masked), &o, location, threads);
@@ -190,7 +197,7 @@ fn the_sliding_window_is_each_window_alone() {
         };
         let o = options(0.1 + 0.1 * seed as f64, 0.3, 0.02, edges);
         let w = windows(&times, Some(&masked), &o);
-        for location in LOCATIONS.into_iter().chain(MORE_LOCATIONS) {
+        for location in LOCATIONS.into_iter().chain(more_locations()) {
             let found = trend(&times, &flux, Some(&masked), &o, location, 1);
             for (i, window) in w.windows.iter().enumerate() {
                 let expected = window.clone().filter(|r| !r.is_empty()).map(|r| {
@@ -242,11 +249,31 @@ fn fingerprint_of_the_other_locations() {
     for seed in 0..4 {
         let (times, flux, masked) = curve(0x5eed_0420 + seed, 2000);
         let o = options(0.3, 0.15, 0.0, Edges::Symmetric);
-        for location in MORE_LOCATIONS {
-            for value in trend(&times, &flux, Some(&masked), &o, location, 4) {
+        for location in &more_locations()[..7] {
+            for value in trend(&times, &flux, Some(&masked), &o, *location, 4) {
                 eat(value.map_or(u64::MAX, f64::to_bits));
             }
         }
     }
     assert_eq!(hash, 0x3c8d0198dc77db6b, "fingerprint {hash:#018x}");
+}
+
+// And Huber's proposal 2's own.
+#[test]
+fn fingerprint_of_huber_joint() {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut eat = |x: u64| {
+        for byte in x.to_le_bytes() {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3);
+        }
+    };
+    for seed in 0..4 {
+        let (times, flux, masked) = curve(0x5eed_0420 + seed, 2000);
+        let o = options(0.3, 0.15, 0.0, Edges::Symmetric);
+        let location = Location::HuberJoint(1.5, gamma(1.5));
+        for value in trend(&times, &flux, Some(&masked), &o, location, 4) {
+            eat(value.map_or(u64::MAX, f64::to_bits));
+        }
+    }
+    assert_eq!(hash, 0x8a9980a3bf5ab8de, "fingerprint {hash:#018x}");
 }

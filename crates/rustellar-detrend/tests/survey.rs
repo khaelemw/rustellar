@@ -1,8 +1,9 @@
 //! Survey-scale light curves (a TESS sector at 2-minute cadence, a fast
 //! rotator, counts, a faint star, a Kepler quarter) with spots, drift,
 //! flares, noise and transits: the trend at sampled points against the
-//! biweight and Huber roots at 50 digits and against wotan's, and the
-//! transits found after detrending, ours and wotan's. Heavy: run with
+//! biweight and Huber roots at 50 digits and Huber's proposal 2 at 60,
+//! and against wotan's; and the transits found after detrending, ours and
+//! wotan's. Heavy: run with
 //! `cargo test --release -p rustellar-detrend --test survey -- --ignored`.
 
 use std::num::NonZeroUsize;
@@ -20,6 +21,7 @@ use recipe::{Built, Curve, curves, fingerprint};
 const WINDOWS: &str = include_str!("reference/survey_windows.csv");
 const WOTAN: &str = include_str!("reference/survey_wotan.csv");
 const HUBER: &str = include_str!("reference/survey_huber.csv");
+const HUBER_JOINT: &str = include_str!("reference/survey_huber_joint.csv");
 
 /// Each curve built and checked against the reference data's fingerprint.
 fn built() -> Vec<(Curve, Built)> {
@@ -241,6 +243,57 @@ fn the_survey_huber_at_fifty_digits() {
         "{certain} of {seen}"
     );
     assert_eq!(wotan_nearest, 0);
+}
+
+/// Huber's proposal 2 (c 1.5): the exact solution of its two equations on
+/// the crate's window at 60 digits, which ours is within about 1e-30 of,
+/// so the nearest double; wotan's `method='huber'` (statsmodels, iterated
+/// to a tolerance) against the exact solution on its own window.
+#[test]
+#[ignore = "heavy: survey-scale light curves"]
+fn the_survey_huber_joint_at_sixty_digits() {
+    let (mut seen, mut nearest) = (0, 0);
+    let (mut wotan_nearest, mut wotan_rel) = (0, 0.0f64);
+    for (curve, b) in built() {
+        let lc = curve.light_curve(&b.time, &b.flux);
+        let trend = curve
+            .detrend()
+            .with_method(Method::HuberJoint { c: 1.5 })
+            .trend(&lc, None)
+            .unwrap();
+        for line in HUBER_JOINT.lines().filter(|l| !l.starts_with('#')).skip(1) {
+            let f: Vec<&str> = line.split(',').collect();
+            if f[0] != curve.name {
+                continue;
+            }
+            let x = |k: usize| f[k].parse::<f64>().unwrap();
+            let i: usize = f[1].parse().unwrap();
+            let e: i32 = f[2].parse().unwrap();
+            let (hi, lo, wotan) = (x(3), x(4), x(6));
+            let scale = 2f64.powi(-e);
+            let ours = trend[i].expect("a trend at every point");
+            let error = |t: f64| ((t * scale - hi) - lo).abs();
+            let unit = ulp(hi);
+            assert!(
+                error(ours) <= 0.5 * unit + 1e-28 * hi.abs(),
+                "{} point {i}: {:.3} ulp",
+                curve.name,
+                error(ours) / unit
+            );
+            seen += 1;
+            nearest += usize::from(error(ours) <= 0.5 * unit);
+            let (w_hi, w_lo) = (x(8), x(9));
+            let w_error = ((wotan * scale - w_hi) - w_lo).abs();
+            wotan_nearest += usize::from(w_error <= 0.5 * ulp(w_hi));
+            wotan_rel = wotan_rel.max(w_error / w_hi.abs());
+        }
+    }
+    eprintln!(
+        "Huber proposal 2, {seen} windows: ours the nearest double at {nearest}; wotan's \
+         the nearest of its own window's solution at {wotan_nearest}, worst {wotan_rel:.2e} relative"
+    );
+    assert!(seen > 1_000 && nearest == seen, "{nearest} of {seen}");
+    assert!(wotan_nearest * 10 < seen);
 }
 
 // The search's durations, days.

@@ -5,8 +5,9 @@ the instrument estimated and divided out before a transit search. The method
 is a time-windowed sliding filter, by default Tukey's biweight (Hippke et al.
 2019), solved to full double precision, with every point in the windows
 that cover it and the same results on any number of threads. Welsch's,
-Andrews' and Huber's M-estimators, the Hodges-Lehmann estimator, the
-trimmed and winsorized means, the median and the mean are there too.
+Andrews' and Huber's M-estimators, Huber's proposal 2 (location and scale
+together, as wotan's `huber`), the Hodges-Lehmann estimator, the trimmed
+and winsorized means, the median and the mean are there too.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `detrend` feature.
@@ -91,11 +92,12 @@ its rounding doubt, and the nearest double wherever that doubt is small
 (all but a few windows with roots very near zero, ties and multiple roots);
 the order estimators to the bit. wotan is never nearer.
 
-**wotan's `huber`.** At the same 1,477 points, wotan's `huber` against the
-exact solution of proposal 2's equations on its own window: the nearest
-double at 7, worst relative error 1.9e-9, up to 1.8e-6 of the scale
-(statsmodels stops at a tolerance of 1e-6 of the scale). It never fell back
-to the median there.
+**Huber's proposal 2** (`Method::HuberJoint`, c 1.5), against the exact
+solution of its two equations at 60 digits: this crate's the nearest
+double at all 1,477 points; wotan's `huber` (statsmodels, which stops at a
+tolerance of 1e-6 of the scale), against the solution on its own window,
+at 7, worst relative error 1.9e-9. It never fell back to the median
+there.
 
 **Detrend then search.** The five curves flattened by this crate's trend
 and by wotan's, then searched with rustellar-bls: both find every transit
@@ -165,14 +167,15 @@ Each method on the 2-minute sector, one thread (wotan's default settings):
 | Biweight | 0.185 | 0.095 |
 | Welsch | 0.331 | 0.216 |
 | Andrews' sine wave | 0.333 | 0.210 |
-| Huber | 10.6 (proposal 2) | 0.076 |
+| Huber (fixed scale) | - | 0.076 |
+| Huber's proposal 2 | 10.6 | 0.155 |
 | Hodges-Lehmann | 9.76 | 0.97 |
 | Trimmed mean | 0.202 | 0.018 |
 | Winsorized mean | 0.202 | 0.021 |
 
-wotan's `huber` is a different estimator: statsmodels' proposal 2, which
-estimates the scale with the location (c 1.5); this crate's Huber uses a
-fixed scale, c times the MAD (c 1.28, as wotan's `huber_psi`).
+`Method::Huber` uses a fixed scale, c times the MAD (c 1.28, as wotan's
+`huber_psi`); `Method::HuberJoint` estimates the scale with the location,
+as wotan's `huber`.
 
 `cargo bench -p rustellar-detrend` runs these.
 

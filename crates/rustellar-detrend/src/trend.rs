@@ -4,6 +4,7 @@ use std::ops::Range;
 
 use crate::{
     exact_sum::ExactSum,
+    huber_joint::{JointScratch, huber_joint},
     location::{Location, midpoint},
     m_estimate::{Scratch, solve},
     order::{Rows, hodges_lehmann, trimmed_mean, winsorized_mean},
@@ -68,6 +69,7 @@ fn locate(
             let mut scratch = Scratch::default();
             let mut rows = Rows::default();
             let mut sum = ExactSum::default();
+            let mut joint = JointScratch::default();
             for (window, out) in windows.iter().zip(out) {
                 *out = nonempty(window).map(|window| {
                     sorted.slide(kept, &window);
@@ -77,6 +79,7 @@ fn locate(
                         Location::Welsch(c) => solve::<Welsch>(values, &mut scratch, c),
                         Location::Andrews(c) => solve::<Andrews>(values, &mut scratch, c),
                         Location::Huber(c) => solve::<Huber>(values, &mut scratch, c),
+                        Location::HuberJoint(c, gamma) => huber_joint(values, &mut joint, c, gamma),
                         Location::HodgesLehmann => hodges_lehmann(values, &mut rows, &mut sum),
                         Location::Trimmed(p) => trimmed_mean(values, p, &mut sum),
                         Location::Winsorized(p) => winsorized_mean(values, p, &mut sum),

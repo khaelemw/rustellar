@@ -103,11 +103,12 @@ fn the_defaults() {
 fn the_checks_in_order() {
     let lc = curve(&[1.0, 2.0], &[1.0, 2.0]);
     let check = |d: Detrend, mask: Option<&[bool]>| d.trend(&lc, mask).err();
-    let tuned: [fn(f64) -> Method; 4] = [
+    let tuned: [fn(f64) -> Method; 5] = [
         |c| Method::Biweight { c },
         |c| Method::Welsch { c },
         |c| Method::AndrewsSineWave { c },
         |c| Method::Huber { c },
+        |c| Method::HuberJoint { c },
     ];
     for method in tuned {
         let tuning = |c| Detrend::default().with_method(method(c));
@@ -302,12 +303,13 @@ fn the_median_and_mean_by_definition() {
 }
 
 // Every method but the median and mean (checked by definition above).
-const ESTIMATORS: [Method; 9] = [
+const ESTIMATORS: [Method; 10] = [
     Method::Biweight { c: 5.0 },
     Method::Biweight { c: 3.0 },
     Method::Welsch { c: 2.11 },
     Method::AndrewsSineWave { c: 1.339 },
     Method::Huber { c: 1.28 },
+    Method::HuberJoint { c: 1.5 },
     Method::HodgesLehmann,
     Method::TrimmedMean { proportion: 0.1 },
     Method::WinsorizedMean { proportion: 0.1 },

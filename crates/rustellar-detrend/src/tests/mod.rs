@@ -2,6 +2,7 @@
 mod biweight;
 mod estimators;
 mod exact_sum;
+mod huber_joint;
 mod location;
 mod trend;
 mod window;

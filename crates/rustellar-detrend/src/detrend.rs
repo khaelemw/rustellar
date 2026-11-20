@@ -7,6 +7,7 @@ use rustellar_core::{LightCurve, TimeDelta};
 
 use crate::{
     DetrendError,
+    huber_joint::gamma,
     location::Location,
     trend::trend,
     window::{Edges, WindowOptions},
@@ -75,6 +76,19 @@ pub enum Method {
     /// single step from the median instead.
     Huber {
         /// The tuning constant, in median absolute deviations.
+        c: f64,
+    },
+    /// Huber's proposal 2 (Huber 1964): the location and the scale `s`
+    /// estimated together, points beyond `c s` from the location counted
+    /// as if at `c s`, `s` normalised to the standard deviation of normal
+    /// data (with `n - 1`). The estimator of statsmodels' `Huber` and
+    /// wotan's `method='huber'` (both with `c` 1.5, `c` here from `1e-30`
+    /// to `1e30`), but solved exactly where they stop at a tolerance: the
+    /// location to about 1e-30 of the solution, so the nearest double
+    /// almost always. A window whose values are mostly equal can have
+    /// scale 0, and then the location is that value.
+    HuberJoint {
+        /// The tuning constant, in scales.
         c: f64,
     },
     /// The Hodges-Lehmann estimator: the median of the averages of every
@@ -476,6 +490,7 @@ impl Detrend {
             Method::Welsch { c } => Location::Welsch(tuning(c)?),
             Method::AndrewsSineWave { c } => Location::Andrews(tuning(c)?),
             Method::Huber { c } => Location::Huber(tuning(c)?),
+            Method::HuberJoint { c } => Location::HuberJoint(tuning(c)?, gamma(c)),
             Method::Median => Location::Median,
             Method::Mean => Location::Mean,
             Method::HodgesLehmann => Location::HodgesLehmann,

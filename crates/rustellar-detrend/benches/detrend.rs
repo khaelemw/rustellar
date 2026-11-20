@@ -69,6 +69,7 @@ fn detrend(c: &mut Criterion) {
         ("welsch", Method::Welsch { c: 2.11 }),
         ("andrews", Method::AndrewsSineWave { c: 1.339 }),
         ("huber", Method::Huber { c: 1.28 }),
+        ("huber-joint", Method::HuberJoint { c: 1.5 }),
         ("hodges-lehmann", Method::HodgesLehmann),
         ("trimmed", Method::TrimmedMean { proportion: 0.1 }),
         ("winsorized", Method::WinsorizedMean { proportion: 0.1 }),

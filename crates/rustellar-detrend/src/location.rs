@@ -19,6 +19,9 @@ pub(crate) enum Location {
     Andrews(f64),
     /// Huber's M-estimator, `c` in MADs.
     Huber(f64),
+    /// Huber's proposal 2 with tuning constant `c` (in scales) and its
+    /// `gamma(c)`.
+    HuberJoint(f64, crate::double::Double),
     /// The Hodges-Lehmann estimator, correctly rounded.
     HodgesLehmann,
     /// The mean without the proportion `p` at each end, correctly rounded.
