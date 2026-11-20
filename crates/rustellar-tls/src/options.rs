@@ -154,13 +154,16 @@ impl Stars {
 #[non_exhaustive]
 pub enum Method {
     /// The template's sums once per duration at a grid of times, each
-    /// period then summing its transits': about five times faster than
-    /// [`Method::Fold`] on one thread, and the only one on a GPU.
+    /// period then summing its transits': 2.5 to 13 times faster than
+    /// [`Method::Fold`] on 16 threads, the most at high cadence, and the
+    /// only one on a GPU.
     #[default]
     Cells,
     /// TLS's way: each period's light curve folded and the template swept
-    /// along it, over durations that are fractions of the period. On the
-    /// CPU only.
+    /// along it, over durations that are fractions of the period. Where a
+    /// transit holds more points than the sweep has bins (at 2-minute
+    /// cadence), the folded points are binned first: every period's best
+    /// fit within 0.1% of the unbinned one. On the CPU only.
     Fold,
 }
 

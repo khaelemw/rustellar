@@ -5,9 +5,9 @@
 use std::num::NonZeroUsize;
 
 use super::{Random, light_curve};
-use crate::durations::{Constants, Stars};
+use crate::durations::{Constants, Stars, grid};
 use crate::exact::best;
-use crate::fast::{PeriodBest, Scratch, Search, Settings, Table};
+use crate::fast::{Binning, PeriodBest, Scratch, Search, Settings, Table};
 use crate::fit::{Points, Position, fit};
 use crate::template::Template;
 
@@ -45,6 +45,7 @@ fn search<'a>(
             stars,
             ..settings(steps)
         },
+        binning: Binning::Never,
         flat_chi2: points.flat_chi2(),
         origin,
         span: points.time[points.time.len() - 1] - origin,
@@ -128,15 +129,27 @@ fn its_sums_are_the_exact_fits_at_its_own_trial_times() {
 
 // The trial times are a grid, so the fast search loses a little of the
 // best gain, less the finer the grid: on these 10 noisy transits at most
-// 2.8%, 1.6%, 0.31% and 0.11% with 10, 25, 50 and 100 trial times per
-// duration. The peaks are refined exactly later.
+// 2.8%, 1.6%, 0.31% and 0.10% with 10, 25, 50 and 100 trial times per
+// duration (binned: 3.0%, 1.5%, 0.31%, 0.10%). Unbinned it never beats the
+// oracle; binned, its sums are a slope's approximation, and overstate the
+// gain by at most 8e-6 of it here. The peaks are refined exactly later.
 #[test]
 fn close_to_the_oracle() {
     let template = Template::tls_default();
     let table = Table::new(&template, SAMPLES);
-    for (steps, bound) in [(10, 0.03), (25, 0.02), (50, 0.004), (100, 0.0015)] {
+    for (steps, bound, binning, over) in [
+        (10, 0.03, Binning::Never, 1e-6),
+        (10, 0.031, Binning::Always, 2e-5),
+        (25, 0.02, Binning::Never, 1e-6),
+        (25, 0.02, Binning::Always, 2e-5),
+        (50, 0.004, Binning::Never, 1e-6),
+        (50, 0.004, Binning::Always, 2e-5),
+        (100, 0.0015, Binning::Never, 1e-6),
+        (100, 0.0015, Binning::Always, 2e-5),
+    ] {
         let mut random = Random::new(22);
         let mut worst: f64 = 0.0;
+        let mut below: f64 = 0.0;
         for _ in 0..10 {
             let period = random.between(0.8, 5.0);
             let duration = random.between(0.02, 0.1) * period;
@@ -154,17 +167,18 @@ fn close_to_the_oracle() {
                 (0.0, 20.0, 1.0 / 144.0),
             );
             let fractions = [duration / period];
-            let found =
-                search(&points, &table, &fractions, steps).period(period, &mut Scratch::default());
+            let found = Search {
+                binning,
+                ..search(&points, &table, &fractions, steps)
+            }
+            .period(period, &mut Scratch::default());
             let oracle = best(&points, &template, period, duration, 20);
             let gain = points.flat_chi2() - oracle.fit.chi2;
             worst = worst.max((found.chi2 - oracle.fit.chi2) / gain);
-            assert!(
-                found.chi2 >= oracle.fit.chi2 - 1e-6 * gain,
-                "{found:?} {oracle:?}"
-            );
+            below = below.max((oracle.fit.chi2 - found.chi2) / gain);
         }
-        assert!(worst <= bound, "{steps}: {worst}");
+        assert!(worst <= bound, "{steps} {binning:?}: {worst}");
+        assert!(below <= over, "{steps} {binning:?}: {below}");
     }
 }
 
@@ -173,7 +187,10 @@ fn a_noiseless_transit_across_the_folds_ends() {
     let template = Template::tls_default();
     let table = Table::new(&template, SAMPLES);
     let mut random = Random::new(23);
-    for t0 in [0.0, 1e-7, 1.999_999_9, 0.5] {
+    for (t0, binning) in [0.0, 1e-7, 1.999_999_9, 0.5]
+        .into_iter()
+        .flat_map(|t0| [(t0, Binning::Never), (t0, Binning::Always)])
+    {
         let position = Position {
             period: 2.0,
             duration: 0.1,
@@ -188,12 +205,16 @@ fn a_noiseless_transit_across_the_folds_ends() {
             (0.0, 27.0, 1.0 / 720.0),
         );
         let fractions = [0.05];
-        let found = search(&points, &table, &fractions, 25).period(2.0, &mut Scratch::default());
+        let found = Search {
+            binning,
+            ..search(&points, &table, &fractions, 25)
+        }
+        .period(2.0, &mut Scratch::default());
         let step = 0.1 / 25.0;
         let apart = (found.t0 - t0)
             .rem_euclid(2.0)
             .min((t0 - found.t0).rem_euclid(2.0));
-        assert!(apart <= 0.5 * step + 1e-12, "{t0}: {found:?}");
+        assert!(apart <= 0.5 * step + 1e-12, "{t0} {binning:?}: {found:?}");
         assert!((found.depth / 0.01 - 1.0).abs() < 0.05, "{found:?}");
     }
 }
@@ -216,17 +237,117 @@ fn nothing_to_fit_leaves_the_flat_model() {
     none.fractions = &tiny;
     let flat = none.period(3.0, &mut Scratch::default());
     assert_eq!((flat.chi2, flat.depth), (points.flat_chi2(), 0.0));
-    let found = search(&points, &table, &fractions, 25).period(3.0, &mut Scratch::default());
-    assert_eq!(
-        found,
-        PeriodBest {
-            period: 3.0,
-            chi2: points.flat_chi2(),
-            duration: 0.03,
-            t0: 0.0,
-            depth: 0.0,
+    for binning in [Binning::Never, Binning::Always] {
+        let found = Search {
+            binning,
+            ..search(&points, &table, &fractions, 25)
         }
-    );
+        .period(3.0, &mut Scratch::default());
+        assert_eq!(
+            found,
+            PeriodBest {
+                period: 3.0,
+                chi2: points.flat_chi2(),
+                duration: 0.03,
+                t0: 0.0,
+                depth: 0.0,
+            }
+        );
+    }
+}
+
+// At high cadence the points are binned: every period's best gain within
+// 0.1% of the unbinned one, the best period the same. At 30 minutes a
+// transit holds fewer points than bins, and nothing is binned.
+#[test]
+fn binned_at_high_cadence_within_a_thousandth() {
+    let template = Template::tls_default();
+    let table = Table::new(&template, SAMPLES);
+    let fractions = grid(Constants::IAU, Stars::TLS, 0.6, 13.0, 1.1);
+    let periods: Vec<f64> = (0..30)
+        .map(|i| 0.6 * (13.0_f64 / 0.6).powf(f64::from(i) / 29.0))
+        .chain([4.7])
+        .collect();
+    for cadence in [1.0 / 720.0, 1.0 / 48.0] {
+        let mut random = Random::new(26);
+        let position = Position {
+            period: 4.7,
+            duration: 0.13,
+            t0: 1.3,
+        };
+        let points = light_curve(
+            &mut random,
+            &template,
+            position,
+            1e-3,
+            1e-3,
+            (0.0, 27.0, cadence),
+        );
+        let origin = points.time[0];
+        let with = |binning| {
+            let s = Search {
+                points: &points,
+                table: &table,
+                fractions: &fractions,
+                settings: Settings {
+                    min_depth: 1e-5,
+                    ..settings(50)
+                },
+                binning,
+                flat_chi2: points.flat_chi2(),
+                origin,
+                span: points.time[points.time.len() - 1] - origin,
+            };
+            let mut scratch = Scratch::default();
+            periods
+                .iter()
+                .map(|&p| s.period(p, &mut scratch))
+                .collect::<Vec<_>>()
+        };
+        let (auto, never) = (with(Binning::Auto), with(Binning::Never));
+        if cadence > 0.01 {
+            assert_eq!(auto, never);
+            continue;
+        }
+        assert_ne!(auto, never);
+        for (a, n) in auto.iter().zip(&never) {
+            let gain = points.flat_chi2() - n.chi2;
+            assert!(
+                ((points.flat_chi2() - a.chi2) / gain - 1.0).abs() < 1e-3,
+                "{a:?} {n:?}"
+            );
+        }
+        let strongest = |found: &[PeriodBest]| {
+            found
+                .iter()
+                .min_by(|a, b| a.chi2.total_cmp(&b.chi2))
+                .map(|b| b.period)
+        };
+        assert_eq!(strongest(&auto), Some(4.7));
+        assert_eq!(strongest(&never), Some(4.7));
+    }
+}
+
+// Points in one place in phase: trial times far from them have no bins.
+#[test]
+fn binned_trial_times_with_no_points() {
+    let template = Template::tls_default();
+    let table = Table::new(&template, SAMPLES);
+    let time: Vec<f64> = (0..200)
+        .map(|i| f64::from(i % 100) * 1e-3 + f64::from(i / 100) * 10.0)
+        .collect();
+    let points = Points {
+        residual: vec![1e-3; time.len()],
+        weight: vec![1.0; time.len()],
+        time,
+    };
+    let fractions = [0.002];
+    let found = Search {
+        binning: Binning::Always,
+        ..search(&points, &table, &fractions, 25)
+    }
+    .period(10.0, &mut Scratch::default());
+    assert!(found.depth > 0.0 && found.t0 < 0.2, "{found:?}");
 }
 
 #[test]
@@ -270,6 +391,7 @@ fn the_durations_at_a_period_are_the_stars() {
         table: &table,
         fractions: &fractions,
         settings: settings(25),
+        binning: Binning::Auto,
         flat_chi2: 0.0,
         origin: 0.0,
         span: 27.0,

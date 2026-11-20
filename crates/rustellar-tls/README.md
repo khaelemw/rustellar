@@ -126,8 +126,10 @@ more short periods from older solar constants).
 Doing what transitleastsquares does (no bootstrap), that is 8 to 12 times
 faster on the CPU and 16 to 53 times on the GPU; the bootstrap's errors add
 20 to 27%.
-`Method::Fold`, transitleastsquares' own way, takes 1.69, 28.5 and 126
-seconds: use it only to check the default against. `cargo bench -p
+`Method::Fold`, transitleastsquares' own way, takes 1.81, 14.6 and 52.0
+seconds (at 2-minute cadence its points are binned, every period's best
+within 0.1% of the unbinned search): use it only to check the default
+against. `cargo bench -p
 rustellar-tls` runs these (`--features cuda` for the GPU).
 
 ## References

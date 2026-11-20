@@ -194,6 +194,7 @@ fn close_to_the_fold() {
             table: &table,
             fractions: &fractions,
             settings: settings(50),
+            binning: fast::Binning::Auto,
             flat_chi2: points.flat_chi2(),
             origin,
             span: points.time[points.time.len() - 1] - origin,

@@ -5,7 +5,7 @@
 use super::{Random, light_curve};
 use crate::durations::{Constants, Stars};
 use crate::exact::best;
-use crate::fast::{Scratch, Search, Settings, Table};
+use crate::fast::{Binning, Scratch, Search, Settings, Table};
 use crate::fit::{Points, Position, fit, gain};
 use crate::refine::{Reach, refine};
 use crate::template::Template;
@@ -136,6 +136,7 @@ fn never_worse_than_its_start_or_the_oracle() {
                 },
                 constants: Constants::IAU,
             },
+            binning: Binning::Auto,
             flat_chi2: points.flat_chi2(),
             origin: points.time[0],
             span: 27.0,

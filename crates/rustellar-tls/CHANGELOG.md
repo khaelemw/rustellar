@@ -19,3 +19,5 @@ All notable changes to this crate are recorded here. The format follows
 - Docs: the flux must be normalised to 1 out of transit.
 - The core types re-exported, and the period grid and `Device` from
   `rustellar-core`: the crate no longer depends on `rustellar-bls`.
+- `Method::Fold` bins the folded points at high cadence: 2.0 to 2.4 times
+  faster at 2 minutes, every period's best within 0.1% of the unbinned one.

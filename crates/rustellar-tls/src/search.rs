@@ -160,6 +160,7 @@ pub(crate) fn run(points: &Points, periods: &[f64], options: Options) -> Outcome
                 table: &table,
                 fractions: &fractions,
                 settings,
+                binning: fast::Binning::Auto,
                 flat_chi2: points.flat_chi2(),
                 origin,
                 span,
