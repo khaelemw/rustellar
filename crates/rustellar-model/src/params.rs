@@ -9,5 +9,7 @@ mod transit;
 pub use contacts::Contacts;
 pub use limb_darkening::LimbDarkening;
 pub use scalars::{ImpactParameter, RadiusRatio, ScaledSemiMajorAxis};
+#[cfg(test)]
+pub(crate) use transit::Averaging;
 pub use transit::TransitParams;
 pub(crate) use transit::check_lengths;

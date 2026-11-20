@@ -268,8 +268,9 @@ fn fill(times: &[Epoch], exposure: Option<Exposure>, params: TransitParams, out:
             }
         }
         Some(exposure) => {
+            let averaging = params.averaging(exposure);
             for (f, &t) in out.iter_mut().zip(times) {
-                *f = params.binned_flux_at(t, exposure);
+                *f = params.binned_flux_with(t, &averaging);
             }
         }
     }

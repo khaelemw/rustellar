@@ -656,13 +656,23 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn flux_at(self, t: Epoch) -> f64 {
-        // The separation is the same half an orbit later, when the planet is
-        // behind the star, so this check must come first.
-        if !self.in_front(t) {
-            return 1.0;
-        }
+        let (sin_phi, cos_phi) = self.phase_angle(t).sin_cos();
+        self.flux_at_phase(sin_phi, cos_phi)
+    }
 
-        flux(self.separation(t), self.k, self.ld)
+    /// The flux at the phase angle with this sine and cosine: as
+    /// `in_front` and `separation`, from one sine and cosine. The separation
+    /// is the same half an orbit later, when the planet is behind the star,
+    /// so the cosine is checked first.
+    fn flux_at_phase(self, sin_phi: f64, cos_phi: f64) -> f64 {
+        if cos_phi > 0.0 {
+            // Without `hypot`'s guard against overflow: a separation that
+            // large is far out of transit either way.
+            let (x, y) = (self.a_rs.get() * sin_phi, self.b.get() * cos_phi);
+            flux(x.mul_add(x, y * y).sqrt(), self.k, self.ld)
+        } else {
+            1.0
+        }
     }
 
     /// Flux at each of `times`, as for [`flux_at`](Self::flux_at), and with
@@ -750,8 +760,11 @@ impl TransitParams {
     /// Mean flux over an exposure whose middle is at `t`.
     ///
     /// The average of [`flux_at`](Self::flux_at) over the instants of
-    /// `exposure` (the midpoint rule; see [`Exposure`]). With one sample this
-    /// is exactly `flux_at(t)`.
+    /// `exposure` (the midpoint rule; see [`Exposure`]), to within rounding
+    /// (1e-14): each instant's phase is the time stamp's turned through its
+    /// offset, rather than worked out again from its own time. With one
+    /// sample this is exactly `flux_at(t)`, and an exposure wholly out of
+    /// transit is exactly 1.
     ///
     /// # Examples
     ///
@@ -783,9 +796,90 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn binned_flux_at(self, t: Epoch, exposure: Exposure) -> f64 {
-        let sum: f64 = exposure.offsets().map(|dt| self.flux_at(t + dt)).sum();
-        sum / exposure.samples().get() as f64
+        self.binned_flux_with(t, &self.averaging(exposure))
     }
+
+    /// As [`binned_flux_at`](Self::binned_flux_at), with `averaging` from
+    /// [`averaging`](Self::averaging) for the same exposure.
+    ///
+    /// Each instant's phase is the time stamp's turned by its offset, its
+    /// sine and cosine by the angle-sum rule, so one sine and cosine serves
+    /// the whole exposure. The instants are taken in pairs, `±θ` about the
+    /// time stamp, so the mean stays symmetric about mid-transit.
+    pub(crate) fn binned_flux_with(self, t: Epoch, averaging: &Averaging) -> f64 {
+        // Every instant of an exposure this far from mid-transit is out of
+        // transit, where the flux is exactly 1, and so is their mean.
+        let phase = self.phase_angle(t);
+        let distance = phase.abs();
+        if distance >= averaging.clear && 2.0 * PI - distance >= averaging.clear {
+            return 1.0;
+        }
+        let at = |sin_phi, cos_phi| self.flux_at_phase(sin_phi, cos_phi);
+        let (s, c) = phase.sin_cos();
+        let (step_sin, step_cos) = averaging.step;
+        let (mut sin_theta, mut cos_theta) = averaging.first;
+        let mut sum = if averaging.samples % 2 == 1 {
+            // The middle instant is the time stamp itself.
+            let middle = at(s, c);
+            (sin_theta, cos_theta) = (step_sin, step_cos);
+            middle
+        } else {
+            0.0
+        };
+        for _ in 0..averaging.samples / 2 {
+            let (sc, cs) = (s * cos_theta, c * sin_theta);
+            let (cc, ss) = (c * cos_theta, s * sin_theta);
+            sum += at(sc + cs, cc - ss) + at(sc - cs, cc + ss);
+            (sin_theta, cos_theta) = (
+                sin_theta.mul_add(step_cos, cos_theta * step_sin),
+                cos_theta.mul_add(step_cos, -(sin_theta * step_sin)),
+            );
+        }
+        sum / averaging.samples as f64
+    }
+
+    /// What averaging over `exposure` needs, worked out once for many time
+    /// stamps.
+    pub(crate) fn averaging(self, exposure: Exposure) -> Averaging {
+        let samples = exposure.samples().get();
+        // The angle the planet turns through between instants.
+        let step = 2.0 * PI * (exposure.duration() / self.period) / samples as f64;
+        // The nearest instants to the time stamp: on it for an odd count,
+        // half a step either side for an even one.
+        let first = if samples % 2 == 1 { 0.0 } else { 0.5 * step };
+
+        // z² = b² + (a² - b²) sin²(phase), with b < a, rises with |phase| to
+        // a quarter orbit; the transit is where z < 1 + k and the planet is
+        // in front (|phase| < π/2). Beyond half its angle, plus half the
+        // exposure's, plus a margin far wider than any rounding of the
+        // instants' phases, every instant is out of transit.
+        let (a, b, edge) = (self.a_rs.get(), self.b.get(), 1.0 + self.k.get());
+        let reach = (edge * edge - b * b) / ((a - b) * (a + b));
+        let transit = if reach >= 1.0 {
+            0.5 * PI
+        } else {
+            reach.max(0.0).sqrt().asin()
+        };
+        Averaging {
+            samples,
+            step: step.sin_cos(),
+            first: first.sin_cos(),
+            clear: transit + PI * (exposure.duration() / self.period) + 1e-6,
+        }
+    }
+}
+
+/// What averaging over one exposure needs at one set of parameters.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Averaging {
+    pub(crate) samples: usize,
+    /// The sine and cosine of the angle between instants, and of the
+    /// nearest instant's angle from the time stamp.
+    pub(crate) step: (f64, f64),
+    pub(crate) first: (f64, f64),
+    /// The phase angle from mid-transit beyond which the whole exposure is
+    /// out of transit.
+    pub(crate) clear: f64,
 }
 
 // The error for an output buffer that does not match the times.

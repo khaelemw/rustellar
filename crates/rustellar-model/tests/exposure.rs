@@ -142,6 +142,68 @@ fn exactly_one_when_the_whole_exposure_is_out_of_transit() {
     }
 }
 
+// The average turns the time stamp's phase by each instant's angle rather
+// than finding each instant's phase from its time, and skips exposures wholly
+// out of transit. It is still the mean of `flux_at` over the instants: within
+// 1e-14 at BTJD-sized times, and exactly 1 out of transit. At BJD-sized times
+// (2.46 million days) a time stamp is only good to 5e-10 days, so the flux
+// differs from the same phase at BTJD-sized times by up to 3e-10 either way,
+// summed instant by instant or turned. Cases: a hot Jupiter, a grazing
+// transit, a planet that misses the star, one so close it covers the star for
+// half its orbit, and an exposure a third of the period; every 0.25 millidays
+// over a whole orbit, and 1.3e-7 days on.
+#[test]
+fn the_mean_of_flux_at_its_instants() {
+    let planet = |k: f64, a: f64, b: f64| {
+        TransitParams::new(
+            at(T0),
+            days(3.0),
+            RadiusRatio::new(k).unwrap(),
+            ScaledSemiMajorAxis::new(a).unwrap(),
+            ImpactParameter::new(b).unwrap(),
+            LimbDarkening::quadratic(0.4, 0.25).unwrap(),
+        )
+        .unwrap()
+    };
+    let cases = [
+        (sun_like(), exposure(KEPLER_LONG, 15)),
+        (planet(0.1, 10.0, 1.05), exposure(KEPLER_LONG, 7)),
+        (planet(0.1, 10.0, 1.2), exposure(KEPLER_LONG, 5)),
+        (planet(0.5, 1.2, 0.3), exposure(KEPLER_LONG, 9)),
+        (sun_like(), exposure(1.0, 30)),
+    ];
+    for (params, exposure) in cases {
+        let n = exposure.samples().get() as f64;
+        let mean = |t: f64| {
+            exposure
+                .offsets()
+                .map(|dt| params.flux_at(at(t) + dt))
+                .sum::<f64>()
+                / n
+        };
+        for i in 0..12_000 {
+            let t = T0 + f64::from(i) * 2.5e-4 - 0.75;
+            for t in [t, t + 1.3e-7] {
+                let binned = params.binned_flux_at(at(t), exposure);
+                let expected = mean(t);
+                if expected == 1.0 {
+                    assert_eq!(binned, 1.0, "{t}");
+                }
+                assert!(
+                    (binned - expected).abs() < 1e-14,
+                    "{t}: {binned} {expected}"
+                );
+                // A whole number of orbits later, at BJD-sized times.
+                let later = t + 2_457_000.0;
+                let (binned_later, expected_later) =
+                    (params.binned_flux_at(at(later), exposure), mean(later));
+                assert!((binned_later - binned).abs() < 3e-10, "{later}");
+                assert!((expected_later - expected).abs() < 3e-10, "{later}");
+            }
+        }
+    }
+}
+
 // Inside the flat bottom of a uniform star's transit the flux is constant, so
 // averaging changes nothing.
 #[test]

@@ -68,6 +68,24 @@ fn planet_behind_star_blocks_nothing() {
     assert_eq!(params.flux_at(behind), 1.0);
 }
 
+// The flux at a time is the flux at its separation when the planet is in
+// front, and exactly 1 otherwise, over a whole orbit. In front, to rounding:
+// `flux_at` squares and adds where `separation` uses `hypot`.
+#[test]
+fn flux_at_is_the_flux_at_the_separation_in_front() {
+    let params = reference_transit(T0);
+    for i in 0..30_000 {
+        let t = at(T0 + f64::from(i) * 1e-4);
+        if params.in_front(t) {
+            let expected =
+                rustellar_model::flux(params.separation(t), params.k(), params.limb_darkening());
+            assert!((params.flux_at(t) - expected).abs() < 3e-16, "{t:?}");
+        } else {
+            assert_eq!(params.flux_at(t), 1.0, "{t:?}");
+        }
+    }
+}
+
 #[rstest]
 #[case::later(1000.0)]
 #[case::earlier(-1000.0)]

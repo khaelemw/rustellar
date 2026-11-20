@@ -102,7 +102,7 @@ these comparisons runs in the test suite.
 
 The setup for these timings:
 
-- one thread, on an AMD Ryzen 5000-series laptop CPU;
+- one thread, on an AMD Ryzen 7 5700G desktop CPU, Rust 1.99, numpy 2.4;
 - the hot Jupiter of the quick start, with u = (0.4, 0.25);
 - times spread evenly over ±0.1 days around mid-transit, so about half are
   in transit.
@@ -111,18 +111,18 @@ The setup for these timings:
 
 | | 100 times | 1,000 | 10,000 | 100,000 |
 |---|---|---|---|---|
-| rustellar-model | 5.3 µs | 53 µs | 0.52 ms | 5.2 ms |
-| batman 2.5.1 | 8 µs | 91 µs | 0.77 ms | 8.9 ms |
-| PyTransit 2.6.18 | 12 µs | 57 µs | 0.64 ms | 5.6 ms |
-| exoplanet-core 0.4.0 (flux only, no orbit) | 28 µs | 60 µs | 0.56 ms | 7.0 ms |
+| rustellar-model | 4.8 µs | 49 µs | 0.49 ms | 4.9 ms |
+| batman 2.5.1 | 7.5 µs | 65 µs | 0.64 ms | 6.3 ms |
+| PyTransit 2.6.18 | 8.7 µs | 50 µs | 0.47 ms | 4.7 ms |
+| exoplanet-core 0.4.0 (flux only, no orbit) | 18 µs | 49 µs | 0.33 ms | 4.0 ms |
 
 Kepler long cadence (29.4 min), 1,000 times:
 
 | Samples per exposure | 5 | 15 | 30 |
 |---|---|---|---|
-| rustellar-model | 0.28 ms | 0.84 ms | 1.7 ms |
-| batman 2.5.1 | 0.39 ms | 1.2 ms | 2.2 ms |
-| PyTransit 2.6.18 | 0.24 ms | 0.70 ms | 1.3 ms |
+| rustellar-model | 0.20 ms | 0.57 ms | 1.1 ms |
+| batman 2.5.1 | 0.35 ms | 0.99 ms | 2.0 ms |
+| PyTransit 2.6.18 | 0.20 ms | 0.59 ms | 1.2 ms |
 
 A single flux in transit takes 43 ns with the planet fully on the disk and
 150 ns across the limb, at full double precision:
@@ -132,9 +132,14 @@ A single flux in transit takes 43 ns with the planet fully on the disk and
 - **batman and PyTransit** use polynomial approximations good to about 1e-8.
 - **exoplanet-core** uses the same formulation at full precision.
 
-This crate's light curves are the fastest of the four at every length. For
-exposures PyTransit is 15 to 30% faster. At the same accuracy, the midpoint rule used
-here needs about half as many samples as batman's rule.
+At 100 times this crate's light curves are the fastest, and at 1,000 level
+with exoplanet-core's flux alone (which leaves out the orbit). From 10,000,
+PyTransit's are 4% faster, and exoplanet-core's flux alone faster still.
+Averaged over exposures this crate is the fastest, by
+2 to 5% over PyTransit: one sine and cosine serve each exposure, the
+instants' phases turned from the time stamp's, and an exposure wholly out
+of transit is not summed. At the same accuracy, the midpoint rule used here
+needs about half as many samples as batman's rule.
 
 ## Limits
 
