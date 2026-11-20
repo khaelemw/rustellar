@@ -7,13 +7,16 @@
 //! SET is many, mixed, varying, short or sectors (rustellar-tls against
 //! transitleastsquares), or limb (rustellar-bls against rustellar-tls on
 //! limb-darkened transits), or window (how long a detrending window
-//! should be, on transits over spotted stars), or vet (rustellar-vet's
+//! should be, on transits over spotted stars), or methods (the detrending
+//! methods on the same curves, with wotan's), or vet (rustellar-vet's
 //! alias table on TLS's candidates); default all of those.
+//! `--export-methods FILE` writes those curves for wotan to be run on, and
+//! `--search-flattened IN OUT` searches the curves wotan flattened.
 //! `speed` times every crate against its Python references, and
 //! `speed-model`, `speed-detrend`, `speed-bls` or `speed-tls` one crate;
 //! never by default, as it wants a quiet machine. `--limit` searches only
-//! each TLS set's first N curves (for vet too), and the window study's
-//! first N of 400;
+//! each TLS set's first N curves (for vet too), and the window and
+//! methods studies' first N of 400;
 //! `--step` only every N-th curve of limb; `--threads` sets the threads
 //! (default all cores); `--cpu` keeps the searches off the GPU with the
 //! `cuda` feature.
@@ -24,15 +27,19 @@ use std::thread;
 use std::time::Instant;
 
 use rustellar_tls::{Device, SearchOptions};
-use rustellar_validation::{Kind, limb, speed, tls, vet, window};
+use rustellar_validation::{Kind, limb, methods, speed, tls, vet, window};
 
-const HELP: &str = "compare [SET...] [--limit N] [--step N] [--threads N] [--cpu]
-  SET: many, mixed, varying, short, sectors, limb, window or vet (default all),
+const HELP: &str =
+    "compare [SET...] [--limit N] [--step N] [--threads N] [--cpu] [--export-methods FILE]
+        [--search-flattened IN OUT]
+  SET: many, mixed, varying, short, sectors, limb, window, methods or vet (default all),
        speed or speed-CRATE: model, detrend, bls or tls (never by default)";
 
 fn main() -> ExitCode {
     let (mut kinds, mut with_limb, mut with_window) = (vec![], false, false);
-    let mut with_vet = false;
+    let (mut with_vet, mut with_methods) = (false, false);
+    let mut export: Option<String> = None;
+    let mut search: Option<(String, String)> = None;
     let mut speeds: Vec<&str> = vec![];
     let (mut limit, mut step) = (usize::MAX, NonZeroUsize::MIN);
     let mut threads = thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
@@ -54,6 +61,15 @@ fn main() -> ExitCode {
                 None => return usage(),
             },
             "--cpu" => options = options.with_device(Device::Cpu),
+            "--export-methods" => match args.next() {
+                Some(path) => export = Some(path),
+                None => return usage(),
+            },
+            "--search-flattened" => match (args.next(), args.next()) {
+                (Some(from), Some(to)) => search = Some((from, to)),
+                _ => return usage(),
+            },
+            "methods" => with_methods = true,
             "limb" => with_limb = true,
             "window" => with_window = true,
             "vet" => with_vet = true,
@@ -73,10 +89,40 @@ fn main() -> ExitCode {
             },
         }
     }
-    if kinds.is_empty() && !with_limb && !with_window && !with_vet && speeds.is_empty() {
+    if let Some(path) = export {
+        let count = u64::try_from(limit.min(400)).expect("small");
+        return match std::fs::write(&path, methods::export(&window::cases(count))) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{path}: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+    if let Some((from, to)) = search {
+        let lines = match std::fs::File::open(&from) {
+            Ok(file) => {
+                std::io::BufRead::lines(std::io::BufReader::new(file)).map_while(Result::ok)
+            }
+            Err(e) => {
+                eprintln!("{from}: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        return match std::fs::write(&to, methods::search_flattened(lines, threads)) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("{to}: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+    let none = !with_limb && !with_window && !with_methods && !with_vet;
+    if kinds.is_empty() && none && speeds.is_empty() {
         kinds = Kind::ALL.to_vec();
         with_limb = true;
         with_window = true;
+        with_methods = true;
         with_vet = true;
     }
     if !kinds.is_empty() {
@@ -111,6 +157,23 @@ fn main() -> ExitCode {
             println!("\n### A blind BLS search after each unmasked window\n");
             let found = window::search_all(&cases, threads);
             print!("{}", window::search_report(&cases, &found));
+        }
+        println!(
+            "\n({} curves, {:.0} s)",
+            cases.len(),
+            start.elapsed().as_secs_f64()
+        );
+    }
+    if with_methods {
+        let start = Instant::now();
+        let count = u64::try_from(limit.min(400)).expect("small");
+        let cases = window::cases(count);
+        println!("## Detrending methods on the window study's curves\n");
+        if !cases.is_empty() {
+            print!(
+                "{}",
+                methods::report(&cases, &methods::measure_all(&cases, threads))
+            );
         }
         println!(
             "\n({} curves, {:.0} s)",

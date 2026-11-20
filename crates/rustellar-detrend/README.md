@@ -173,6 +173,38 @@ shorter it is the less variability it leaves. So, two steps:
 `cargo run --release -p rustellar-validation --bin compare -- window`
 reruns the study.
 
+## Splines or the biweight
+
+The splines are options beside the biweight, not a replacement. On the
+window study's 400 curves (transits on spotted stars, above), each method's
+depth kept, signal to noise kept, and how often a blind BLS search after it
+finds the injected period with SDE above 7; wotan's on the same curves,
+searched the same way:
+
+| Method | Knots or window, in durations | Depth kept | Signal to noise kept | Search finds it |
+|---|--:|--:|--:|--:|
+| Biweight | 2.5 | 0.64 | 0.63 | 0.500 |
+| Spline | 1.5 | 0.42 | 0.42 | 0.497 |
+| Spline | 2.5 | 0.62 | 0.60 | 0.443 |
+| Robust (clipped) spline | 1.5 | 0.43 | 0.42 | 0.453 |
+| Huber spline | 1.5 | 0.43 | 0.42 | 0.445 |
+| wotan biweight | 2.5 | 0.64 | 0.63 | 0.495 |
+| wotan `rspline` | 1.5 | 0.72 | 0.71 | 0.422 |
+| wotan `rspline` | 2.5 | 0.91 | 0.87 | 0.400 |
+| wotan `hspline` | 1.5 | 0.47 | 0.46 | 0.468 |
+
+For a search the biweight stays the default, and the plain spline with
+knots 1.5 durations apart does as well; every spline searched best there
+(1 duration and 4 did worse). wotan's `rspline` keeps the most depth
+because it clips only points below the spline, so it drops the transit's
+own points, but noise dips go too and its search finds fewer transits.
+Clipping this crate's robust spline that way (2 below, 3 above) did the
+same: depth kept 0.79 at 2.5 durations, search 0.385. The robust splines
+are for light curves with flares and outliers, which these have none of.
+
+`cargo run --release -p rustellar-validation --bin compare -- methods`
+reruns the study (its README says how wotan's columns were made).
+
 ## Speed
 
 Seconds on an AMD Ryzen 7 5700G (8 cores, 16 threads), Rust 1.99; wotan

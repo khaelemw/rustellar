@@ -152,7 +152,7 @@ pub struct Kept {
 
 /// The curve for `case`, and its transit's dimming at each time (the
 /// matched filter's shape).
-fn inject(case: &Case) -> (LightCurve, Vec<f64>) {
+pub(crate) fn inject(case: &Case) -> (LightCurve, Vec<f64>) {
     let times = times();
     let mut random = Random::new(case.seed);
     let epochs: Vec<Epoch> = times
@@ -196,7 +196,7 @@ fn flatten(lc: &LightCurve, w: Window, t14: f64, mask: &[bool]) -> Flattened {
 #[must_use]
 pub fn measure(case: &Case) -> Vec<Kept> {
     let (lc, shape) = inject(case);
-    let ideal = shape.iter().map(|s| s * s).sum::<f64>().sqrt() / NOISE;
+    let ideal = ideal(&shape);
     let t14 = case.transit.t14().expect("a transit").as_days();
     let mask = transit_mask(
         &lc,
@@ -207,34 +207,42 @@ pub fn measure(case: &Case) -> Vec<Kept> {
     .expect("a mask");
     WINDOWS
         .iter()
-        .map(|&w| {
-            let flat = flatten(&lc, w, t14, &mask);
-            let (mut rs, mut ss) = (0.0, 0.0);
-            let mut outside = vec![];
-            for (&i, &f) in flat.indices().iter().zip(flat.light_curve().flux()) {
-                let s = shape[i];
-                if s > 0.0 {
-                    rs += (1.0 - f) * s;
-                    ss += s * s;
-                } else {
-                    outside.push(f);
-                }
-            }
-            #[expect(clippy::cast_precision_loss, reason = "counts")]
-            let scatter = {
-                let mean = outside.iter().sum::<f64>() / outside.len() as f64;
-                (outside.iter().map(|f| (f - mean) * (f - mean)).sum::<f64>()
-                    / (outside.len() - 1) as f64)
-                    .sqrt()
-            };
-            let depth = rs / ss;
-            Kept {
-                depth,
-                snr: depth * ss.sqrt() / scatter / ideal,
-                ideal,
-            }
-        })
+        .map(|&w| kept(&flatten(&lc, w, t14, &mask), &shape, ideal))
         .collect()
+}
+
+/// The depth `flat` keeps of the transit `shape` (by a matched filter) and
+/// its signal to noise over `ideal`, the scatter from the points out of
+/// transit.
+pub(crate) fn kept(flat: &Flattened, shape: &[f64], ideal: f64) -> Kept {
+    let (mut rs, mut ss) = (0.0, 0.0);
+    let mut outside = vec![];
+    for (&i, &f) in flat.indices().iter().zip(flat.light_curve().flux()) {
+        let s = shape[i];
+        if s > 0.0 {
+            rs += (1.0 - f) * s;
+            ss += s * s;
+        } else {
+            outside.push(f);
+        }
+    }
+    #[expect(clippy::cast_precision_loss, reason = "counts")]
+    let scatter = {
+        let mean = outside.iter().sum::<f64>() / outside.len() as f64;
+        (outside.iter().map(|f| (f - mean) * (f - mean)).sum::<f64>() / (outside.len() - 1) as f64)
+            .sqrt()
+    };
+    let depth = rs / ss;
+    Kept {
+        depth,
+        snr: depth * ss.sqrt() / scatter / ideal,
+        ideal,
+    }
+}
+
+/// The ideal signal to noise of `shape` in the white noise alone.
+pub(crate) fn ideal(shape: &[f64]) -> f64 {
+    shape.iter().map(|s| s * s).sum::<f64>().sqrt() / NOISE
 }
 
 /// [`measure`] for every case, on `threads` threads.
@@ -279,34 +287,36 @@ pub fn search(case: &Case) -> Vec<Found> {
     WINDOWS
         .iter()
         .filter(|w| !w.masked)
-        .map(|&w| {
-            let flat = flatten(&lc, w, t14, &[]);
-            let lc = flat.light_curve();
-            let periods = OfirPeriod {
-                minimum_period: Some(TimeDelta::from_days(0.6).expect("finite")),
-                ..OfirPeriod::default()
-            }
-            .periods(lc)
-            .expect("a grid");
-            let result = Bls::new(lc)
-                .expect("a light curve")
-                .search(
-                    &periods,
-                    &Durations::from_days(&DURATIONS).expect("durations"),
-                    &SearchOptions::default()
-                        .with_objective(Objective::Snr)
-                        .with_threads(NonZeroUsize::MIN),
-                )
-                .expect("a search");
-            let period = result
-                .best()
-                .map_or(f64::NAN, |b| b.transit.period().as_days());
-            Found {
-                sde: sde(result.power()),
-                right: (period / truth - 1.0).abs() < 0.01,
-            }
-        })
+        .map(|&w| found(flatten(&lc, w, t14, &[]).light_curve(), truth))
         .collect()
+}
+
+/// A blind BLS search on `lc`: its best peak's SDE, and whether it is at
+/// `truth` days within 1%.
+pub(crate) fn found(lc: &LightCurve, truth: f64) -> Found {
+    let periods = OfirPeriod {
+        minimum_period: Some(TimeDelta::from_days(0.6).expect("finite")),
+        ..OfirPeriod::default()
+    }
+    .periods(lc)
+    .expect("a grid");
+    let result = Bls::new(lc)
+        .expect("a light curve")
+        .search(
+            &periods,
+            &Durations::from_days(&DURATIONS).expect("durations"),
+            &SearchOptions::default()
+                .with_objective(Objective::Snr)
+                .with_threads(NonZeroUsize::MIN),
+        )
+        .expect("a search");
+    let period = result
+        .best()
+        .map_or(f64::NAN, |b| b.transit.period().as_days());
+    Found {
+        sde: sde(result.power()),
+        right: (period / truth - 1.0).abs() < 0.01,
+    }
 }
 
 /// The SDE of a BLS power spectrum: the peak's height above the mean, in
@@ -337,7 +347,7 @@ pub fn search_all(cases: &[Case], threads: NonZeroUsize) -> Vec<Vec<Found>> {
 }
 
 /// The share of `cases` that `keep` picks, whose `found` passes `pass`.
-fn share(
+pub(crate) fn share(
     cases: &[Case],
     found: &[Found],
     keep: impl Fn(&Case) -> bool,
@@ -383,7 +393,7 @@ pub fn search_report(cases: &[Case], results: &[Vec<Found>]) -> String {
 }
 
 /// The `q` quantile of `values` (sorted copy, nearest rank); NaN for none.
-fn quantile(values: &[f64], q: f64) -> f64 {
+pub(crate) fn quantile(values: &[f64], q: f64) -> f64 {
     if values.is_empty() {
         return f64::NAN;
     }
@@ -400,7 +410,7 @@ fn quantile(values: &[f64], q: f64) -> f64 {
 }
 
 /// Whether a case's star is active: either sinusoid above 1e-3.
-fn active(case: &Case) -> bool {
+pub(crate) fn active(case: &Case) -> bool {
     case.waves.iter().any(|w| w.1 > 1e-3)
 }
 
@@ -457,7 +467,7 @@ pub fn report(cases: &[Case], results: &[Vec<Kept>]) -> String {
 }
 
 /// The median of a group of stars, NaN if there are none.
-fn group_median(values: &[f64]) -> f64 {
+pub(crate) fn group_median(values: &[f64]) -> f64 {
     if values.is_empty() {
         f64::NAN
     } else {

@@ -81,6 +81,22 @@ period. The results, and the window they chose, are in
 `rustellar-detrend`'s README. It takes about 80 seconds on 16 threads;
 `--limit N` runs the first N curves only.
 
+## Detrending methods
+
+```sh
+cargo run --release -p rustellar-validation --bin compare -- methods
+```
+
+The same 400 curves detrended with the biweight at 2.5 transit durations
+and with each spline (plain, clipped, Huber) at knots 1 to 4 durations
+apart: depth and signal to noise kept, and the blind BLS search. wotan
+1.10's `biweight`, `rspline` and `hspline` on the same curves are read
+from `data/methods_wotan.csv` and `data/methods_wotan_search.csv`, made by
+running wotan on the curves `--export-methods FILE` writes and searching
+what it flattened with `--search-flattened IN OUT`, as the crate's own are
+searched. The results are in `rustellar-detrend`'s README. About 90
+seconds on 16 threads.
+
 ## rustellar-vet's alias table on TLS's candidates
 
 ```sh

@@ -9,6 +9,8 @@
 //!   transits, each at its own 1% false-alarm rate, with
 //!   transitleastsquares 1.32 on a subset.
 //! - [`window`]: how long a detrending window should be.
+//! - [`methods`]: the detrending methods (biweight and splines) on the
+//!   window study's curves, with wotan 1.10's.
 //! - [`vet`]: `rustellar-vet`'s alias table on transitleastsquares
 //!   1.32's candidates, at the true period and at its aliases.
 //! - [`speed`]: each crate timed against its Python references.
@@ -17,6 +19,7 @@
 
 mod curves;
 pub mod limb;
+pub mod methods;
 mod random;
 // The BLS crate's survey recipe (its items are `pub(super)`, so the whole
 // crate sees them), loaded once.
