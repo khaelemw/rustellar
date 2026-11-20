@@ -34,8 +34,8 @@ use std::f64::consts::PI;
 use crate::{
     LimbDarkening, RadiusRatio,
     elliptic::cel_e_d,
-    lens::{Lens, arc_1, arc_2, sum3},
-    uniform::blocked_area,
+    lens::{Lens, arc_1, arc_2, arcs, sum3},
+    uniform::{blocked_area, lens_area},
 };
 
 // Relative distance `|z - p| / (z + p)` below which `B1` is taken from the
@@ -100,9 +100,15 @@ pub fn flux(z: f64, k: RadiusRatio, ld: LimbDarkening) -> f64 {
         return 0.0;
     }
 
-    let b0 = blocked_area(z, p);
+    // Across the limb `B0` and `B2` share one lens and its arcs.
+    let (b0, b2) = if z > 1.0 - p {
+        let lens = Lens::new(z, p);
+        let (arc1, arc2) = arcs(lens.kappa0);
+        (lens_area(z, p, lens, arc1), lens_r2(z, p, lens, arc1, arc2))
+    } else {
+        (blocked_area(z, p), blocked_r2(z, p))
+    };
     let b1 = blocked_mu(z, p);
-    let b2 = blocked_r2(z, p);
 
     // I(mu) = c0 + c2 mu + c4 mu^2, and mu^2 = 1 - r^2, so the blocked light
     // over pi is c0 B0 + c2 B1 + c4 (B0 - B2), with c0 + c4 = 1 - c2.
@@ -185,14 +191,17 @@ pub(crate) fn blocked_r2(z: f64, p: f64) -> f64 {
     }
 
     let lens = Lens::new(z, p);
+    lens_r2(z, p, lens, arc_1(lens.kappa0), arc_2(lens.kappa0))
+}
+
+/// [`blocked_r2`] for a lens, given the lens and its arcs at `kappa0`.
+fn lens_r2(z: f64, p: f64, lens: Lens, arc1: f64, arc2: f64) -> f64 {
     let k0 = lens.kappa0;
     let d = z - p;
 
     let planet_arc = 0.25
         * p
-        * (-2.0 * d * d * d * k0
-            + 2.0 * z * d * (d - 2.0 * p) * arc_1(k0)
-            + 8.0 * z * z * p * arc_2(k0));
+        * (-2.0 * d * d * d * k0 + 2.0 * z * d * (d - 2.0 * p) * arc1 + 8.0 * z * z * p * arc2);
 
     (0.5 * lens.kappa1 + planet_arc) / PI
 }

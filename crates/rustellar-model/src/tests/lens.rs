@@ -2,7 +2,7 @@ use std::f64::consts::{FRAC_PI_2, FRAC_PI_3, PI};
 
 use rstest::rstest;
 
-use crate::lens::{Lens, arc_1, arc_2, sum3};
+use crate::lens::{Lens, arc_1, arc_2, arcs, sum3};
 
 fn assert_relative(actual: f64, expected: f64, tolerance: f64) {
     let error = ((actual - expected) / expected).abs();
@@ -136,5 +136,23 @@ fn arcs_increase() {
         let now = (arc_1(k), arc_2(k));
         assert!(now.0 > previous.0 && now.1 > previous.1, "k = {k}");
         previous = now;
+    }
+}
+
+// Both arcs at once are each arc on its own, to the bit, on both sides of
+// the series' switch at 1.
+#[test]
+fn arcs_together_are_the_arcs() {
+    for i in 0..=4000 {
+        let k = f64::from(i) * PI / 4000.0;
+        // The doubles either side of 1 by their bits (`next_up` needs a
+        // newer Rust than the crate's minimum).
+        let (below, above) = (
+            f64::from_bits(1.0_f64.to_bits() - 1),
+            f64::from_bits(1.0_f64.to_bits() + 1),
+        );
+        for k in [k, 1.0, below, above] {
+            assert_eq!(arcs(k), (arc_1(k), arc_2(k)), "{k}");
+        }
     }
 }

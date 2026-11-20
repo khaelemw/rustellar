@@ -710,7 +710,8 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn light_curve(self, times: &[Epoch]) -> Vec<f64> {
-        times.iter().map(|&t| self.flux_at(t)).collect()
+        let clear = self.clear();
+        times.iter().map(|&t| self.flux_beyond(t, clear)).collect()
     }
 
     /// Writes the flux at each of `times` into `out`, as for
@@ -751,8 +752,9 @@ impl TransitParams {
     /// ```
     pub fn light_curve_into(self, times: &[Epoch], out: &mut [f64]) -> Result<(), LengthMismatch> {
         check_lengths(times, out)?;
+        let clear = self.clear();
         for (f, &t) in out.iter_mut().zip(times) {
-            *f = self.flux_at(t);
+            *f = self.flux_beyond(t, clear);
         }
         Ok(())
     }
@@ -848,11 +850,24 @@ impl TransitParams {
         // half a step either side for an even one.
         let first = if samples % 2 == 1 { 0.0 } else { 0.5 * step };
 
-        // z² = b² + (a² - b²) sin²(phase), with b < a, rises with |phase| to
-        // a quarter orbit; the transit is where z < 1 + k and the planet is
-        // in front (|phase| < π/2). Beyond half its angle, plus half the
-        // exposure's, plus a margin far wider than any rounding of the
-        // instants' phases, every instant is out of transit.
+        // Beyond half the transit's angle, plus half the exposure's, every
+        // instant is out of transit.
+        Averaging {
+            samples,
+            step: step.sin_cos(),
+            first: first.sin_cos(),
+            clear: self.clear() + PI * (exposure.duration() / self.period),
+        }
+    }
+
+    /// The phase angle from mid-transit beyond which the planet is out of
+    /// transit: half the transit's angle, plus a margin far wider than any
+    /// rounding of a phase's sine and cosine.
+    ///
+    /// `z² = b² + (a² - b²) sin²(phase)`, with `b < a`, rises with `|phase|`
+    /// to a quarter orbit; the transit is where `z < 1 + k` and the planet
+    /// is in front (`|phase| < π/2`).
+    pub(crate) fn clear(self) -> f64 {
         let (a, b, edge) = (self.a_rs.get(), self.b.get(), 1.0 + self.k.get());
         let reach = (edge * edge - b * b) / ((a - b) * (a + b));
         let transit = if reach >= 1.0 {
@@ -860,12 +875,20 @@ impl TransitParams {
         } else {
             reach.max(0.0).sqrt().asin()
         };
-        Averaging {
-            samples,
-            step: step.sin_cos(),
-            first: first.sin_cos(),
-            clear: transit + PI * (exposure.duration() / self.period) + 1e-6,
+        transit + 1e-6
+    }
+
+    /// [`flux_at`](Self::flux_at), with its sine and cosine left out beyond
+    /// `clear` (from [`clear`](Self::clear)), where the flux is exactly 1
+    /// either way.
+    #[inline]
+    pub(crate) fn flux_beyond(self, t: Epoch, clear: f64) -> f64 {
+        let phase = self.phase_angle(t);
+        if phase.abs() >= clear {
+            return 1.0;
         }
+        let (sin_phi, cos_phi) = phase.sin_cos();
+        self.flux_at_phase(sin_phi, cos_phi)
     }
 }
 

@@ -91,3 +91,40 @@ fn clear_is_half_the_transit_and_half_the_exposure() {
     );
     assert!(averaging.clear > expected);
 }
+
+// A light curve leaves out the sine and cosine beyond the transit's angle,
+// where the flux is exactly 1: each value is `flux_at`'s to the bit,
+// through first and last contact, for a planet that misses the star, and
+// for one so close that the transit spans half the orbit.
+#[test]
+fn light_curves_are_flux_at_to_the_bit() {
+    let at = |a_rs: f64, b: f64| {
+        TransitParams::new(
+            Epoch::from_btjd(0.0).unwrap(),
+            TimeDelta::from_days(3.0).unwrap(),
+            RadiusRatio::new(0.1).unwrap(),
+            ScaledSemiMajorAxis::new(a_rs).unwrap(),
+            ImpactParameter::new(b).unwrap(),
+            LimbDarkening::quadratic(0.4, 0.25).unwrap(),
+        )
+        .unwrap()
+    };
+    for params in [hot_jupiter(), at(10.0, 1.2), at(1.05, 0.0)] {
+        let edge = params.clear() / (2.0 * PI) * 3.0;
+        let mut times: Vec<Epoch> = (0..=3000)
+            .map(|i| Epoch::from_btjd(-3.0 + 2e-3 * f64::from(i)).unwrap())
+            .collect();
+        for offset in [-1e-9, 0.0, 1e-9] {
+            for t in [edge + offset, -edge - offset] {
+                times.push(Epoch::from_btjd(t).unwrap());
+            }
+        }
+        let expected: Vec<f64> = times.iter().map(|&t| params.flux_at(t)).collect();
+        assert_eq!(params.light_curve(&times), expected);
+        let mut out = vec![0.0; times.len()];
+        params.light_curve_into(&times, &mut out).unwrap();
+        assert_eq!(out, expected);
+        let mut model = crate::TransitModel::new(times);
+        assert_eq!(model.light_curve(params), expected.as_slice());
+    }
+}

@@ -70,6 +70,28 @@ fn light_curve(c: &mut Criterion) {
     group.finish();
 }
 
+// The flux alone at the separations of the light curve's times, as
+// exoplanet-core is timed (it takes the separations, not the times).
+fn flux_only(c: &mut Criterion) {
+    let ld = LimbDarkening::quadratic(0.4, 0.25).unwrap();
+    let k = RadiusRatio::new(0.1).unwrap();
+    let mut group = c.benchmark_group("flux only");
+    for n in [100, 1_000, 10_000, 100_000] {
+        let z: Vec<f64> = (0..n)
+            .map(|i| {
+                let phi =
+                    2.0 * std::f64::consts::PI * (-0.1 + 0.2 * i as f64 / (n - 1) as f64) / 3.0;
+                (10.0 * phi.sin()).hypot(0.3 * phi.cos())
+            })
+            .collect();
+        group.throughput(Throughput::Elements(n as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(n), &z, |b, z| {
+            b.iter(|| z.iter().map(|&z| flux(z, k, ld)).collect::<Vec<_>>())
+        });
+    }
+    group.finish();
+}
+
 // Kepler long cadence (29.4 minutes) with the sample counts in common use.
 fn exposure(c: &mut Criterion) {
     let params = hot_jupiter();
@@ -90,5 +112,5 @@ fn exposure(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, single_flux, light_curve, exposure);
+criterion_group!(benches, single_flux, light_curve, flux_only, exposure);
 criterion_main!(benches);

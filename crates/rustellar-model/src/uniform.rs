@@ -27,8 +27,14 @@ pub(crate) fn blocked_area(z: f64, p: f64) -> f64 {
     }
 
     let lens = Lens::new(z, p);
+    lens_area(z, p, lens, arc_1(lens.kappa0))
+}
+
+/// [`blocked_area`] for a lens, given the lens and `arc_1(kappa0)`, so the
+/// transit's other integrals can share them.
+pub(crate) fn lens_area(z: f64, p: f64, lens: Lens, arc1: f64) -> f64 {
     let d = z - p;
-    (lens.kappa1 - p * d * lens.kappa0 + p * z * arc_1(lens.kappa0)) / PI
+    (lens.kappa1 - p * d * lens.kappa0 + p * z * arc1) / PI
 }
 
 // Overlap area of a disk of radius `big_r` at the origin and a disk of radius

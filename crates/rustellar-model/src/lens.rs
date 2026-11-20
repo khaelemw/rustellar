@@ -20,6 +20,7 @@
 //! [`arc_2`].
 
 /// The two half-angles of the lens, in `[0, pi]`.
+#[derive(Clone, Copy)]
 pub(crate) struct Lens {
     /// Half the angle the planet's arc subtends at the planet's centre.
     pub kappa0: f64,
@@ -118,9 +119,27 @@ pub(crate) fn arc_1(k: f64) -> f64 {
 /// summed: `sum over n >= 2 of (-1)^n (4^n - 4) k^(2n+1) / (4 (2n+1)!)`.
 pub(crate) fn arc_2(k: f64) -> f64 {
     if k >= SERIES_BELOW {
-        return (3.0 * k - 4.0 * k.sin() + 0.5 * (2.0 * k).sin()) / 4.0;
+        return arc_2_closed(k, k.sin());
     }
+    arc_2_series(k)
+}
 
+/// Both arcs at `k`, with one `sin k` between them where they take it.
+pub(crate) fn arcs(k: f64) -> (f64, f64) {
+    if k >= SERIES_BELOW {
+        let sin_k = k.sin();
+        return (k - sin_k, arc_2_closed(k, sin_k));
+    }
+    (arc_1(k), arc_2_series(k))
+}
+
+/// [`arc_2`]'s closed form, given `sin k`.
+fn arc_2_closed(k: f64, sin_k: f64) -> f64 {
+    (3.0 * k - 4.0 * sin_k + 0.5 * (2.0 * k).sin()) / 4.0
+}
+
+/// [`arc_2`]'s series, for `k` below 1.
+fn arc_2_series(k: f64) -> f64 {
     // Terms (-1)^n k^(2n+1) / (2n+1)! and their weights 4^n - 4, from n = 2.
     let k2 = k * k;
     let mut power = k * k2 * k2 / 120.0;

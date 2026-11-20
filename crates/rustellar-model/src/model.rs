@@ -263,8 +263,9 @@ impl TransitModel {
 fn fill(times: &[Epoch], exposure: Option<Exposure>, params: TransitParams, out: &mut [f64]) {
     match exposure {
         None => {
+            let clear = params.clear();
             for (f, &t) in out.iter_mut().zip(times) {
-                *f = params.flux_at(t);
+                *f = params.flux_beyond(t, clear);
             }
         }
         Some(exposure) => {
