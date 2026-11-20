@@ -13,6 +13,8 @@
 //!   window study's curves, with wotan 1.10's.
 //! - [`masking`]: detrending again around a search's candidate, its
 //!   transits masked, on the same curves.
+//! - [`whitening`]: an autoregressive model's residuals searched, on the
+//!   same curves with white and red noise.
 //! - [`vet`]: `rustellar-vet`'s alias table on transitleastsquares
 //!   1.32's candidates, at the true period and at its aliases.
 //! - [`speed`]: each crate timed against its Python references.
@@ -33,6 +35,7 @@ pub mod speed;
 mod stats;
 pub mod tls;
 pub mod vet;
+pub mod whitening;
 pub mod window;
 
 #[cfg(test)]

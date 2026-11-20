@@ -20,7 +20,10 @@
 //!   with them left out;
 //! - both steps around a search's candidate, [`Detrend::flatten_around`]:
 //!   flatten, search (any search, as a closure), mask the
-//!   [`Candidate`]'s transits, flatten again ([`Masking`], [`Masked`]).
+//!   [`Candidate`]'s transits, flatten again ([`Masking`], [`Masked`]);
+//! - an autoregressive model of a flattened light curve and what it misses,
+//!   [`Autoregressive::whiten`] ([`Order`], [`Whitened`]): correlated noise
+//!   made white before a search.
 //!
 //! The biweight is solved to full double precision (correctly rounded
 //! wherever its defining sum's sign can be told from zero), the median and
@@ -45,6 +48,7 @@
 //! ```
 
 mod around;
+mod autoregressive;
 mod detrend;
 mod double;
 mod error;
@@ -63,6 +67,7 @@ mod window;
 mod tests;
 
 pub use around::{Candidate, MASK_PER_DURATION, MASKED_WINDOW_PER_DURATION, Masked, Masking};
+pub use autoregressive::{Autoregressive, MAX_ORDER, Order, Whitened};
 pub use detrend::{BreakTolerance, Detrend, Flattened, Method, WINDOW_PER_DURATION};
 pub use error::DetrendError;
 pub use mask::transit_mask;

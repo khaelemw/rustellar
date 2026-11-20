@@ -6,4 +6,5 @@ mod speed;
 mod stats;
 mod tls;
 mod vet;
+mod whitening;
 mod window;

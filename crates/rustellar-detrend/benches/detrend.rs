@@ -13,7 +13,7 @@ use std::{hint::black_box, num::NonZeroUsize, thread, time::Duration};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use recipe::{Curve, curves};
 use rustellar_core::LightCurve;
-use rustellar_detrend::Method;
+use rustellar_detrend::{Autoregressive, Method};
 
 // A Kepler quarter (long cadence, 1 d window), a TESS sector at 2 minutes
 // (0.5 d), and the same sector at 20 seconds.
@@ -85,6 +85,17 @@ fn detrend(c: &mut Criterion) {
             b.iter(|| black_box(detrend.trend(lc, None).unwrap()));
         });
     }
+    group.finish();
+
+    // An autoregressive model (AIC up to order 30) fitted to the 2-minute
+    // sector and its residuals.
+    let mut group = c.benchmark_group("whiten");
+    group
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(2));
+    group.bench_function("aic-30", |b| {
+        b.iter(|| black_box(Autoregressive::default().whiten(lc).unwrap()));
+    });
     group.finish();
 }
 

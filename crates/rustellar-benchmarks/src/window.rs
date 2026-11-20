@@ -153,24 +153,44 @@ pub struct Kept {
 /// The curve for `case`, and its transit's dimming at each time (the
 /// matched filter's shape).
 pub(crate) fn inject(case: &Case) -> (LightCurve, Vec<f64>) {
+    inject_with(case, 0.0, true)
+}
+
+/// [`inject`] with the noise correlated from one cadence to the next by
+/// `red` (an AR(1) process of the same standard deviation; 0 is white),
+/// and the transit left out unless `transit`.
+pub(crate) fn inject_with(case: &Case, red: f64, transit: bool) -> (LightCurve, Vec<f64>) {
     let times = times();
     let mut random = Random::new(case.seed);
     let epochs: Vec<Epoch> = times
         .iter()
         .map(|&t| Epoch::from_btjd(t).expect("finite"))
         .collect();
-    let model = case.transit.light_curve(&epochs);
+    let model = if transit {
+        case.transit.light_curve(&epochs)
+    } else {
+        vec![1.0; times.len()]
+    };
     let shape: Vec<f64> = model.iter().map(|f| 1.0 - f).collect();
+    let kick = (1.0 - red * red).sqrt();
+    let mut noise = 0.0;
     let flux: Vec<f64> = times
         .iter()
         .zip(&model)
-        .map(|(&t, &m)| {
+        .enumerate()
+        .map(|(i, (&t, &m))| {
             let star: f64 = case
                 .waves
                 .iter()
                 .map(|&(p, a, phase)| a * (2.0 * PI * t / p + phase).sin())
                 .sum();
-            m * (1.0 + star) + NOISE * random.noise()
+            let draw = random.noise();
+            noise = if i == 0 {
+                draw
+            } else {
+                red * noise + kick * draw
+            };
+            m * (1.0 + star) + NOISE * noise
         })
         .collect();
     let lc = LightCurve::from_btjd(times.clone(), flux, vec![NOISE; times.len()])

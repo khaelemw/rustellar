@@ -128,6 +128,15 @@ Newton's steps on which points are within c s (the estimating equations
 are linear once those are known), not reweighting alone: one or two steps
 where reweighting takes tens.
 
+**The autoregressive fit** (`Autoregressive`), against statsmodels 0.15's
+`AutoReg` (trend "c") and the same least squares solved at 60 digits on 48
+series (autoregressive processes about 1, with a leftover wave, in counts,
+and near a unit root): the coefficients a median 0 ulps from exact and 42
+at most (a near-unit-root constant); statsmodels a median 5,083 and 2
+million at most. The order AIC chooses matches `ar_select_order` in all
+48. Givens rotations, then refinement steps on residuals with exact
+products, where statsmodels solves with a pseudo-inverse.
+
 **Detrend then search.** The five curves flattened by this crate's trend
 and by wotan's, then searched with rustellar-bls: both find every transit
 with the same period and mid-transit time, and depths that agree to 0.006.
@@ -210,6 +219,39 @@ the noise is deepest too.
 `cargo run --release -p rustellar-benchmarks --bin compare -- masking`
 reruns the study.
 
+## Whitening before the search
+
+`Autoregressive::default().whiten(&flat)` fits a flattened light curve
+with an autoregressive model (each flux from the up to 30 before it in its
+run of regular cadence, the order by AIC) and returns what the model
+misses, `1 + e`: noise correlated over a few cadences comes out white, as
+in ARPS (Caceres et al. 2019). A transit comes out shallower (by the
+model's gain, `1 - phi_1 - ... - phi_p`) with a deeper first point.
+
+On the window study's 400 curves, flattened (the biweight at 2.5
+durations) and searched with BLS, with their white noise and with noise as
+correlated as an AR(1) process with 0.5 and 0.8, each with its transit and
+without: how often the search finds the transit above the SDE that 5% of
+the curves without one reach.
+
+| Noise | Flattened | Whitened, AIC up to 3 | Up to 10 | Up to 30 |
+|---|--:|--:|--:|--:|
+| White | 0.453 | 0.370 | 0.398 | 0.512 |
+| AR(1) 0.5 | 0.318 | 0.278 | 0.302 | 0.302 |
+| AR(1) 0.8 | 0.235 | 0.242 | 0.225 | 0.228 |
+
+Whitening finds more transits only where a long model takes out what the
+window left of the star (white noise, up to 30); in red noise a box
+search after it does no better than before. At SDE above 7 it looks
+better throughout, but only because false alarms rise with it (0.098 to
+0.147 on white noise, up to 10). A box is not what a whitened transit
+looks like: a search for the whitened shape (ARPS's transit comb filter,
+or a box whitened by the same model) is what would use it, and is not
+here. So whitening is an option to try, not a step to take by default.
+
+`cargo run --release -p rustellar-benchmarks --bin compare -- whitening`
+reruns the study.
+
 ## Splines or the biweight
 
 The splines are options beside the biweight, not a replacement. On the
@@ -277,6 +319,10 @@ The robust spline (sigma 3): wotan's `rspline` 0.447, this crate 0.00616.
 The Huber spline (c 1.345): statsmodels' `RLM` 0.765 (the design matrix
 built beforehand), wotan's `hspline` (scikit-learn) 0.269, this crate
 0.0114.
+
+The autoregressive fit (AIC up to order 30, the residuals made) on the
+same sector: statsmodels' `ar_select_order` and refit 0.303, this crate
+0.00942, every order's fit taken from one factorisation.
 
 `Method::Huber` uses a fixed scale, c times the MAD (c 1.28, as wotan's
 `huber_psi`); `Method::HuberJoint` estimates the scale with the location,

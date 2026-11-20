@@ -45,6 +45,9 @@ pub enum DetrendError {
     /// below its window factor (or either is NaN): a masked point needs
     /// unmasked neighbours in its window.
     MaskNotInWindow,
+    /// [`Autoregressive::whiten`](crate::Autoregressive::whiten) has fewer
+    /// points it can predict than its model has coefficients.
+    TooFewPoints,
 }
 
 impl fmt::Display for DetrendError {
@@ -65,6 +68,9 @@ impl fmt::Display for DetrendError {
                 )
             }
             Self::NoPointsLeft => write!(f, "no point has a trend to flatten by"),
+            Self::TooFewPoints => {
+                write!(f, "too few points to fit the autoregressive model")
+            }
             Self::MaskNotInWindow => write!(
                 f,
                 "the mask must be longer than zero and shorter than the window"
