@@ -64,6 +64,20 @@ built from a period, a mid-transit time and a duration.
   draws, the depth scatters three times its white error and within 12% of
   its red error; in white noise the depth test's chi-squared has the mean
   and variance it should.
+- `aliases`: the candidate at a third, half, two thirds, one, three
+  halves, two and three times its period (or any ratios), each with its
+  fit, evidence and signal to noise, its chi-squared against the
+  candidate's, and the depth at the transits only one of the two periods
+  predicts; printed as a table. With a planet at each of those ratios of
+  the period searched, the true one is the best row every time, by a
+  chi-squared of more than 50.
+- `secondary`: a box of the transit's duration slid over every phase at
+  least a duration from the transit, the transit's points left out: the
+  dip at half the period with its upper limit, the deepest dip and the
+  strongest brightening, and the spread of the scan's significances (the
+  light curve's own noise scale). Each box equals a box fit to 1e-12, and
+  in white noise the significance at half the period has mean 0 and
+  spread 1.
 
 ## Quick start
 

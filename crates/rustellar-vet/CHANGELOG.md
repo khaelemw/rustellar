@@ -32,4 +32,14 @@ All notable changes to this crate are recorded here. The format follows
   transit's duration, after Pont, Zucker & Queloz 2006), for the candidate
   and each transit; the largest transit's share of the depth; and the
   chi-squared drop from one depth to a depth per transit.
-- `VetError`.
+- `aliases`, `aliases_at`, `Aliases`, `AliasRow`, `Alias`, `Ratio`,
+  `Split` and `Depth`: the candidate at ratios of its period (a third to
+  three times by default), each with its fit, evidence, signal to noise and
+  chi-squared against the candidate's, and the depths at the transits both,
+  either or neither period predicts, fitted with one shared baseline;
+  `Display` prints the table.
+- `secondary`, `Secondary` and `Dip`: a box of the candidate's duration
+  at half the period and at every phase a duration or more from the
+  transit, with the deepest dip, the strongest brightening, the scan's
+  spread of significances and its number of independent trials.
+- `VetError`, with `RatioZero` and `AliasPeriodNotFinite`.

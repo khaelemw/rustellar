@@ -36,6 +36,10 @@ fn the_phase() {
     assert_eq!(phase(2.75, 3.0), -0.25);
     assert_eq!(phase(1.5, 3.0), -1.5);
     assert_eq!(phase(-1.5, 3.0), -1.5);
+    // Within half a period, unrounded: even a tiny step beside a huge
+    // period.
+    assert_eq!(phase(1e-3, 1e305), 1e-3);
+    assert_eq!(phase(0.1, 3.0), 0.1);
 }
 
 // For a box the fit is the weighted means in and out: depth 1 - in / out,

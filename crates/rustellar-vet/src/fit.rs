@@ -97,9 +97,13 @@ pub(crate) fn shapes(lc: &LightCurve, candidate: &Candidate, profile: &Profile) 
 }
 
 /// `dt` days from a mid-transit time, as days from the nearest one: in
-/// `[-period / 2, period / 2)`.
+/// `[-period / 2, period / 2)`; `dt` itself, unrounded, when it is already
+/// there.
 pub(crate) fn phase(dt: f64, period: f64) -> f64 {
     let half = 0.5 * period;
+    if -half <= dt && dt < half {
+        return dt;
+    }
     (dt + half).rem_euclid(period) - half
 }
 

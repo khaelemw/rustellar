@@ -46,6 +46,11 @@ pub enum VetError {
     /// The fitted baseline is zero or negative, so no fractional depth
     /// exists.
     BaselineNotPositive,
+    /// A period ratio with a zero numerator or denominator.
+    RatioZero,
+    /// An alias's period, the candidate's times a ratio, is too large to
+    /// hold.
+    AliasPeriodNotFinite,
 }
 
 impl fmt::Display for VetError {
@@ -69,6 +74,11 @@ impl fmt::Display for VetError {
                 write!(f, "no point of the light curve is out of transit")
             }
             Self::BaselineNotPositive => write!(f, "the fitted baseline is not above zero"),
+            Self::RatioZero => write!(
+                f,
+                "a period ratio needs a numerator and denominator above zero"
+            ),
+            Self::AliasPeriodNotFinite => write!(f, "the alias's period is too large to hold"),
         }
     }
 }

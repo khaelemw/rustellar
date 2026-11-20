@@ -25,6 +25,14 @@
 //! - [`signal_to_noise`]: the signal to noise, white and with red noise,
 //!   transit by transit, and whether the transits share one depth
 //!   ([`SignalToNoise`]).
+//! - [`aliases`]: the candidate at a third, half, two thirds, one, three
+//!   halves, two and three times its period (or [`aliases_at`] any
+//!   [`Ratio`]s), each with its fit, evidence and signal to noise, its
+//!   chi-squared against the candidate's, and the depth at the transits
+//!   only one of the two periods predicts ([`Aliases`], printed as a
+//!   table).
+//! - [`secondary`]: a search for a second eclipse away from the transit,
+//!   at half the period and at every phase ([`Secondary`]).
 //!
 //! # Examples
 //!
@@ -42,6 +50,7 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+mod alias;
 mod candidate;
 mod error;
 mod evidence;
@@ -49,18 +58,21 @@ mod fit;
 mod grouped;
 mod noise;
 mod refine;
+mod secondary;
 mod shape;
 mod sum;
 
 #[cfg(test)]
 mod tests;
 
+pub use alias::{Alias, AliasRow, Aliases, Depth, Ratio, Split, aliases, aliases_at};
 pub use candidate::Candidate;
 pub use error::VetError;
 pub use evidence::{Evidence, OddEven, Transit, evidence};
 pub use fit::{Fit, fit_depth};
 pub use noise::{Noise, SignalToNoise, TransitSnr, signal_to_noise};
 pub use refine::{Refined, refine};
+pub use secondary::{Dip, Secondary, secondary};
 pub use shape::Shape;
 
 // Core's types, which this crate's API takes and returns: with them the

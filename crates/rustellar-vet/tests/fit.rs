@@ -124,6 +124,14 @@ fn the_new_errors_say_what_is_wrong() {
             VetError::BaselineNotPositive,
             "the fitted baseline is not above zero",
         ),
+        (
+            VetError::RatioZero,
+            "a period ratio needs a numerator and denominator above zero",
+        ),
+        (
+            VetError::AliasPeriodNotFinite,
+            "the alias's period is too large to hold",
+        ),
     ] {
         assert_eq!(err.to_string(), text);
     }
