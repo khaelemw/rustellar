@@ -28,6 +28,8 @@ All notable changes to this crate are recorded here. The format follows
   `Peak::grid_objective`). Runs on all cores with the same results, to the
   bit, on any number; `search_into` reuses a result's memory.
 - `BlsError::TooManyBins`.
+- An unweighted search, documented: one error for every point (boxes and
+  depths independent of its value, tested to the bit).
 
 ### Changed
 

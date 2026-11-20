@@ -474,6 +474,12 @@ pub struct Bls {
 impl Bls {
     /// The light curve's times and weights `1 / flux_err^2`.
     ///
+    /// For an unweighted search, as astropy's with no errors, give every
+    /// point the same error: the boxes and depths do not depend on its
+    /// value, and the depth errors are in its units, so the scatter of the
+    /// flux is a good choice. With an error of 1 every statistic is
+    /// astropy's.
+    ///
     /// # Errors
     ///
     /// [`BlsError::OutOfRange`] if a weight is too large or too small for an

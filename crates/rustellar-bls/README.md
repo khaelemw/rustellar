@@ -1,8 +1,8 @@
 # rustellar-bls
 
 Box least squares (BLS) transit search in pure Rust: the periodogram of
-Kovacs, Zucker & Mazeh (2002), weighted by the flux errors, with the
-highest peaks refitted exactly.
+Kovacs, Zucker & Mazeh (2002), weighted by the flux errors (or not: give
+every point the same error), with the highest peaks refitted exactly.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate.

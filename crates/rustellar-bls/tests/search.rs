@@ -172,6 +172,51 @@ fn snr_picks_the_same_boxes_as_delta_chi2() {
     assert_eq!(delta_chi2.boxes(), snr.boxes());
 }
 
+// An unweighted search, as astropy's with no errors: one error for every
+// point. Its value only scales the statistics (here by a power of two, so
+// exactly): the boxes and depths are the same, and each depth is the plain
+// mean out of the box less the plain mean in it.
+#[test]
+fn one_error_for_every_point_is_unweighted() {
+    let lc = example_3();
+    let with_error = |sigma: f64| {
+        let time = lc.time().iter().map(|t| t.as_btjd()).collect();
+        LightCurve::from_btjd(time, lc.flux().to_vec(), vec![sigma; lc.len()]).unwrap()
+    };
+    let search = |lc: &LightCurve| {
+        let days: Vec<f64> = slow_power().iter().map(|s| s.0).collect();
+        Bls::new(lc)
+            .unwrap()
+            .search(&periods(&days), &durations(&DURATIONS), &threads(1))
+            .unwrap()
+    };
+    let (unit, small) = (with_error(1.0), with_error(1.0 / 512.0));
+    let (a, b) = (search(&unit), search(&small));
+    for (x, y) in a.boxes().iter().zip(b.boxes()) {
+        let (x, y) = (x.unwrap(), y.unwrap());
+        assert_eq!(x.transit, y.transit);
+        assert_eq!(x.fit.depth, y.fit.depth);
+        assert_eq!(x.fit.delta_chi2 * 262_144.0, y.fit.delta_chi2);
+        assert_eq!(x.fit.depth_err / 512.0, y.fit.depth_err);
+    }
+    let best = a.best().unwrap();
+    let (mut inside, mut outside) = (vec![], vec![]);
+    for (t, f) in unit.time().iter().zip(unit.flux()) {
+        if best.transit.contains(*t) {
+            inside.push(*f);
+        } else {
+            outside.push(*f);
+        }
+    }
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+    let plain = mean(&outside) - mean(&inside);
+    assert!(
+        (best.fit.depth - plain).abs() < 1e-15,
+        "{} {plain}",
+        best.fit.depth
+    );
+}
+
 // ==========================
 // Threads and memory
 // ==========================
