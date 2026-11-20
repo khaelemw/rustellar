@@ -8,12 +8,14 @@ use rustellar_core::LightCurve;
 
 use crate::DetrendError;
 use crate::double::{Double, accumulate, two_product};
+use crate::spline::givens;
 
 /// The highest order [`Order::Aic`] tries by default.
 pub const MAX_ORDER: usize = 30;
 
-/// Refinement steps after the first least-squares solve.
-const REFINEMENTS: usize = 2;
+/// Refinement steps after the first least-squares solve at most: they
+/// stop once a step is zero or no smaller than the one before.
+const REFINEMENTS: usize = 10;
 
 /// A diagonal of the triangular factor at or below this fraction of the
 /// largest marks its column as dependent on the others: its coefficient is
@@ -288,9 +290,8 @@ impl Triangle {
             if x == 0.0 {
                 continue;
             }
-            let d = self.r[j * width + j];
-            let h = d.hypot(x);
-            let (c, s) = (d / h, x / h);
+            // No platform's hypot: the same bits everywhere.
+            let (c, s, h) = givens(self.r[j * width + j], x);
             self.r[j * width + j] = h;
             row[j] = 0.0;
             let rest = &mut self.r[j * width + j + 1..(j + 1) * width];
@@ -392,6 +393,7 @@ fn least_squares(flux: &[f64], rows: &[usize], order: usize) -> Vec<f64> {
     let mut beta: Vec<f64> = (0..=order).map(|j| tri.at(j, order + 1)).collect();
     tri.back(&mut beta, &dependent);
     let mut row = vec![0.0; order + 1];
+    let mut last = f64::INFINITY;
     for _ in 0..REFINEMENTS {
         let mut gradient = vec![(0.0, 0.0); order + 1];
         for &t in rows {
@@ -404,6 +406,11 @@ fn least_squares(flux: &[f64], rows: &[usize], order: usize) -> Vec<f64> {
         let mut step: Vec<f64> = gradient.iter().map(|g| g.0 + g.1).collect();
         tri.forward(&mut step, &dependent);
         tri.back(&mut step, &dependent);
+        let size = step.iter().fold(0.0, |m: f64, s| m.max(s.abs()));
+        if size == 0.0 || size >= last {
+            break;
+        }
+        last = size;
         for (b, s) in beta.iter_mut().zip(&step) {
             *b += s;
         }

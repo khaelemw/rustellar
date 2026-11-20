@@ -51,5 +51,5 @@ All notable changes to this crate are recorded here. The format follows
 - `Autoregressive`, `Order`, `Whitened` and `MAX_ORDER` (30): an
   autoregressive model fitted by least squares per run of regular cadence,
   its order by AIC (as statsmodels' `ar_select_order`), and the light
-  curve whitened by it; coefficients a median 0 ulps from exact
-  (statsmodels 5,083), 32 times faster. `DetrendError::TooFewPoints`.
+  curve whitened by it; coefficients within 0.16 ulps of the
+  prediction's largest term (statsmodels up to 4,122), 30 times faster. `DetrendError::TooFewPoints`.

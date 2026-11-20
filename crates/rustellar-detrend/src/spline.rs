@@ -253,7 +253,7 @@ impl Triangle {
 /// The rotation taking `(a, b)` to `(d, 0)`: `c`, `s` and `d >= 0`, with
 /// `d` the hypotenuse found without overflow or a platform's `hypot`
 /// (scaled first where the squares would leave the normal range).
-fn givens(a: f64, b: f64) -> (f64, f64, f64) {
+pub(crate) fn givens(a: f64, b: f64) -> (f64, f64, f64) {
     let q = a * a + b * b;
     let d = if (1e-290..1e290).contains(&q) {
         q.sqrt()

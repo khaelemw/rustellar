@@ -64,13 +64,22 @@ fn regular(flux: &[f64]) -> LightCurve {
     LightCurve::from_btjd(time, flux.to_vec(), vec![1e-3; n]).unwrap()
 }
 
-/// The largest error of `got` from `exact`, each coefficient in ulps of
-/// its exact value.
-fn ulps(got: &[f64], exact: &[f64]) -> f64 {
+/// The largest error of `got` from `exact` in the prediction's terms (`c`,
+/// and each `phi_k` times the largest flux), in ulps of the largest term:
+/// a coefficient far smaller than the others is known only to the others'
+/// rounding.
+fn ulps(got: &[f64], exact: &[f64], flux: &[f64]) -> f64 {
     assert_eq!(got.len(), exact.len());
+    let size = flux.iter().fold(0.0, |m: f64, f| m.max(f.abs()));
+    let unit = |j: usize| if j == 0 { 1.0 } else { size };
+    let scale = exact
+        .iter()
+        .enumerate()
+        .fold(0.0, |m: f64, (j, e)| m.max(e.abs() * unit(j)));
     got.iter()
         .zip(exact)
-        .map(|(g, e)| (g - e).abs() / (e.abs() * f64::EPSILON))
+        .enumerate()
+        .map(|(j, (g, e))| (g - e).abs() * unit(j) / (scale * f64::EPSILON))
         .fold(0.0, f64::max)
 }
 
@@ -90,11 +99,11 @@ fn fixed_order_against_statsmodels_and_exact() {
             .unwrap();
         assert_eq!(white.order(), c.fixed);
         let (us, them) = (
-            ulps(&params(&white), &c.exact),
-            ulps(&c.statsmodels, &c.exact),
+            ulps(&params(&white), &c.exact, &c.flux),
+            ulps(&c.statsmodels, &c.exact, &c.flux),
         );
-        // A few ulps; the unit-root cases' constant cancels to near zero.
-        let bound = if c.kind == "unit root" { 64.0 } else { 8.0 };
+        // Within an ulp of the largest term, on every platform.
+        let bound = 1.0;
         assert!(
             us <= bound,
             "case {i} ({}): {us} ulps (statsmodels {them})",
@@ -125,11 +134,11 @@ fn aic_order_against_statsmodels() {
             .whiten(&regular(&c.flux))
             .unwrap();
         assert_eq!(white.order(), c.chosen, "case {i}");
-        let us = ulps(&params(&white), &c.exact_chosen);
-        let bound = if c.kind == "unit root" { 64.0 } else { 8.0 };
+        let us = ulps(&params(&white), &c.exact_chosen, &c.flux);
+        let bound = 1.0;
         assert!(us <= bound, "case {i}: {us}");
         // statsmodels' refit is the same least squares.
-        assert!(ulps(&c.statsmodels_chosen, &c.exact_chosen) < 1e6);
+        assert!(ulps(&c.statsmodels_chosen, &c.exact_chosen, &c.flux) < 1e6);
     }
 }
 

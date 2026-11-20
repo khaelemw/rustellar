@@ -131,11 +131,12 @@ where reweighting takes tens.
 **The autoregressive fit** (`Autoregressive`), against statsmodels 0.15's
 `AutoReg` (trend "c") and the same least squares solved at 60 digits on 48
 series (autoregressive processes about 1, with a leftover wave, in counts,
-and near a unit root): the coefficients a median 0 ulps from exact and 42
-at most (a near-unit-root constant); statsmodels a median 5,083 and 2
-million at most. The order AIC chooses matches `ar_select_order` in all
-48. Givens rotations, then refinement steps on residuals with exact
-products, where statsmodels solves with a pseudo-inverse.
+and near a unit root): each coefficient's term in the prediction (the
+constant, and each coefficient times the largest flux) within 0.16 ulps of
+the largest term, a median 0; statsmodels a median 161 and 4,122 at most. The order AIC chooses matches `ar_select_order` in all
+48. Givens rotations (without a platform's `hypot`, so the same bits
+everywhere), then refinement steps on residuals with exact products until
+they stop shrinking, where statsmodels solves with a pseudo-inverse.
 
 **Detrend then search.** The five curves flattened by this crate's trend
 and by wotan's, then searched with rustellar-bls: both find every transit
@@ -322,7 +323,7 @@ built beforehand), wotan's `hspline` (scikit-learn) 0.269, this crate
 
 The autoregressive fit (AIC up to order 30, the residuals made) on the
 same sector: statsmodels' `ar_select_order` and refit 0.303, this crate
-0.00942, every order's fit taken from one factorisation.
+0.0102, every order's fit taken from one factorisation.
 
 `Method::Huber` uses a fixed scale, c times the MAD (c 1.28, as wotan's
 `huber_psi`); `Method::HuberJoint` estimates the scale with the location,
