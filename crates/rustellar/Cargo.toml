@@ -15,11 +15,13 @@ exclude = ["/tests/"]
 # build compiles only what it uses. rustellar-core is always included.
 [features]
 default = []
-full = ["bls", "detrend", "model", "tls"]
-bls = ["dep:rustellar-bls"]
+full = ["bls", "detrend", "model", "tls", "vet"]
+# With `vet`, each search also brings its conversion into a vet candidate.
+bls = ["dep:rustellar-bls", "rustellar-vet?/bls"]
 detrend = ["dep:rustellar-detrend"]
 model = ["dep:rustellar-model"]
-tls = ["dep:rustellar-tls"]
+tls = ["dep:rustellar-tls", "rustellar-vet?/tls"]
+vet = ["dep:rustellar-vet"]
 # The searches on an NVIDIA GPU, for whichever of `bls` and `tls` is on: needs
 # Rust 1.88 or later, and the CUDA driver and NVRTC at run time (without
 # them the searches run on the CPU). Not in `full`, which builds on 1.85.
@@ -31,6 +33,7 @@ rustellar-core.workspace = true
 rustellar-detrend = { workspace = true, optional = true }
 rustellar-model = { workspace = true, optional = true }
 rustellar-tls = { workspace = true, optional = true }
+rustellar-vet = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 all-features = true
@@ -39,3 +42,4 @@ all-features = true
 rustellar-bls.workspace = true
 rustellar-core.workspace = true
 rustellar-model.workspace = true
+rustellar-vet.workspace = true

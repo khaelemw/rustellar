@@ -55,3 +55,17 @@ fn bls_feature_brings_in_bls() {
     #[allow(unused_imports)]
     use rustellar::bls as _;
 }
+
+#[cfg(feature = "vet")]
+#[test]
+fn vet_feature_brings_in_vet() {
+    use rustellar::vet::Candidate;
+
+    let c: rustellar_vet::Candidate = Candidate::new(
+        TimeDelta::from_days(3.0).unwrap(),
+        Epoch::from_btjd(0.0).unwrap(),
+        TimeDelta::from_days(0.1).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(c.period(), TimeDelta::from_days(3.0).unwrap());
+}

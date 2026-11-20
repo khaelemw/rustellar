@@ -1,0 +1,27 @@
+[package]
+name = "rustellar-vet"
+description = "Vetting transit candidates in pure Rust: period aliases, odd and even depths, coverage and per-transit evidence"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "exoplanet", "transit", "vetting"]
+categories = ["science", "algorithms"]
+# The published package holds the library and its unit tests, which need no
+# files. The integration tests stay in the source.
+exclude = ["/tests/"]
+
+# Conversions from a search's result into a `Candidate`, each behind the
+# feature of that search, so the crate stays light by default.
+[features]
+default = []
+bls = ["dep:rustellar-bls"]
+tls = ["dep:rustellar-tls"]
+
+[dependencies]
+rustellar-bls = { workspace = true, optional = true }
+rustellar-core.workspace = true
+rustellar-tls = { workspace = true, optional = true }
+
+[package.metadata.docs.rs]
+all-features = true

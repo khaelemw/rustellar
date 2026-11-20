@@ -374,6 +374,7 @@ dependencies = [
  "rustellar-detrend",
  "rustellar-model",
  "rustellar-tls",
+ "rustellar-vet",
 ]
 
 [[package]]
@@ -430,6 +431,15 @@ dependencies = [
  "rustellar-core",
  "rustellar-detrend",
  "rustellar-model",
+ "rustellar-tls",
+]
+
+[[package]]
+name = "rustellar-vet"
+version = "0.0.0"
+dependencies = [
+ "rustellar-bls",
+ "rustellar-core",
  "rustellar-tls",
 ]
 

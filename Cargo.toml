@@ -16,6 +16,7 @@ rustellar-core = { path = "crates/rustellar-core", version = "0.0.0" }
 rustellar-detrend = { path = "crates/rustellar-detrend", version = "0.0.0" }
 rustellar-model = { path = "crates/rustellar-model", version = "0.0.0" }
 rustellar-tls = { path = "crates/rustellar-tls", version = "0.0.0" }
+rustellar-vet = { path = "crates/rustellar-vet", version = "0.0.0" }
 
 # The searches' tests run thousands of searches (injection-recovery against
 # astropy and transitleastsquares), so their debug builds are optimised.

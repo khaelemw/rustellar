@@ -25,6 +25,7 @@ rustellar = { version = "0.0", features = ["model"] }
 | `rustellar-mcmc` | `mcmc` | Affine-invariant ensemble sampler | planned |
 | `rustellar-ls` | `ls` | Lomb-Scargle periodogram | planned |
 | [`rustellar-tls`](crates/rustellar-tls) | `tls` | Transit least squares | in progress |
+| [`rustellar-vet`](crates/rustellar-vet) | `vet` | Vetting candidates: aliases, odd and even depths, coverage | in progress |
 
 ## Development
 

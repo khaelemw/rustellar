@@ -43,6 +43,8 @@ jobs:
       - run: cargo test --workspace
       # The umbrella crate's tools are behind features, off by default.
       - run: cargo test -p rustellar --all-features
+      # The vet crate's conversions from the searches, behind features.
+      - run: cargo test -p rustellar-vet --features bls,tls
 
   # The `cuda` feature where there is no GPU or CUDA library: every search
   # falls back to the CPU, never a panic.

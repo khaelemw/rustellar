@@ -11,6 +11,7 @@
 //! | `detrend` | [`detrend`] | Detrending: a sliding biweight, median or mean, to full precision (in development) |
 //! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
 //! | `tls` | [`tls`] | Transit least squares: a limb-darkened template search (in development) |
+//! | `vet` | [`vet`] | Vetting candidates: aliases, odd and even depths, coverage (in development) |
 //! | `full` | | Every tool |
 //! | `cuda` | | The `bls` and `tls` searches on an NVIDIA GPU where there is one (Rust 1.88 or later) |
 //!
@@ -71,3 +72,8 @@ pub use rustellar_model as model;
 #[cfg(feature = "tls")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tls")))]
 pub use rustellar_tls as tls;
+
+/// Vetting transit candidates, from [`rustellar-vet`](rustellar_vet).
+#[cfg(feature = "vet")]
+#[cfg_attr(docsrs, doc(cfg(feature = "vet")))]
+pub use rustellar_vet as vet;
