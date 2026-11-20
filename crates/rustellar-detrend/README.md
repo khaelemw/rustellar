@@ -8,8 +8,8 @@ that cover it and the same results on any number of threads. Welsch's,
 Andrews' and Huber's M-estimators, Huber's proposal 2 (location and scale
 together, as wotan's `huber`), the Hodges-Lehmann estimator, the trimmed
 and winsorized means, the median and the mean are there too, and a
-least-squares cubic spline fitted to each segment, plain or robust
-(clipped).
+least-squares cubic spline fitted to each segment, plain, clipped or
+Huber's.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `detrend` feature.
@@ -119,6 +119,15 @@ flares stay in and on pure noise its trend sits 0.09 standard deviations
 high (this crate's: unbiased, both sides clipped), and it always makes
 ten fits.
 
+**The Huber spline** (`Method::HuberSpline`, statsmodels' `RLM` with
+`HuberT` on the B-splines), against its fixed point solved at 50 digits on
+30 light curves with flares, dips and outliers: within 3 ulps of the data's
+scale in 29, 71 in one badly conditioned case; statsmodels at its default
+tolerance from 4 ulps to 1.1e10 (1e-6 relative), at 1e-14 from 2 to 40.
+Newton's steps on which points are within c s (the estimating equations
+are linear once those are known), not reweighting alone: one or two steps
+where reweighting takes tens.
+
 **Detrend then search.** The five curves flattened by this crate's trend
 and by wotan's, then searched with rustellar-bls: both find every transit
 with the same period and mid-transit time, and depths that agree to 0.006.
@@ -194,8 +203,11 @@ Each method on the 2-minute sector, one thread (wotan's default settings):
 | Winsorized mean | 0.196 | 0.0204 |
 
 The least-squares spline (`Method::Spline`, knots half a day apart) on the
-same sector: scipy's `LSQUnivariateSpline` 0.00268, this crate 0.00244.
-The robust spline (sigma 3): wotan's `rspline` 0.447, this crate 0.00757.
+same sector: scipy's `LSQUnivariateSpline` 0.00259, this crate 0.00244.
+The robust spline (sigma 3): wotan's `rspline` 0.447, this crate 0.00616.
+The Huber spline (c 1.345): statsmodels' `RLM` 0.765 (the design matrix
+built beforehand), wotan's `hspline` (scikit-learn) 0.269, this crate
+0.0114.
 
 `Method::Huber` uses a fixed scale, c times the MAD (c 1.28, as wotan's
 `huber_psi`); `Method::HuberJoint` estimates the scale with the location,

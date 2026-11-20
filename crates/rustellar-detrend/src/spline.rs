@@ -25,7 +25,16 @@ pub(crate) enum Fit {
     /// Least squares, refitted without the points more than this many
     /// robust standard deviations from the spline, until they repeat.
     Clipped(f64),
+    /// Huber's M-estimate: least squares with weights `min(1, c s / |r|)`
+    /// of the spline's own residuals, `s` their robust standard deviation.
+    Huber(f64),
 }
+
+/// The most Newton's steps a Huber spline takes before reweighting.
+pub(crate) const MAX_NEWTON: usize = 30;
+
+/// The most reweighted fits a Huber spline makes.
+pub(crate) const MAX_REWEIGHTS: usize = 200;
 
 /// The most refits a clipped spline makes.
 pub(crate) const MAX_CLIPS: usize = 50;
@@ -101,12 +110,14 @@ impl Knots {
         let rest = jf.mul_add(self.step, -knot);
         let u = (((offset - knot) - rest) / self.step).clamp(0.0, 1.0);
         let v = 1.0 - u;
-        let (u2, u3) = (u * u, u * u * u);
+        // Each in a form without cancellation: the middle two as 2/3 -
+        // x^2 + x^3 / 2 of the nearer end (u or v), with fused steps.
+        let (u2, v2) = (u * u, v * v);
         let b = [
-            v * v * v / 6.0,
-            (3.0 * u3 - 6.0 * u2 + 4.0) / 6.0,
-            (-3.0 * u3 + 3.0 * u2 + 3.0 * u + 1.0) / 6.0,
-            u3 / 6.0,
+            v2 * v / 6.0,
+            u2.mul_add(0.5f64.mul_add(u, -1.0), 2.0 / 3.0),
+            v2.mul_add(0.5f64.mul_add(v, -1.0), 2.0 / 3.0),
+            u2 * u / 6.0,
         ];
         (j, b)
     }
@@ -207,6 +218,21 @@ impl Triangle {
         self.solve_for(&self.rhs)
     }
 
+    /// The solution of `R^T R x = g`, `R` the triangle: forward then back
+    /// substitution.
+    pub(crate) fn normal_solve(&self, g: &[f64]) -> Vec<f64> {
+        let n = self.rows.len();
+        let mut z = vec![0.0; n];
+        for i in 0..n {
+            let mut v = g[i];
+            for l in 1..4.min(i + 1) {
+                v -= self.rows[i - l][l] * z[i - l];
+            }
+            z[i] = v / self.rows[i][0];
+        }
+        self.solve_for(&z)
+    }
+
     /// The solution for the right-hand side `rhs` (from
     /// [`rotate`](Self::rotate)).
     pub(crate) fn solve_for(&self, rhs: &[f64]) -> Vec<f64> {
@@ -252,6 +278,11 @@ fn givens(a: f64, b: f64) -> (f64, f64, f64) {
 /// determined part all but untouched and bridges the rest with a low-order
 /// polynomial.
 pub(crate) fn fit(knots: &Knots, points: &[(f64, f64, f64)]) -> Vec<f64> {
+    fit_triangle(knots, points).0
+}
+
+/// [`fit`], with the triangle its points (and smoothing rows) made.
+pub(crate) fn fit_triangle(knots: &Knots, points: &[(f64, f64, f64)]) -> (Vec<f64>, Triangle) {
     debug_assert!(!points.is_empty());
     let rows: Vec<(usize, [f64; 4])> = points.iter().map(|&(x, _, _)| knots.basis(x)).collect();
     let m = knots.coefficients();
@@ -306,7 +337,7 @@ pub(crate) fn fit(knots: &Knots, points: &[(f64, f64, f64)]) -> Vec<f64> {
             *c += d;
         }
     }
-    c
+    (c, triangle)
 }
 
 /// The spline fitted to `points` and refitted to those within `sigma`
@@ -348,6 +379,218 @@ pub(crate) fn clipped(knots: &Knots, points: &[(f64, f64, f64)], sigma: f64) -> 
         c = fit(knots, &subset);
     }
     c
+}
+
+/// The spline whose coefficients are the least-squares fit with Huber's
+/// weights `min(1, c s / |r|)` of its own residuals `r`, `s` being
+/// [`MAD_TO_SD`] times the median of `|r|` (statsmodels' `RLM` with
+/// `HuberT` and its `mad` scale, about zero).
+///
+/// From the plain fit, Newton's steps on the zones (each point within `c
+/// s`, or beyond it on either side): the estimating equations solved with
+/// the current zones held ([`solve_zones`]), until the solution keeps them.
+/// Should that not settle in [`MAX_NEWTON`] steps, or a step have no
+/// solution, reweighting (IRLS) from there until no coefficient moves by
+/// more than 4 ulps of the largest, the scatter is zero, or
+/// [`MAX_REWEIGHTS`] fits. `points`' weights are overwritten.
+pub(crate) fn huber(knots: &Knots, points: &mut [(f64, f64, f64)], c: f64) -> Vec<f64> {
+    let mut coefficients = fit(knots, points);
+    let mut residuals = vec![0.0; points.len()];
+    let mut zones = vec![0i8; points.len()];
+    let mut scratch = Vec::with_capacity(points.len());
+    let mut newton = true;
+    for step in 0..MAX_NEWTON + MAX_REWEIGHTS {
+        let s = scale(knots, points, &coefficients, &mut residuals, &mut scratch);
+        if s == 0.0 {
+            break;
+        }
+        let limit = c * s;
+        if newton && step < MAX_NEWTON {
+            zone(&residuals, limit, &mut zones);
+            match solve_zones(knots, points, &zones, c) {
+                Some((next, true)) => return next,
+                Some((next, false)) => {
+                    coefficients = next;
+                    continue;
+                }
+                None => newton = false,
+            }
+        }
+        for (p, r) in points.iter_mut().zip(&residuals) {
+            p.2 = if r.abs() <= limit {
+                1.0
+            } else {
+                (limit / r.abs()).sqrt()
+            };
+        }
+        let next = fit(knots, points);
+        let largest = next.iter().fold(0.0f64, |m, c| m.max(c.abs()));
+        let moved = next
+            .iter()
+            .zip(&coefficients)
+            .fold(0.0f64, |m, (a, b)| m.max((a - b).abs()));
+        coefficients = next;
+        if moved <= 4.0 * f64::EPSILON * largest {
+            break;
+        }
+    }
+    coefficients
+}
+
+/// Each point's residual from the spline into `residuals`, and their scale:
+/// [`MAD_TO_SD`] times the median of their magnitudes.
+fn scale(
+    knots: &Knots,
+    points: &[(f64, f64, f64)],
+    coefficients: &[f64],
+    residuals: &mut [f64],
+    scratch: &mut Vec<f64>,
+) -> f64 {
+    for (r, &(x, y, _)) in residuals.iter_mut().zip(points) {
+        *r = y - knots.value(coefficients, x);
+    }
+    scratch.clear();
+    scratch.extend(residuals.iter().map(|r| r.abs()));
+    MAD_TO_SD * median(scratch)
+}
+
+/// Each residual's zone: 0 within `limit`, else its sign.
+fn zone(residuals: &[f64], limit: f64, zones: &mut [i8]) {
+    for (z, r) in zones.iter_mut().zip(residuals) {
+        *z = if r.abs() <= limit {
+            0
+        } else if *r > 0.0 {
+            1
+        } else {
+            -1
+        };
+    }
+}
+
+/// The Huber spline with the points' `zones` held, and whether it holds
+/// them; `None` with no point within, or no positive scale.
+///
+/// With the zones and the two residuals whose magnitudes make the median
+/// fixed, the estimating equations `X_in^T (y_in - X_in b) + c s X_out^T
+/// zone = 0` and `s = MAD_TO_SD (|r_k1| + |r_k2|) / 2` are linear: `b = b0 +
+/// s b1`, `b0` the least-squares spline of the points within and `b1 =
+/// (X_in^T X_in)^-1 c X_out^T zone` (with the same triangle), and then `s`
+/// from one equation. It holds them if its residuals put every point in
+/// the same zone and give the same scale (to 1e-12).
+fn solve_zones(
+    knots: &Knots,
+    points: &[(f64, f64, f64)],
+    zones: &[i8],
+    c: f64,
+) -> Option<(Vec<f64>, bool)> {
+    let inside: Vec<(f64, f64, f64)> = points
+        .iter()
+        .zip(zones)
+        .filter(|(_, z)| **z == 0)
+        .map(|(&(x, y, _), _)| (x, y, 1.0))
+        .collect();
+    (!inside.is_empty()).then_some(())?;
+    let (b0, triangle) = fit_triangle(knots, &inside);
+    let mut g = vec![0.0; knots.coefficients()];
+    for (&(x, _, _), &z) in points.iter().zip(zones) {
+        if z != 0 {
+            let (j, b) = knots.basis(x);
+            for (g, b) in g[j..j + 4].iter_mut().zip(b) {
+                *g += c * f64::from(z) * b;
+            }
+        }
+    }
+    let b1 = triangle.normal_solve(&g);
+    // The residuals at b0, and their change per unit of s.
+    let r0: Vec<f64> = points
+        .iter()
+        .map(|&(x, y, _)| y - knots.value(&b0, x))
+        .collect();
+    let q: Vec<f64> = points
+        .iter()
+        .map(|&(x, _, _)| knots.value(&b1, x))
+        .collect();
+    // The two residuals whose magnitudes make the median, and their signs:
+    // picked at a first s (b0's own scale), then at the s they give, until
+    // the pick repeats.
+    let mut scratch: Vec<f64> = r0.iter().map(|r| r.abs()).collect();
+    let mut s = MAD_TO_SD * median(&mut scratch);
+    let half = 0.5 * MAD_TO_SD;
+    let mut at = vec![0.0; points.len()];
+    let mut picked: Option<[(usize, f64); 2]> = None;
+    for _ in 0..MAX_NEWTON {
+        for ((a, r), q) in at.iter_mut().zip(&r0).zip(&q) {
+            *a = r - s * q;
+        }
+        let (k1, k2) = middle_indices(&at);
+        let sign = |k: usize| if at[k] >= 0.0 { 1.0 } else { -1.0 };
+        let now = [(k1, sign(k1)), (k2, sign(k2))];
+        let pick = |v: &[f64]| half * (now[0].1 * v[now[0].0] + now[1].1 * v[now[1].0]);
+        s = pick(&r0) / (1.0 + pick(&q));
+        if picked == Some(now) {
+            break;
+        }
+        picked = Some(now);
+    }
+    let pair = picked.expect("at least one pick");
+    let pick = |v: &[f64]| half * (pair[0].1 * v[pair[0].0] + pair[1].1 * v[pair[1].0]);
+    let d = 1.0 + pick(&q);
+    (s > 0.0 && s.is_finite()).then_some(())?;
+    let mut coefficients: Vec<f64> = b0.iter().zip(&b1).map(|(a, b)| s.mul_add(*b, *a)).collect();
+    // Steps of refinement of the linear system: its residuals found with
+    // fused multiply-adds, the same solve for the correction.
+    for _ in 0..REFINEMENTS {
+        let r: Vec<f64> = points
+            .iter()
+            .map(|&(x, y, _)| {
+                let (j, b) = knots.basis(x);
+                b.iter()
+                    .zip(&coefficients[j..j + 4])
+                    .fold(y, |r, (b, c)| (-b).mul_add(*c, r))
+            })
+            .collect();
+        // X_in^T r_in + s g, and the scale's equation's residual.
+        let mut rb: Vec<f64> = g.iter().map(|g| s * g).collect();
+        for ((&(x, _, _), &z), r) in points.iter().zip(zones).zip(&r) {
+            if z == 0 {
+                let (j, b) = knots.basis(x);
+                for (rb, b) in rb[j..j + 4].iter_mut().zip(b) {
+                    *rb = b.mul_add(*r, *rb);
+                }
+            }
+        }
+        let rs = pick(&r) - s;
+        let e0 = triangle.normal_solve(&rb);
+        let e: Vec<f64> = points
+            .iter()
+            .map(|&(x, _, _)| knots.value(&e0, x))
+            .collect();
+        let ds = (rs - pick(&e)) / d;
+        for ((c, e), b) in coefficients.iter_mut().zip(&e0).zip(&b1) {
+            *c += ds.mul_add(*b, *e);
+        }
+        s += ds;
+    }
+    let mut residuals = vec![0.0; points.len()];
+    let check = scale(knots, points, &coefficients, &mut residuals, &mut scratch);
+    let mut now = vec![0i8; points.len()];
+    zone(&residuals, c * check, &mut now);
+    let holds = (check - s).abs() <= 1e-12 * s && now == zones;
+    Some((coefficients, holds))
+}
+
+/// The indices of the two middle magnitudes of `values` (the same twice
+/// for an odd count), ties by index.
+fn middle_indices(values: &[f64]) -> (usize, usize) {
+    let n = values.len();
+    let mut order: Vec<usize> = (0..n).collect();
+    let by = |a: &usize, b: &usize| values[*a].abs().total_cmp(&values[*b].abs()).then(a.cmp(b));
+    let (below, &mut upper, _) = order.select_nth_unstable_by(n / 2, by);
+    if n % 2 == 1 {
+        return (upper, upper);
+    }
+    let lower = *below.iter().max_by(|a, b| by(a, b)).expect("an even count");
+    (lower, upper)
 }
 
 /// The median absolute deviation of `values` (at least one, finite) from
@@ -434,6 +677,7 @@ pub(crate) fn trend(
         let coefficients = match how {
             Fit::Plain => fit(&knots, &kept),
             Fit::Clipped(sigma) => clipped(&knots, &kept, sigma),
+            Fit::Huber(c) => huber(&knots, &mut kept, c),
         };
         for i in segment {
             let t = times[i];

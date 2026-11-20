@@ -134,6 +134,20 @@ pub enum Method {
         /// The clipping threshold, in robust standard deviations.
         sigma: f64,
     },
+    /// [`Spline`](Self::Spline) made robust by Huber's M-estimate: the
+    /// least-squares fit with weight 1 for points within `c` robust
+    /// standard deviations of the spline and `c s / |r|` beyond (`r` the
+    /// residual, `s` 1.4826 times the residuals' median absolute
+    /// deviation), reweighted until the coefficients settle to a few ulps.
+    /// The estimate statsmodels' `RLM` with `HuberT(c)` makes on the same
+    /// B-splines, solved to its fixed point. `c` from `1e-30` to `1e30`;
+    /// 1.345 is usual (95% efficiency on normal noise). wotan's `hspline`
+    /// fits scikit-learn's `HuberRegressor` (`epsilon` 1.35, with a small
+    /// L2 penalty) instead.
+    HuberSpline {
+        /// The tuning constant, in robust standard deviations.
+        c: f64,
+    },
 }
 
 impl Default for Method {
@@ -532,6 +546,7 @@ impl Detrend {
             }
             Method::Spline => Estimator::Spline(Fit::Plain),
             Method::RobustSpline { sigma } => Estimator::Spline(Fit::Clipped(tuning(sigma)?)),
+            Method::HuberSpline { c } => Estimator::Spline(Fit::Huber(tuning(c)?)),
         };
         let window = self.window.as_days();
         if window <= 0.0 {

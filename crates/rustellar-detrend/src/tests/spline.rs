@@ -70,3 +70,42 @@ fn tiny_and_huge_rows() {
         assert!((x[0] - 2.0).abs() < 1e-15, "{x:?}");
     }
 }
+
+// Eight points on a cubic and three far off: with a tiny c no point is
+// within c s, so Newton's steps have nothing to solve and reweighting takes
+// over (toward an L1 fit), nearer the eight than least squares.
+#[test]
+fn a_huber_spline_falls_back_to_reweighting() {
+    let knots = Knots::new(0.0, 1.0, 10.0, 11);
+    let cubic = |x: f64| 1.0 + x - 2.0 * x * x + 0.5 * x * x * x;
+    let mut points: Vec<(f64, f64, f64)> = (0..11)
+        .map(|i| {
+            let x = f64::from(i) / 10.0;
+            let off = if i % 4 == 1 { 0.5 } else { 0.0 };
+            (x, cubic(x) + off, 1.0)
+        })
+        .collect();
+    let plain = crate::spline::fit(&knots, &points);
+    let robust = crate::spline::huber(&knots, &mut points, 1e-30);
+    let worst = |c: &[f64]| {
+        [0, 2, 3, 4, 6, 7, 8, 10]
+            .iter()
+            .map(|&i| {
+                let x = f64::from(i) / 10.0;
+                (knots.value(c, x) - cubic(x)).abs()
+            })
+            .fold(0.0, f64::max)
+    };
+    let (robust, plain) = (worst(&robust), worst(&plain));
+    assert!(robust < 0.5 * plain, "{robust} {plain}");
+}
+
+// Every flux the same: the plain fit leaves no residual, so the scale is
+// zero and the plain fit stands.
+#[test]
+fn a_huber_spline_of_a_constant() {
+    let knots = Knots::new(0.0, 1.0, 0.5, 6);
+    let mut points: Vec<(f64, f64, f64)> = (0..6).map(|i| (f64::from(i) / 5.0, 0.0, 1.0)).collect();
+    let c = crate::spline::huber(&knots, &mut points, 1.345);
+    assert!(c.iter().all(|&c| c == 0.0), "{c:?}");
+}

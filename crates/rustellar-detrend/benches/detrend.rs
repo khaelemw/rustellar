@@ -75,6 +75,7 @@ fn detrend(c: &mut Criterion) {
         ("winsorized", Method::WinsorizedMean { proportion: 0.1 }),
         ("spline", Method::Spline),
         ("robust-spline", Method::RobustSpline { sigma: 3.0 }),
+        ("huber-spline", Method::HuberSpline { c: 1.345 }),
     ] {
         let detrend = curve
             .detrend()
