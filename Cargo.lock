@@ -428,6 +428,7 @@ version = "0.0.0"
 dependencies = [
  "rustellar-bls",
  "rustellar-core",
+ "rustellar-detrend",
  "rustellar-model",
  "rustellar-tls",
 ]

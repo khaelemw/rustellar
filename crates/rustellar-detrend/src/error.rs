@@ -23,7 +23,8 @@ use std::fmt;
 pub enum DetrendError {
     /// A length that must be greater than zero is zero or negative.
     NotPositive {
-        /// Which setting: `"window"` or `"break_tolerance"`.
+        /// Which: `"window"` or `"break_tolerance"`, or `"period"` or
+        /// `"duration"` from [`transit_mask`](crate::transit_mask).
         name: &'static str,
     },
     /// The edge cutoff is negative.

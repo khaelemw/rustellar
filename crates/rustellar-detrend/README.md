@@ -102,6 +102,46 @@ and by wotan's, then searched with rustellar-bls: both find every transit
 with the same period and mid-transit time, and depths that agree to 0.006.
 The exact trend changes accuracy and speed, not detections.
 
+## Choosing the window
+
+A window too short follows a transit and takes some of its depth; one too
+long leaves the star's variability in, which raises false peaks. Hippke et
+al. (2019) suggest about three times the transit's duration. Measured here
+on 400 injected curves (a TESS sector at 10 minutes, white noise 1e-3;
+limb-darkened transits 1 to 7 hours long, signal to noise 10 to 44 in white
+noise alone for 80% of them; for the star, two sinusoids of 0.5 to 10 days
+and 1e-4 to 5e-3), biweight throughout. The share of searches whose best
+BLS peak is the injected period, and the medians of the depth kept and of
+the signal to noise kept (as a fraction of the white-noise ideal):
+
+| Window | Blind BLS: right period | Right, SDE above 7 | Depth kept | Signal to noise kept | Transits masked: signal to noise kept |
+|---|--:|--:|--:|--:|--:|
+| 1.5 durations | 0.70 | 0.45 | 0.37 | 0.37 | 1.00 |
+| 2 | 0.77 | 0.53 | 0.53 | 0.53 | 0.99 |
+| 2.5 | 0.77 | 0.50 | 0.64 | 0.63 | 0.98 |
+| 3 | 0.75 | 0.46 | 0.71 | 0.69 | 0.97 |
+| 4 | 0.68 | 0.37 | 0.80 | 0.77 | 0.96 |
+| 6 | 0.61 | 0.26 | 0.89 | 0.83 | 0.95 |
+| 8 | 0.56 | 0.23 | 0.92 | 0.84 | 0.92 |
+| 12 | 0.49 | 0.17 | 0.95 | 0.81 | 0.87 |
+| 0.5 days | 0.70 | 0.46 | 0.70 | 0.66 | 0.98 |
+
+A longer window keeps more of the depth, yet the search does worse after
+it: the variability it leaves in makes false peaks. With the transits
+masked (over 1.2 durations) every window keeps the whole depth, and the
+shorter it is the less variability it leaves. So, two steps:
+
+1. **Search** after `Detrend::with_window_for_transit(longest)`: a window
+   of 2.5 times the longest duration searched for (`WINDOW_PER_DURATION`),
+   in the middle of the range the search did best after, so a transit
+   somewhat longer than expected keeps most of its depth.
+2. **Measure** a candidate after detrending again with its transits left
+   out (`transit_mask`) and a window of two durations, which leaves a few
+   points either side of a mask wider than the transit.
+
+`cargo run --release -p rustellar-validation --bin compare -- window`
+reruns the study.
+
 ## Speed
 
 Seconds on an AMD Ryzen 7 5700G (8 cores, 16 threads), Rust 1.99; wotan

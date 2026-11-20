@@ -3,8 +3,10 @@
 
 use std::num::NonZeroUsize;
 
-use rustellar_core::{LightCurve, TimeDelta};
-use rustellar_detrend::{BreakTolerance, Detrend, DetrendError, Edges, Method};
+use rustellar_core::{Epoch, LightCurve, TimeDelta};
+use rustellar_detrend::{
+    BreakTolerance, Detrend, DetrendError, Edges, Method, WINDOW_PER_DURATION, transit_mask,
+};
 
 fn days(d: f64) -> TimeDelta {
     TimeDelta::from_days(d).unwrap()
@@ -489,4 +491,81 @@ fn a_masked_transit_is_bridged() {
     let flat = Detrend::default().flatten(&lc, Some(&masked)).unwrap();
     assert!(flat.trend().iter().all(|&t| t == Some(1.0)));
     assert_eq!(flat.light_curve().flux(), &flux[..]);
+}
+
+#[test]
+fn a_window_for_a_transit() {
+    let detrend = Detrend::default().with_window_for_transit(days(0.2));
+    assert_eq!(detrend.window, days(0.2) * WINDOW_PER_DURATION);
+    assert_eq!(WINDOW_PER_DURATION, 2.5);
+    // Checked when used, as any window.
+    let lc = curve(&[0.0, 1.0], &[1.0, 1.0]);
+    assert_eq!(
+        Detrend::default()
+            .with_window_for_transit(days(-1.0))
+            .flatten(&lc, None),
+        Err(DetrendError::NotPositive { name: "window" })
+    );
+}
+
+#[test]
+fn the_transit_mask_by_definition() {
+    // Times either side of t0, at awkward steps: masked exactly when some
+    // whole n puts t0 + n period within (not at) half a duration.
+    let mut random = Random(0x6d61_736b);
+    for _ in 0..200 {
+        let period = 0.3 + (random.below(1000) as f64) / 97.0;
+        let duration = period * (1 + random.below(900)) as f64 / 1000.0;
+        let t0 = (random.below(4000) as f64) / 37.0 - 50.0;
+        let time: Vec<f64> = (0..300)
+            .map(|i| t0 - 3.1 * period + i as f64 * period / 41.3)
+            .collect();
+        let lc = curve(&time, &vec![1.0; time.len()]);
+        let mask = transit_mask(
+            &lc,
+            days(period),
+            Epoch::from_btjd(t0).unwrap(),
+            days(duration),
+        )
+        .unwrap();
+        for (&t, &m) in time.iter().zip(&mask) {
+            let n = ((t - t0) / period).round();
+            let near = (-1..=1)
+                .map(|k| (t - (t0 + (n + f64::from(k)) * period)).abs())
+                .fold(f64::INFINITY, f64::min);
+            // Away from the edge, where rounding could decide either way.
+            if (near - duration / 2.0).abs() > 1e-9 {
+                assert_eq!(m, near < duration / 2.0, "t {t}, period {period}");
+            }
+        }
+    }
+}
+
+#[test]
+fn the_transit_mask_edges_and_checks() {
+    // Every 1/16 day (exact in binary, so is every step below); transits
+    // every 8 steps from step 5, 4 steps long: the points 2 steps away are
+    // not masked, those just inside are.
+    let time: Vec<f64> = (0..30).map(|i| f64::from(i) / 16.0).collect();
+    let lc = curve(&time, &[1.0; 30]);
+    let steps = |n: f64| days(n / 16.0);
+    let t0 = Epoch::from_btjd(5.0 / 16.0).unwrap();
+    let mask = transit_mask(&lc, steps(8.0), t0, steps(4.0)).unwrap();
+    let masked: Vec<usize> = (0..30).filter(|&i| mask[i]).collect();
+    assert_eq!(masked, [4, 5, 6, 12, 13, 14, 20, 21, 22, 28, 29]);
+    let mask = transit_mask(&lc, steps(8.0), t0, steps(4.0 + 1e-9)).unwrap();
+    assert_eq!(mask.iter().filter(|&&m| m).count(), 11 + 7);
+
+    let t0 = Epoch::from_btjd(0.0).unwrap();
+    for (period, duration, name) in [
+        (0.0, 1.0, "period"),
+        (-1.0, 1.0, "period"),
+        (1.0, 0.0, "duration"),
+        (1.0, -1.0, "duration"),
+    ] {
+        assert_eq!(
+            transit_mask(&lc, days(period), t0, days(duration)),
+            Err(DetrendError::NotPositive { name })
+        );
+    }
 }

@@ -16,6 +16,7 @@ pub mod limb;
 mod random;
 mod stats;
 pub mod tls;
+pub mod window;
 
 #[cfg(test)]
 mod tests;

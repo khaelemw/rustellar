@@ -15,6 +15,15 @@ use crate::{
 /// Fewer points than this per thread are not worth a thread's start.
 const POINTS_PER_THREAD: usize = 1024;
 
+/// The window [`Detrend::with_window_for_transit`] sets, in transit
+/// durations: 2.5, the middle of the range a blind search did best after,
+/// so a transit somewhat longer than expected still keeps most of its depth.
+///
+/// Around a candidate, mask its transits ([`transit_mask`](crate::transit_mask)):
+/// then any window keeps the whole depth, and one of 2 durations leaves
+/// little of the star's variability.
+pub const WINDOW_PER_DURATION: f64 = 2.5;
+
 /// What each window's fluxes are summarised by.
 ///
 /// New methods may be added in minor releases, so a `match` on this type
@@ -226,6 +235,30 @@ impl Detrend {
     pub fn with_window(mut self, window: TimeDelta) -> Self {
         self.window = window;
         self
+    }
+
+    /// With windows [`WINDOW_PER_DURATION`] times `duration` long: for a
+    /// search for transits up to `duration` long.
+    ///
+    /// A window too short follows a transit and takes some of its depth;
+    /// one too long leaves the star's variability in, which raises false
+    /// peaks. On 400 injected transits on spotted stars, a blind BLS search
+    /// found the right period most often after windows of 2 to 3 transit
+    /// durations, and less often on either side.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::TimeDelta;
+    /// use rustellar_detrend::Detrend;
+    ///
+    /// let detrend = Detrend::default().with_window_for_transit(TimeDelta::from_hours(4.0)?);
+    /// assert_eq!(detrend.window.as_hours(), 10.0);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn with_window_for_transit(self, duration: TimeDelta) -> Self {
+        self.with_window(duration * WINDOW_PER_DURATION)
     }
 
     /// With segments split at `break_tolerance`.

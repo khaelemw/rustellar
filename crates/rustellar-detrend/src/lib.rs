@@ -10,10 +10,13 @@
 //! - the settings, [`Detrend`]: the [`Method`] (Tukey's biweight by
 //!   default, the median or the mean), the window, where the light curve is
 //!   split ([`BreakTolerance`]), the edge cutoff, the window's [`Edges`] and
-//!   the threads;
+//!   the threads; the window can be set from the longest transit searched
+//!   for ([`Detrend::with_window_for_transit`]);
 //! - the trend at each point, [`Detrend::trend`], with an optional mask
 //!   (transits left out of every window);
-//! - the light curve divided by it, [`Detrend::flatten`] ([`Flattened`]).
+//! - the light curve divided by it, [`Detrend::flatten`] ([`Flattened`]);
+//! - the mask of a candidate's transits, [`transit_mask`], to detrend again
+//!   with them left out.
 //!
 //! The biweight is solved to full double precision (correctly rounded
 //! wherever its defining sum's sign can be told from zero), the median and
@@ -43,6 +46,7 @@ mod error;
 mod exact_sum;
 mod location;
 mod m_estimate;
+mod mask;
 mod order;
 mod psi;
 mod trend;
@@ -51,8 +55,9 @@ mod window;
 #[cfg(test)]
 mod tests;
 
-pub use detrend::{BreakTolerance, Detrend, Flattened, Method};
+pub use detrend::{BreakTolerance, Detrend, Flattened, Method, WINDOW_PER_DURATION};
 pub use error::DetrendError;
+pub use mask::transit_mask;
 pub use window::Edges;
 
 // Core's types, which this crate's API takes and returns: with them the
