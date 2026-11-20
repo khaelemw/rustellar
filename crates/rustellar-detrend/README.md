@@ -7,7 +7,8 @@ is a time-windowed sliding filter, by default Tukey's biweight (Hippke et al.
 that cover it and the same results on any number of threads. Welsch's,
 Andrews' and Huber's M-estimators, Huber's proposal 2 (location and scale
 together, as wotan's `huber`), the Hodges-Lehmann estimator, the trimmed
-and winsorized means, the median and the mean are there too.
+and winsorized means, the median and the mean are there too, and a
+least-squares cubic spline fitted to each segment.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `detrend` feature.
@@ -99,6 +100,15 @@ tolerance of 1e-6 of the scale), against the solution on its own window,
 at 7, worst relative error 1.9e-9. It never fell back to the median
 there.
 
+**The spline** (`Method::Spline`), against the exact least-squares
+spline on the same knots (60 digits) on 60 light curves (40,291 points of
+normalised flux, counts, values about zero and about 1e200, with gaps,
+masks and edge cutoffs), in units of 2^-52 times the largest flux: this
+crate's median error 1.4, scipy's `LSQUnivariateSpline` (FITPACK) 17.5.
+Where masks leave the knots badly conditioned, scipy's worst is 9,128
+and this crate's 113. The times are taken relative to the knots exactly
+and the fit refined twice from residuals found with fused multiply-adds.
+
 **Detrend then search.** The five curves flattened by this crate's trend
 and by wotan's, then searched with rustellar-bls: both find every transit
 with the same period and mid-transit time, and depths that agree to 0.006.
@@ -173,6 +183,9 @@ Each method on the 2-minute sector, one thread (wotan's default settings):
 | Trimmed mean | 0.196 | 0.0176 |
 | Winsorized mean | 0.196 | 0.0204 |
 
+The least-squares spline (`Method::Spline`, knots half a day apart) on the
+same sector: scipy's `LSQUnivariateSpline` 0.00268, this crate 0.00244.
+
 `Method::Huber` uses a fixed scale, c times the MAD (c 1.28, as wotan's
 `huber_psi`); `Method::HuberJoint` estimates the scale with the location,
 as wotan's `huber`.
@@ -192,6 +205,8 @@ rustellar-detrend` runs them alone.
 - Hodges, J. L. & Lehmann, E. L. 1963, Annals of Mathematical Statistics,
   34, 598
 - Huber, P. J. 1964, Annals of Mathematical Statistics, 35, 73
+- Dierckx, P. 1993, Curve and Surface Fitting with Splines (Oxford
+  University Press)
 
 ## License
 

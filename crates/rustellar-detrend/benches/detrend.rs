@@ -73,6 +73,7 @@ fn detrend(c: &mut Criterion) {
         ("hodges-lehmann", Method::HodgesLehmann),
         ("trimmed", Method::TrimmedMean { proportion: 0.1 }),
         ("winsorized", Method::WinsorizedMean { proportion: 0.1 }),
+        ("spline", Method::Spline),
     ] {
         let detrend = curve
             .detrend()

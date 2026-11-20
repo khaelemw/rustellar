@@ -4,8 +4,9 @@
 //!
 //! The method is a time-windowed sliding filter, as in wotan (Hippke et al.
 //! 2019): for each point, a location of the fluxes within half a window
-//! either side is the trend there, and the flux is divided by it. The
-//! crate provides:
+//! either side is the trend there, and the flux is divided by it; or a
+//! least-squares cubic spline per segment, knots a window apart
+//! ([`Method::Spline`]). The crate provides:
 //!
 //! - the settings, [`Detrend`]: the [`Method`] (Tukey's biweight by
 //!   default, the median or the mean), the window, where the light curve is
@@ -50,6 +51,7 @@ mod m_estimate;
 mod mask;
 mod order;
 mod psi;
+mod spline;
 mod trend;
 mod window;
 

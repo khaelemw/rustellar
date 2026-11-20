@@ -9,6 +9,7 @@ use crate::{
     DetrendError,
     huber_joint::gamma,
     location::Location,
+    spline::{self, Fit},
     trend::trend,
     window::{Edges, WindowOptions},
 };
@@ -25,7 +26,8 @@ const POINTS_PER_THREAD: usize = 1024;
 /// little of the star's variability.
 pub const WINDOW_PER_DURATION: f64 = 2.5;
 
-/// What each window's fluxes are summarised by.
+/// How the trend is made: a location of each window's fluxes (sliding),
+/// or a spline fitted to each segment with knots a window apart.
 ///
 /// New methods may be added in minor releases, so a `match` on this type
 /// needs a wildcard arm.
@@ -109,6 +111,17 @@ pub enum Method {
         /// The proportion replaced at each end.
         proportion: f64,
     },
+    /// A cubic spline fitted to each segment by least squares, not a
+    /// sliding window: knots evenly spaced, at most a window apart (as many
+    /// intervals as the segment's length over the window, rounded up, and
+    /// no more than its unmasked points). Masked points are left out of the
+    /// fit and get the spline's value; where too few points pin the spline
+    /// down (an interval with none nearby), it is kept smooth across. The
+    /// fit scipy's `LSQUnivariateSpline` makes on the same knots, to about
+    /// an ulp of the fluxes' scale where scipy's is off by tens. Not
+    /// robust: an outlier pulls the spline toward it. The edge cutoff
+    /// applies as for the windows.
+    Spline,
 }
 
 impl Default for Method {
@@ -394,13 +407,18 @@ impl Detrend {
         lc: &LightCurve,
         mask: Option<&[bool]>,
     ) -> Result<Vec<Option<f64>>, DetrendError> {
-        let (options, location) = self.check()?;
+        let (options, estimator) = self.check()?;
         if mask.is_some_and(|m| m.len() != lc.len()) {
             return Err(DetrendError::MaskLengthMismatch);
         }
         let times: Vec<f64> = lc.time().iter().map(|t| t.as_btjd()).collect();
-        let threads = self.threads.get().min(lc.len().div_ceil(POINTS_PER_THREAD));
-        Ok(trend(&times, lc.flux(), mask, &options, location, threads))
+        Ok(match estimator {
+            Estimator::Window(location) => {
+                let threads = self.threads.get().min(lc.len().div_ceil(POINTS_PER_THREAD));
+                trend(&times, lc.flux(), mask, &options, location, threads)
+            }
+            Estimator::Spline(how) => spline::trend(&times, lc.flux(), mask, &options, how),
+        })
     }
 
     /// `lc` divided by its trend: each flux and flux error divided by the
@@ -469,8 +487,8 @@ impl Detrend {
         })
     }
 
-    /// The settings checked, as the windows' options and the location.
-    fn check(&self) -> Result<(WindowOptions, Location), DetrendError> {
+    /// The settings checked, as the windows' options and the estimator.
+    fn check(&self) -> Result<(WindowOptions, Estimator), DetrendError> {
         let tuning = |c: f64| {
             if (1e-30..=1e30).contains(&c) {
                 Ok(c)
@@ -485,17 +503,21 @@ impl Detrend {
                 Err(DetrendError::ProportionOutOfRange)
             }
         };
-        let location = match self.method {
-            Method::Biweight { c } => Location::Biweight(tuning(c)?),
-            Method::Welsch { c } => Location::Welsch(tuning(c)?),
-            Method::AndrewsSineWave { c } => Location::Andrews(tuning(c)?),
-            Method::Huber { c } => Location::Huber(tuning(c)?),
-            Method::HuberJoint { c } => Location::HuberJoint(tuning(c)?, gamma(c)),
-            Method::Median => Location::Median,
-            Method::Mean => Location::Mean,
-            Method::HodgesLehmann => Location::HodgesLehmann,
-            Method::TrimmedMean { proportion: p } => Location::Trimmed(proportion(p)?),
-            Method::WinsorizedMean { proportion: p } => Location::Winsorized(proportion(p)?),
+        let window_of = |location| Estimator::Window(location);
+        let estimator = match self.method {
+            Method::Biweight { c } => window_of(Location::Biweight(tuning(c)?)),
+            Method::Welsch { c } => window_of(Location::Welsch(tuning(c)?)),
+            Method::AndrewsSineWave { c } => window_of(Location::Andrews(tuning(c)?)),
+            Method::Huber { c } => window_of(Location::Huber(tuning(c)?)),
+            Method::HuberJoint { c } => window_of(Location::HuberJoint(tuning(c)?, gamma(c))),
+            Method::Median => window_of(Location::Median),
+            Method::Mean => window_of(Location::Mean),
+            Method::HodgesLehmann => window_of(Location::HodgesLehmann),
+            Method::TrimmedMean { proportion: p } => window_of(Location::Trimmed(proportion(p)?)),
+            Method::WinsorizedMean { proportion: p } => {
+                window_of(Location::Winsorized(proportion(p)?))
+            }
+            Method::Spline => Estimator::Spline(Fit::Plain),
         };
         let window = self.window.as_days();
         if window <= 0.0 {
@@ -521,8 +543,17 @@ impl Detrend {
             edge_cutoff,
             edges: self.edges,
         };
-        Ok((options, location))
+        Ok((options, estimator))
     }
+}
+
+/// What a checked [`Method`] runs.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Estimator {
+    /// A location of each point's window.
+    Window(Location),
+    /// A spline per segment.
+    Spline(Fit),
 }
 
 /// A light curve divided by its trend, from [`Detrend::flatten`].

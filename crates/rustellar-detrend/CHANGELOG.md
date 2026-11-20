@@ -32,3 +32,7 @@ All notable changes to this crate are recorded here. The format follows
   means (correctly rounded). The plain series run four to a vector with AVX2
   where the processor has it, to the same bits as without, and so do the
   double-double sums that settle the last bit, sixteen terms side by side.
+- `Method::Spline`: a least-squares cubic spline per segment, knots at most
+  a window apart, masked points left out; banded Givens QR with exact knot
+  offsets and two refinement steps, about an ulp of the data's scale (scipy's
+  FITPACK about 17), and kept smooth where the points leave it undetermined.

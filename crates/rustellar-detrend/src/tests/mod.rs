@@ -4,6 +4,7 @@ mod estimators;
 mod exact_sum;
 mod huber_joint;
 mod location;
+mod spline;
 mod trend;
 mod window;
 
