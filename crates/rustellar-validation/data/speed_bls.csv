@@ -1,0 +1,5 @@
+case,package,seconds
+1 sector 10000 periods,astropy 7.2.0,4.234474899996712
+1 sector Ofir,astropy 7.2.0,0.7673310999998648
+13 sectors Ofir,astropy 7.2.0,88.78258569999889
+Kepler 4 years Ofir to 100 d,astropy 7.2.0,199.9609617999995

@@ -1,0 +1,13 @@
+case,package,seconds
+biweight kepler,wotan 1.10,0.010501699998712866
+biweight tess,wotan 1.10,0.17953959999795188
+biweight tess 20 s,wotan 1.10,5.841019099996629
+method median,wotan 1.10,0.05822660000194446
+method mean,wotan 1.10,0.009575300002325093
+method biweight,wotan 1.10,0.17953010000201175
+method welsch,wotan 1.10,0.32107429999814485
+method andrews,wotan 1.10,0.3228624999974272
+method hodges-lehmann,wotan 1.10,9.189424899999722
+method huber-joint,wotan 1.10,10.269616499997937
+method trimmed,wotan 1.10,0.19648080000115442
+method winsorized,wotan 1.10,0.19614789999832283

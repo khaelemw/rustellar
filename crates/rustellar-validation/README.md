@@ -66,3 +66,43 @@ quarter of the curves it was run on (`rustellar-bls`'s
 curves (each family with a transit, then without). Every curve takes both
 searches on one thread each; all 2,000 take about 8 minutes on the same
 machine.
+
+## How long a detrending window should be
+
+```sh
+cargo run --release -p rustellar-validation --bin compare -- window
+```
+
+400 limb-darkened transits on spotted, rotating stars, each light curve
+detrended with the biweight at multiples of its transit's duration: the
+depth and signal to noise each window keeps, with and without the transits
+masked, and how often a blind BLS search afterwards finds the injected
+period. The results, and the window they chose, are in
+`rustellar-detrend`'s README. It takes about 80 seconds on 16 threads.
+
+## Speed against the Python references
+
+```sh
+cargo run --release -p rustellar-validation --bin compare -- speed
+cargo run --release -p rustellar-validation --bin compare -- speed-model
+```
+
+`speed` times every crate on the cases of its README's speed tables and
+prints those tables; `speed-model`, `speed-detrend`, `speed-bls` and
+`speed-tls` one crate each. The rustellar side is timed as the references
+were: the best of several runs (seven for the model and the detrender,
+three for a search, one where a search takes minutes). Nothing is timed by
+default, as the numbers want a quiet machine; all four take about five
+minutes, most of it the BLS searches on one thread.
+
+The references' times are in `data/speed_<crate>.csv`, one row per case,
+package (with its version) and seconds. They were run on the same machine
+(an AMD Ryzen 7 5700G, 8 cores, 16 threads; Python 3.12, numpy 2.4) by
+scripts kept outside the repository, each package on its own settings as
+the README says: batman, PyTransit and exoplanet-core on one thread, wotan
+on one thread after its first call, astropy's `BoxLeastSquares` on one
+thread, transitleastsquares on every core. The rustellar columns are
+always timed afresh, so on another machine they are that machine's while
+the references' stay this one's: compare the ratios only on a similar
+processor, or time the references there in the same way and replace the
+files.

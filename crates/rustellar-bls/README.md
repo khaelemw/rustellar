@@ -127,12 +127,15 @@ Kepler).
 
 | | Periods | astropy | rustellar-bls, 1 thread | rustellar-bls, 16 threads |
 |---|--:|--:|--:|--:|
-| 1 sector | 10,000 | 4.19 | 1.60 | 0.23 |
-| 1 sector, Ofir | 2,353 | 0.76 | 0.36 | 0.047 |
-| 13 sectors, Ofir | 42,692 | 86.8 | 48.8 | 8.3 |
-| Kepler, Ofir | 166,108 | 194.9 | 83.9 | 12.8 |
+| 1 sector | 10,000 | 4.23 | 1.40 | 0.201 |
+| 1 sector, Ofir | 2,353 | 0.767 | 0.289 | 0.0413 |
+| 13 sectors, Ofir | 42,692 | 88.8 | 47.6 | 7.24 |
+| Kepler, Ofir | 166,108 | 200 | 81.7 | 12.2 |
 
-`cargo bench -p rustellar-bls` runs the 16-thread cases.
+`cargo run --release -p rustellar-validation --bin compare -- speed-bls`
+prints this table again, the rustellar-bls columns timed afresh beside
+astropy's recorded times; `cargo bench -p rustellar-bls` runs the
+16-thread cases.
 
 ### On a GPU
 

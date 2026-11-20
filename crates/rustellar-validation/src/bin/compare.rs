@@ -7,8 +7,11 @@
 //! SET is many, mixed, varying, short or sectors (rustellar-tls against
 //! transitleastsquares), or limb (rustellar-bls against rustellar-tls on
 //! limb-darkened transits), or window (how long a detrending window
-//! should be, on transits over spotted stars); default all. `--limit` searches only each TLS
-//! set's first N curves; `--step` only every N-th curve of limb; `--threads`
+//! should be, on transits over spotted stars); default all of those.
+//! `speed` times every crate against its Python references, and
+//! `speed-model`, `speed-detrend`, `speed-bls` or `speed-tls` one crate;
+//! never by default, as it wants a quiet machine. `--limit` searches only
+//! each TLS set's first N curves; `--step` only every N-th curve of limb; `--threads`
 //! sets the threads (default all cores); `--cpu` keeps the searches off the
 //! GPU with the `cuda` feature.
 
@@ -18,13 +21,15 @@ use std::thread;
 use std::time::Instant;
 
 use rustellar_tls::{Device, SearchOptions};
-use rustellar_validation::{Kind, limb, tls, window};
+use rustellar_validation::{Kind, limb, speed, tls, window};
 
 const HELP: &str = "compare [SET...] [--limit N] [--step N] [--threads N] [--cpu]
-  SET: many, mixed, varying, short, sectors, limb or window (default all)";
+  SET: many, mixed, varying, short, sectors, limb or window (default all),
+       speed or speed-CRATE: model, detrend, bls or tls (never by default)";
 
 fn main() -> ExitCode {
     let (mut kinds, mut with_limb, mut with_window) = (vec![], false, false);
+    let mut speeds: Vec<&str> = vec![];
     let (mut limit, mut step) = (usize::MAX, NonZeroUsize::MIN);
     let mut threads = thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
     let mut options = SearchOptions::default().with_bootstrap(0);
@@ -47,13 +52,23 @@ fn main() -> ExitCode {
             "--cpu" => options = options.with_device(Device::Cpu),
             "limb" => with_limb = true,
             "window" => with_window = true,
+            "speed" => speeds.extend(SPEEDS),
+            name if name.starts_with("speed-") => {
+                match SPEEDS
+                    .into_iter()
+                    .find(|s| name.strip_prefix("speed-") == Some(s))
+                {
+                    Some(one) => speeds.push(one),
+                    None => return usage(),
+                }
+            }
             name => match Kind::from_name(name) {
                 Some(kind) => kinds.push(kind),
                 None => return usage(),
             },
         }
     }
-    if kinds.is_empty() && !with_limb && !with_window {
+    if kinds.is_empty() && !with_limb && !with_window && speeds.is_empty() {
         kinds = Kind::ALL.to_vec();
         with_limb = true;
         with_window = true;
@@ -94,7 +109,45 @@ fn main() -> ExitCode {
             start.elapsed().as_secs_f64()
         );
     }
+    for name in speeds {
+        print!("{}", speed_report(name, threads));
+    }
     ExitCode::SUCCESS
+}
+
+/// The crates with speed tables.
+const SPEEDS: [&str; 4] = ["model", "detrend", "bls", "tls"];
+
+fn speed_report(name: &str, threads: NonZeroUsize) -> String {
+    use speed::{bls, detrend, model, references, tls};
+    let start = Instant::now();
+    let table = match name {
+        "model" => model::report(&model::run(7), &references(model::reference())),
+        "detrend" => detrend::report(
+            &detrend::run(7, threads, &detrend::light_curves(), 1),
+            &references(detrend::reference()),
+            threads,
+        ),
+        "bls" => bls::report(
+            &bls::run(&bls::cases(), threads),
+            &references(bls::reference()),
+            threads,
+        ),
+        _ => tls::report(
+            &tls::run(&tls::cases(), threads),
+            &references(tls::reference()),
+            threads,
+        ),
+    };
+    format!(
+        "## rustellar-{name} speed
+
+{table}
+({:.0} s)
+
+",
+        start.elapsed().as_secs_f64()
+    )
 }
 
 fn usage() -> ExitCode {

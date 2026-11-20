@@ -59,3 +59,14 @@ fn the_usage_otherwise() {
         assert!(usage.starts_with("compare [SET...]"), "{usage}");
     }
 }
+
+#[test]
+fn a_speed_table_and_an_unknown_one() {
+    let (ok, table, _) = compare(&["speed-model"]);
+    assert!(ok);
+    assert!(table.contains("## rustellar-model speed"), "{table}");
+    assert!(table.contains("| batman 2.5.1 |"), "{table}");
+    let (ok, _, usage) = compare(&["speed-nothing"]);
+    assert!(!ok);
+    assert!(usage.contains("speed-CRATE"), "{usage}");
+}

@@ -8,15 +8,11 @@
 //! transit when its SDE is above the level 1% of its own noise-only curves
 //! reach, and recovers it when it detects it within 1% of its period.
 
-#[expect(dead_code, reason = "only the survey recipe")]
-#[path = "../../rustellar-bls/src/tests/recipe.rs"]
-mod recipe;
-
 use std::fmt::Write as _;
 use std::num::NonZeroUsize;
 use std::thread;
 
-use recipe::Survey;
+use crate::recipe::Survey;
 use rustellar_bls::{Bls, Durations, Objective};
 use rustellar_core::{Epoch, LightCurve, OfirPeriod, Periods, TimeDelta};
 use rustellar_model::{

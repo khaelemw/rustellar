@@ -152,32 +152,35 @@ curves are the survey's: a Kepler quarter (4,265 points, 1-day window), a
 TESS sector at 2 minutes (18,139 points) and at 20 seconds (108,878), the
 TESS windows half a day.
 
-| Biweight | wotan | rustellar-detrend, 1 thread | rustellar-detrend, 16 threads |
+| Biweight | wotan 1.10 | rustellar-detrend, 1 thread | rustellar-detrend, 16 threads |
 |---|--:|--:|--:|
-| Kepler quarter | 0.0104 | 0.0045 | 0.0013 |
-| TESS, 2 minutes | 0.185 | 0.095 | 0.012 |
-| TESS, 20 seconds | 6.01 | 3.09 | 0.35 |
+| Kepler quarter | 0.0105 | 0.00430 | 0.00122 |
+| TESS, 2 minutes | 0.180 | 0.0919 | 0.0130 |
+| TESS, 20 seconds | 5.84 | 2.91 | 0.334 |
 
 Each method on the 2-minute sector, one thread (wotan's default settings):
 
-| | wotan | rustellar-detrend |
+| | wotan 1.10 | rustellar-detrend |
 |---|--:|--:|
-| Median | 0.060 | 0.0022 |
-| Mean | 0.0099 | 0.0046 |
-| Biweight | 0.185 | 0.095 |
-| Welsch | 0.331 | 0.216 |
-| Andrews' sine wave | 0.333 | 0.210 |
-| Huber (fixed scale) | - | 0.076 |
-| Huber's proposal 2 | 10.6 | 0.155 |
-| Hodges-Lehmann | 9.76 | 0.97 |
-| Trimmed mean | 0.202 | 0.018 |
-| Winsorized mean | 0.202 | 0.021 |
+| Median | 0.0582 | 0.00251 |
+| Mean | 0.00958 | 0.00504 |
+| Biweight | 0.180 | 0.0910 |
+| Welsch | 0.321 | 0.205 |
+| Andrews' sine wave | 0.323 | 0.198 |
+| Huber (fixed scale) | - | 0.0731 |
+| Huber's proposal 2 | 10.3 | 0.148 |
+| Hodges-Lehmann | 9.19 | 0.933 |
+| Trimmed mean | 0.196 | 0.0176 |
+| Winsorized mean | 0.196 | 0.0204 |
 
 `Method::Huber` uses a fixed scale, c times the MAD (c 1.28, as wotan's
 `huber_psi`); `Method::HuberJoint` estimates the scale with the location,
 as wotan's `huber`.
 
-`cargo bench -p rustellar-detrend` runs these.
+`cargo run --release -p rustellar-validation --bin compare --
+speed-detrend` prints these tables again, the rustellar-detrend columns
+timed afresh beside wotan's recorded times; `cargo bench -p
+rustellar-detrend` runs them alone.
 
 ## References
 

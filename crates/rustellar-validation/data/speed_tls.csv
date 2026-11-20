@@ -1,0 +1,7 @@
+case,package,seconds
+1 sector 30 min,transitleastsquares 1.32,8.818868500002282
+periods 1 sector 30 min,transitleastsquares 1.32,2438.0
+1 sector 2 min,transitleastsquares 1.32,13.22099789999993
+periods 1 sector 2 min,transitleastsquares 1.32,2351.0
+2 sectors 2 min,transitleastsquares 1.32,38.225118700000166
+periods 2 sectors 2 min,transitleastsquares 1.32,5415.0

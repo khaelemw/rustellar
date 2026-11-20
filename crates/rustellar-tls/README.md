@@ -119,18 +119,21 @@ more short periods from older solar constants).
 
 | | Points | Periods | transitleastsquares | rustellar-tls, no bootstrap | default (bootstrap 100) | GPU, no bootstrap |
 |---|--:|--:|--:|--:|--:|--:|
-| 1 sector, 30 min | 1,240 | 2,436 | 8.41 | 0.73 | 0.90 | 0.16 |
-| 1 sector, 2 min | 18,000 | 2,349 | 12.7 | 1.52 | 1.93 | 0.79 |
-| 2 sectors, 2 min | 36,000 | 5,411 | 36.6 | 3.99 | 4.74 | 1.40 |
+| 1 sector, 30 min | 1,240 | 2,436 | 8.82 | 0.728 | 0.880 | 0.154 |
+| 1 sector, 2 min | 18,000 | 2,349 | 13.2 | 1.50 | 1.89 | 0.810 |
+| 2 sectors, 2 min | 36,000 | 5,411 | 38.2 | 3.89 | 4.67 | 1.42 |
 
-Doing what transitleastsquares does (no bootstrap), that is 8 to 12 times
-faster on the CPU and 16 to 53 times on the GPU; the bootstrap's errors add
-20 to 27%.
-`Method::Fold`, transitleastsquares' own way, takes 1.81, 10.4 and 33.6
+Doing what transitleastsquares does (no bootstrap), that is 9 to 12 times
+faster on the CPU and 16 to 57 times on the GPU; the bootstrap's errors add
+20 to 26%.
+`Method::Fold`, transitleastsquares' own way, takes 1.71, 9.77 and 32.3
 seconds, faster than transitleastsquares in each (at 2-minute cadence its
 points are binned, every period's best within 0.2% of the unbinned
-search): use it only to check the default against. `cargo bench -p
-rustellar-tls` runs these (`--features cuda` for the GPU).
+search): use it only to check the default against. `cargo run --release
+-p rustellar-validation --bin compare -- speed-tls` prints the table
+again, the rustellar-tls columns timed afresh beside transitleastsquares'
+recorded times (`--features cuda` for the GPU column); `cargo bench -p
+rustellar-tls` runs them alone.
 
 ## References
 
