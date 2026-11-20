@@ -107,7 +107,7 @@ The setup for these timings:
 - times spread evenly over ±0.1 days around mid-transit, so about half are
   in transit.
 
-`cargo run --release -p rustellar-validation --bin compare -- speed-model`
+`cargo run --release -p rustellar-benchmarks --bin compare -- speed-model`
 prints these tables again, this crate timed afresh beside the
 references' recorded times; `cargo bench -p rustellar-model` runs the
 Rust side alone.

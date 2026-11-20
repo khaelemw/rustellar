@@ -169,7 +169,7 @@ shorter it is the less variability it leaves. So, two steps:
 2. **Measure** a candidate after detrending again with its transits left
    out: `Detrend::flatten_around` does both steps with any search, below.
 
-`cargo run --release -p rustellar-validation --bin compare -- window`
+`cargo run --release -p rustellar-benchmarks --bin compare -- window`
 reruns the study.
 
 ## Masking a search's candidate
@@ -207,7 +207,7 @@ round by default: search blind, measure masked. The depth comes out about
 1% deep, because the search picks the mid-transit time and duration where
 the noise is deepest too.
 
-`cargo run --release -p rustellar-validation --bin compare -- masking`
+`cargo run --release -p rustellar-benchmarks --bin compare -- masking`
 reruns the study.
 
 ## Splines or the biweight
@@ -239,7 +239,7 @@ Clipping this crate's robust spline that way (2 below, 3 above) did the
 same: depth kept 0.79 at 2.5 durations, search 0.385. The robust splines
 are for light curves with flares and outliers, which these have none of.
 
-`cargo run --release -p rustellar-validation --bin compare -- methods`
+`cargo run --release -p rustellar-benchmarks --bin compare -- methods`
 reruns the study (its README says how wotan's columns were made).
 
 ## Speed
@@ -282,7 +282,7 @@ built beforehand), wotan's `hspline` (scikit-learn) 0.269, this crate
 `huber_psi`); `Method::HuberJoint` estimates the scale with the location,
 as wotan's `huber`.
 
-`cargo run --release -p rustellar-validation --bin compare --
+`cargo run --release -p rustellar-benchmarks --bin compare --
 speed-detrend` prints these tables again, the rustellar-detrend columns
 timed afresh beside wotan's recorded times; `cargo bench -p
 rustellar-detrend` runs them alone.

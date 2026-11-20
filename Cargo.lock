@@ -378,6 +378,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustellar-benchmarks"
+version = "0.0.0"
+dependencies = [
+ "rustellar-bls",
+ "rustellar-core",
+ "rustellar-detrend",
+ "rustellar-model",
+ "rustellar-tls",
+ "rustellar-vet",
+]
+
+[[package]]
 name = "rustellar-bls"
 version = "0.0.0"
 dependencies = [
@@ -421,18 +433,6 @@ dependencies = [
  "cudarc",
  "rustellar-core",
  "rustellar-model",
-]
-
-[[package]]
-name = "rustellar-validation"
-version = "0.0.0"
-dependencies = [
- "rustellar-bls",
- "rustellar-core",
- "rustellar-detrend",
- "rustellar-model",
- "rustellar-tls",
- "rustellar-vet",
 ]
 
 [[package]]

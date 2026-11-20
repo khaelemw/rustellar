@@ -132,7 +132,7 @@ Kepler).
 | 13 sectors, Ofir | 42,692 | 88.8 | 47.6 | 7.24 |
 | Kepler, Ofir | 166,108 | 200 | 81.7 | 12.2 |
 
-`cargo run --release -p rustellar-validation --bin compare -- speed-bls`
+`cargo run --release -p rustellar-benchmarks --bin compare -- speed-bls`
 prints this table again, the rustellar-bls columns timed afresh beside
 astropy's recorded times; `cargo bench -p rustellar-bls` runs the
 16-thread cases.

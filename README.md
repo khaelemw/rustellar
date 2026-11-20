@@ -76,10 +76,10 @@ cargo bench -p rustellar-tls
 
 Compare the searches with their Python references on the same injected
 light curves, as tables
-([`rustellar-validation`](crates/rustellar-validation), not published):
+([`rustellar-benchmarks`](crates/rustellar-benchmarks), not published):
 
 ```sh
-cargo run --release -p rustellar-validation --bin compare
+cargo run --release -p rustellar-benchmarks --bin compare
 ```
 
 The reference data the tests compare against is in each crate's

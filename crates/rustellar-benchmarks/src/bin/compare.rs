@@ -1,7 +1,7 @@
 //! Prints the comparisons as Markdown tables.
 //!
 //! ```text
-//! cargo run --release -p rustellar-validation --bin compare -- [SET...] [--limit N] [--step N] [--threads N] [--cpu]
+//! cargo run --release -p rustellar-benchmarks --bin compare -- [SET...] [--limit N] [--step N] [--threads N] [--cpu]
 //! ```
 //!
 //! SET is many, mixed, varying, short or sectors (rustellar-tls against
@@ -28,7 +28,7 @@ use std::thread;
 use std::time::Instant;
 
 use rustellar_tls::{Device, SearchOptions};
-use rustellar_validation::{Kind, limb, masking, methods, speed, tls, vet, window};
+use rustellar_benchmarks::{Kind, limb, masking, methods, speed, tls, vet, window};
 
 const HELP: &str =
     "compare [SET...] [--limit N] [--step N] [--threads N] [--cpu] [--export-methods FILE]

@@ -102,8 +102,8 @@ built from a period, a mid-transit time and a duration.
 
 ## Pointing back to the true period
 
-On the five TLS validation sets (`compare -- vet` in
-`rustellar-validation`), every planet transitleastsquares 1.32 found was
+On the five TLS comparison sets (`compare -- vet` in
+`rustellar-benchmarks`), every planet transitleastsquares 1.32 found was
 also given to `aliases` at a third, half, two thirds, three halves, twice
 and three times its period, as a search locked onto an alias would report
 it: 4,117 candidates in all, with TLS's mid-transit time and duration and

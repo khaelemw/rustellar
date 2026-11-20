@@ -1,4 +1,4 @@
-# rustellar-validation
+# rustellar-benchmarks
 
 The rustellar crates compared with their Python references on the same
 data, with one command. Not published: it depends on the libraries, never
@@ -9,9 +9,9 @@ the reverse. Each library's own reference tests stay in its crate
 
 ```sh
 git clone <this repository> && cd rustellar
-cargo run --release -p rustellar-validation --bin compare
-cargo run --release -p rustellar-validation --bin compare -- many --limit 50
-cargo run --release -p rustellar-validation --features cuda --bin compare
+cargo run --release -p rustellar-benchmarks --bin compare
+cargo run --release -p rustellar-benchmarks --bin compare -- many --limit 50
+cargo run --release -p rustellar-benchmarks --features cuda --bin compare
 ```
 
 For each set, `compare` builds every injected light curve again from its
@@ -48,8 +48,8 @@ README.
 ## rustellar-bls against rustellar-tls on limb-darkened transits
 
 ```sh
-cargo run --release -p rustellar-validation --bin compare -- limb
-cargo run --release -p rustellar-validation --bin compare -- limb --step 10
+cargo run --release -p rustellar-benchmarks --bin compare -- limb
+cargo run --release -p rustellar-benchmarks --bin compare -- limb --step 10
 ```
 
 Box-shaped injections favour any BLS; real transits are rounded by limb
@@ -70,7 +70,7 @@ machine.
 ## How long a detrending window should be
 
 ```sh
-cargo run --release -p rustellar-validation --bin compare -- window
+cargo run --release -p rustellar-benchmarks --bin compare -- window
 ```
 
 400 limb-darkened transits on spotted, rotating stars, each light curve
@@ -84,7 +84,7 @@ period. The results, and the window they chose, are in
 ## Detrending methods
 
 ```sh
-cargo run --release -p rustellar-validation --bin compare -- methods
+cargo run --release -p rustellar-benchmarks --bin compare -- methods
 ```
 
 The same 400 curves detrended with the biweight at 2.5 transit durations
@@ -100,7 +100,7 @@ seconds on 16 threads.
 ## Transit masking
 
 ```sh
-cargo run --release -p rustellar-validation --bin compare -- masking
+cargo run --release -p rustellar-benchmarks --bin compare -- masking
 ```
 
 The same 400 curves flattened blind (the biweight at 2.5 transit
@@ -114,7 +114,7 @@ minutes on 16 threads.
 ## rustellar-vet's alias table on TLS's candidates
 
 ```sh
-cargo run --release -p rustellar-validation --bin compare -- vet
+cargo run --release -p rustellar-benchmarks --bin compare -- vet
 ```
 
 transitleastsquares 1.32's candidates on the five TLS sets, from their
@@ -129,8 +129,8 @@ seconds; `--limit N` uses each set's first N curves.
 ## Speed against the Python references
 
 ```sh
-cargo run --release -p rustellar-validation --bin compare -- speed
-cargo run --release -p rustellar-validation --bin compare -- speed-model
+cargo run --release -p rustellar-benchmarks --bin compare -- speed
+cargo run --release -p rustellar-benchmarks --bin compare -- speed-model
 ```
 
 `speed` times every crate on the cases of its README's speed tables and

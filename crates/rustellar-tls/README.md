@@ -94,7 +94,7 @@ crate is closer to the truth more often in period and mid-transit time in
 every set (sign test p ≤ 0.02 except the 40, too few to tell). Recovery is
 a tie: 12 transits only this crate found and 5 only transitleastsquares
 did (p 0.14), all at SDE 4.5 to 6.9, where the transit and the tallest
-noise peak are about as high. `rustellar-validation` reruns this.
+noise peak are about as high. `rustellar-benchmarks` reruns this.
 
 **Against a box search.** On `rustellar-bls`'s 1,000 limb-darkened
 transits and 1,000 light curves of noise alone, each search's detection
@@ -130,7 +130,7 @@ faster on the CPU and 16 to 57 times on the GPU; the bootstrap's errors add
 seconds, faster than transitleastsquares in each (at 2-minute cadence its
 points are binned, every period's best within 0.2% of the unbinned
 search): use it only to check the default against. `cargo run --release
--p rustellar-validation --bin compare -- speed-tls` prints the table
+-p rustellar-benchmarks --bin compare -- speed-tls` prints the table
 again, the rustellar-tls columns timed afresh beside transitleastsquares'
 recorded times (`--features cuda` for the GPU column); `cargo bench -p
 rustellar-tls` runs them alone.

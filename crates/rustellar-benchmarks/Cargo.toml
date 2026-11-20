@@ -1,5 +1,5 @@
 [package]
-name = "rustellar-validation"
+name = "rustellar-benchmarks"
 description = "Cross-package comparisons of the rustellar crates with their Python references"
 version.workspace = true
 edition.workspace = true

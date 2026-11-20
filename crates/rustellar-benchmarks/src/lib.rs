@@ -17,7 +17,7 @@
 //!   1.32's candidates, at the true period and at its aliases.
 //! - [`speed`]: each crate timed against its Python references.
 //!
-//! Run `cargo run --release -p rustellar-validation --bin compare -- --help`.
+//! Run `cargo run --release -p rustellar-benchmarks --bin compare -- --help`.
 
 mod curves;
 pub mod limb;
