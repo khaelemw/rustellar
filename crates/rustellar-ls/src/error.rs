@@ -38,6 +38,8 @@ pub enum LsError {
     /// The reference chi-squared is zero (the flux is constant, or zero
     /// without a mean), so no power is defined.
     NoVariation,
+    /// The fast method was given frequencies that are not an even grid.
+    NotUniform,
 }
 
 impl fmt::Display for LsError {
@@ -56,6 +58,7 @@ impl fmt::Display for LsError {
                 "the frequency grid would hold more than a billion frequencies"
             ),
             Self::NoVariation => write!(f, "the flux must vary about its reference fit"),
+            Self::NotUniform => write!(f, "the fast method needs an even grid of frequencies"),
         }
     }
 }

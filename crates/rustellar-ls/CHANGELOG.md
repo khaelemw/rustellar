@@ -19,4 +19,8 @@ All notable changes to this crate are recorded here. The format follows
   frequency on one thread: exact products by Veltkamp splitting, fdlibm's
   minimax sine and cosine on the reduced phase, AVX2 where available with
   the same bits.
-- `LsError`.
+- `LombScargle::power_fast`: the periodogram on an even grid to a stated
+  tolerance by three non-uniform FFTs (exponential-of-semicircle kernel),
+  each power's error bounded and computed exactly where the bound fails;
+  2 to 5 times faster than astropy's fast method, which has no tolerance.
+- `LsError`, with `NotUniform` for the fast method on a listed grid.

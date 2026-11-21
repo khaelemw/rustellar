@@ -166,3 +166,43 @@ fn exact_against_forty_digits_and_astropy() {
     // the sine to rounding.
     assert_eq!(skipped, 1);
 }
+
+#[test]
+fn fast_within_its_tolerance_of_forty_digits() {
+    let curves = curves();
+    println!("fast method, max error (standard), floating mean:");
+    for ((case, mean_name), (f0, df, rows)) in rows() {
+        let ls = LombScargle::new(&curves[&case], mean(&mean_name)).unwrap();
+        let grid = Frequencies::uniform(f0, df, rows.len()).unwrap();
+        for tolerance in [1e-4, 1e-8, 1e-12] {
+            let mut worst = 0.0_f64;
+            for normalization in [Normalization::Standard, Normalization::Psd] {
+                let p = ls.power_fast(&grid, normalization, tolerance).unwrap();
+                for (k, row) in rows.iter().enumerate() {
+                    if degenerate(row) {
+                        continue;
+                    }
+                    let want = exact(row, normalization);
+                    // The tolerance is on the standard power; the PSD's is
+                    // the same times half the reference chi-squared.
+                    let scale = match normalization {
+                        Normalization::Psd => 0.5 * row.chi2_ref,
+                        _ => 1.0,
+                    };
+                    let got = p.power()[k];
+                    if normalization == Normalization::Standard {
+                        worst = worst.max((got - want).abs());
+                    }
+                    assert!(
+                        (got - want).abs()
+                            <= tolerance * scale + 1e-14 * want.abs().max(scale * 1e-2),
+                        "{case} {mean_name} {tolerance:e} {k}: {got:e} {want:e}"
+                    );
+                }
+            }
+            if mean_name == "floating" {
+                println!("  {case:>8} tolerance {tolerance:e}: {worst:.0e}");
+            }
+        }
+    }
+}

@@ -41,6 +41,9 @@ per day of the data's own time scale; nothing is tied to an instrument.
 - `LombScargle`: the periodogram with a floating mean (Zechmeister &
   Kurster 2009), the mean subtracted once, or none (`Mean`), in astropy's
   four normalisations (`Normalization`), exactly, on all cores.
+- `LombScargle::power_fast`: the same on an even grid to a stated
+  tolerance, by non-uniform FFTs, with every power checked against a
+  bound on its error and computed exactly where the bound is not met.
 
 ## Accuracy
 
@@ -80,6 +83,26 @@ depend on each other to 1e-15 and the exact answer rests on digits no
 `f64` computation of them holds; there all four methods agree with each
 other, not with 40 digits.
 
+The fast method's largest error in the standard normalisation on the same
+cases (floating mean), against astropy's fast method above:
+
+| Case | tolerance 1e-4 | 1e-8 | 1e-12 |
+|---|--:|--:|--:|
+| Uneven sampling | 5e-8 | 6e-12 | 6e-15 |
+| BJD-sized times | 5e-8 | 6e-12 | 6e-15 |
+| Near-perfect sinusoid | 2e-7 | 3e-11 | 7e-15 |
+| Far below 1 / T | 3e-6 | 2e-10 | 3e-14 |
+| Even sampling, Nyquist | 2e-7 | 7e-11 | 4e-15 |
+| Five points | 2e-6 | 2e-10 | 3e-14 |
+
+Each point's phase is exact before it is spread, so times of any size
+lose nothing; the transforms (Leroy 2012, with the kernel of Barnett,
+Magland & af Klinteberg 2019) are asked for a hundredth of the
+tolerance, and each power's error is bounded from theirs and the fit's
+conditioning. Where the bound fails (the lowest frequencies, where the
+fit's terms nearly coincide, and degenerate ones such as the Nyquist
+frequency of even sampling) that power is computed exactly instead.
+
 ```rust
 use rustellar_ls::{AutoFrequency, LightCurve};
 
@@ -100,18 +123,30 @@ On one AMD Ryzen (16 threads), floating mean, standard normalisation, an
 even grid of frequencies (`cargo bench -p rustellar-ls`), against astropy
 7.2 on the same machine and sizes:
 
-| Points x frequencies | rustellar-ls, 1 thread | all threads | astropy slow | astropy cython | astropy fast |
-|---|--:|--:|--:|--:|--:|
-| 1,000 x 10,000 | 70 ms | 10 ms | 539 ms | 303 ms | 7 ms |
-| 10,000 x 10,000 | 706 ms | 99 ms | 5,355 ms | 2,718 ms | 10 ms |
+| Points x frequencies | exact, 1 thread | exact, all threads | astropy slow | astropy cython |
+|---|--:|--:|--:|--:|
+| 1,000 x 10,000 | 69 ms | 10 ms | 539 ms | 303 ms |
+| 10,000 x 10,000 | 703 ms | 99 ms | 5,355 ms | 2,718 ms |
 
 The exact method costs about 7 ns per point and frequency on one thread,
 4 times less than astropy's cython method: the phase from two exact
 products and fdlibm's minimax polynomials on the reduced angle (no
 library sine, no fused multiply-add needed), compiled for AVX2 where the
 processor has it (the same arithmetic, so the same bits either way).
-astropy's fast method is quicker but approximate (see Accuracy); a fast
-method to a stated tolerance is next.
+
+The fast method, all threads, against astropy's fast method (which has no
+tolerance; see Accuracy):
+
+| Points x frequencies | tolerance 1e-6 | tolerance 1e-12 | astropy fast |
+|---|--:|--:|--:|
+| 1,000 x 10,000 | 3.2 ms | 3.6 ms | 7.4 ms |
+| 10,000 x 10,000 | 4.4 ms | 5.1 ms | 9.8 ms |
+| 10,000 x 100,000 | 33 ms | 34 ms | 81 ms |
+| 100,000 x 100,000 | 42 ms | 45 ms | 125 ms |
+| 1,000,000 x 1,000,000 | 381 ms | 404 ms | 2,019 ms |
+
+It costs `O(n + m log m)` for `n` points and `m` frequencies, on our own
+cache-blocked FFT, with the same bits on any number of threads.
 
 ## License
 

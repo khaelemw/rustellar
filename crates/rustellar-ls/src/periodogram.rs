@@ -2,11 +2,15 @@
 //! weighted least squares, from compensated, centred sums.
 
 use std::num::NonZeroUsize;
-use std::thread;
 
 use rustellar_core::LightCurve;
 
+use crate::parallel::{run_all, threads_for};
 use crate::sums::{Sum, phase, split};
+
+/// The fewest point-frequencies worth a thread of their own: about
+/// two milliseconds of work.
+pub(crate) const GRAIN: usize = 1 << 18;
 use crate::{Frequencies, LsError};
 
 /// What the sinusoid is fitted with.
@@ -86,22 +90,22 @@ pub enum Normalization {
 #[derive(Debug, Clone)]
 pub struct LombScargle {
     /// Times less `centre`, in days.
-    time: Vec<f64>,
+    pub(crate) time: Vec<f64>,
     /// Each time's halves, for exact products.
-    halves: Vec<(f64, f64)>,
+    pub(crate) halves: Vec<(f64, f64)>,
     /// The middle of the span, in days.
-    centre: f64,
+    pub(crate) centre: f64,
     /// The flux the sinusoid is fitted to: less its weighted mean unless
     /// [`Mean::Zero`].
-    flux: Vec<f64>,
+    pub(crate) flux: Vec<f64>,
     /// `(e_min / e)^2`: the weights, scaled so the largest is 1.
-    weight: Vec<f64>,
+    pub(crate) weight: Vec<f64>,
     /// `1 / e_min^2`, the scale of the weights.
-    scale: f64,
-    mean: Mean,
+    pub(crate) scale: f64,
+    pub(crate) mean: Mean,
     /// The reference chi-squared, in scaled weights.
-    chi2_ref: f64,
-    threads: NonZeroUsize,
+    pub(crate) chi2_ref: f64,
+    pub(crate) threads: NonZeroUsize,
 }
 
 impl LombScargle {
@@ -160,7 +164,7 @@ impl LombScargle {
             scale: 1.0 / (e_min * e_min),
             mean,
             chi2_ref,
-            threads: thread::available_parallelism().unwrap_or(NonZeroUsize::MIN),
+            threads: std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN),
         })
     }
 
@@ -206,23 +210,21 @@ impl LombScargle {
     pub fn power(&self, frequencies: &Frequencies, normalization: Normalization) -> Periodogram {
         let n = frequencies.len();
         let mut power = vec![0.0; n];
-        let threads = self.threads.get().min(n);
+        // A thread to each GRAIN point-frequencies at least.
+        let threads = threads_for(self.threads.get(), n * self.time.len(), GRAIN);
         let chunk = n.div_ceil(threads);
         // Only these divide by the chi-squared left.
         let residual = matches!(normalization, Normalization::Model | Normalization::Log);
         let wide = has_avx2();
-        thread::scope(|scope| {
-            for (k, out) in power.chunks_mut(chunk).enumerate() {
-                scope.spawn(move || {
-                    let mut buffer = Buffer::new(self.time.len());
-                    for (j, p) in out.iter_mut().enumerate() {
-                        let fit =
-                            self.fit(frequencies.get(k * chunk + j), residual, wide, &mut buffer);
-                        *p = self.normalized(fit, normalization);
-                    }
-                });
+        run_all(power.chunks_mut(chunk).enumerate().map(|(k, out)| {
+            move || {
+                let mut buffer = Buffer::new(self.time.len());
+                for (j, p) in out.iter_mut().enumerate() {
+                    let fit = self.fit(frequencies.get(k * chunk + j), residual, wide, &mut buffer);
+                    *p = self.normalized(fit, normalization);
+                }
             }
-        });
+        }));
         Periodogram {
             frequencies: frequencies.clone(),
             power,
@@ -324,7 +326,7 @@ impl LombScargle {
     }
 
     /// `fit`'s power in `normalization`.
-    fn normalized(&self, fit: Fit, normalization: Normalization) -> f64 {
+    pub(crate) fn normalized(&self, fit: Fit, normalization: Normalization) -> f64 {
         match normalization {
             Normalization::Standard => fit.reduction / self.chi2_ref,
             Normalization::Model => fit.reduction / fit.chi2,
@@ -412,9 +414,9 @@ pub(crate) fn solve(a: f64, b: f64, d: f64, u: f64, v: f64, n: f64) -> (f64, f64
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Periodogram {
-    frequencies: Frequencies,
-    power: Vec<f64>,
-    normalization: Normalization,
+    pub(crate) frequencies: Frequencies,
+    pub(crate) power: Vec<f64>,
+    pub(crate) normalization: Normalization,
 }
 
 impl Periodogram {

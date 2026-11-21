@@ -71,7 +71,7 @@ pub(crate) fn two_product_split(
 
 /// `a b` as the rounded product and its exact error.
 #[inline]
-fn two_product(a: f64, b: f64) -> (f64, f64) {
+pub(crate) fn two_product(a: f64, b: f64) -> (f64, f64) {
     two_product_split(a, split(a), b, split(b))
 }
 

@@ -16,7 +16,8 @@
 //!   checked once; [`AutoFrequency`], astropy's automatic grid.
 //! - [`LombScargle`]: the light curve set up with a [`Mean`] (floating by
 //!   default), and its power at any frequencies in any [`Normalization`],
-//!   exactly ([`Periodogram`]).
+//!   exactly ([`Periodogram`]); and on an even grid by non-uniform FFTs,
+//!   every power within a tolerance ([`LombScargle::power_fast`]).
 //!
 //! # Examples
 //!
@@ -31,7 +32,11 @@
 //! ```
 
 mod error;
+mod fast;
+mod fft;
 mod frequencies;
+mod nufft;
+mod parallel;
 mod periodogram;
 mod sums;
 

@@ -51,5 +51,37 @@ fn exact(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, exact);
+fn fast(c: &mut Criterion) {
+    let mut group = c.benchmark_group("fast");
+    group
+        .sample_size(10)
+        .measurement_time(Duration::from_secs(10));
+    for (n, nf) in [
+        (1_000, 10_000),
+        (10_000, 10_000),
+        (10_000, 100_000),
+        (100_000, 100_000),
+        (1_000_000, 1_000_000),
+    ] {
+        let lc = curve(n);
+        let grid = Frequencies::uniform(0.01, 0.005, nf).unwrap();
+        let ls = LombScargle::new(&lc, Mean::Floating).unwrap();
+        for tolerance in [1e-6, 1e-12] {
+            group.bench_function(
+                format!("{n} points x {nf} frequencies, tolerance {tolerance:e}"),
+                |b| {
+                    b.iter(|| {
+                        black_box(
+                            ls.power_fast(&grid, Normalization::Standard, tolerance)
+                                .unwrap(),
+                        )
+                    });
+                },
+            );
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(benches, exact, fast);
 criterion_main!(benches);
