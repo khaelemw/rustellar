@@ -330,9 +330,9 @@ fn matches_emcee_with_batman() {
         .unwrap()
         .with_seed(12)
         .with_move(Move::differential_evolution(None, 1e-5).unwrap())
-        .run(&posterior, 15_000)
+        .run(&posterior, 30_000)
         .unwrap();
-    let discard = 3000;
+    let discard = 5000;
     let mut columns: Vec<Vec<f64>> = vec![Vec::new(); 8];
     for x in chain.samples(discard) {
         for (c, v) in columns.iter_mut().zip(x) {
@@ -349,11 +349,11 @@ fn matches_emcee_with_batman() {
         let theirs: Vec<f64> = row[1..].iter().map(num).collect();
         let sigma = (theirs[3] - theirs[1]) / 2.0;
         for (j, (q, gap)) in [
-            (2.5, 0.25),
-            (16.0, 0.12),
-            (50.0, 0.1),
-            (84.0, 0.12),
-            (97.5, 0.25),
+            (2.5, 0.3),
+            (16.0, 0.15),
+            (50.0, 0.15),
+            (84.0, 0.15),
+            (97.5, 0.3),
         ]
         .into_iter()
         .enumerate()

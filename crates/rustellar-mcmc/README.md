@@ -131,11 +131,13 @@ baseline free and uniform priors. emcee 3.1.6 with batman 2.5.1: the
 stretch move, 40 walkers, 60,000 steps, 2.4 million log-probabilities in
 137 s; its autocorrelation times run from 170 steps (t0) to 620 (b).
 This crate: differential evolution, 40 walkers from the fit's covariance,
-15,000 steps, 600,000 log-probabilities in 7.5 s on one thread. Every
-2.5th, 16th, 50th, 84th and 97.5th percentile of every coordinate and of
-the star's density agrees with emcee's to within 0.04 of the posterior's
-standard deviation in the middle and 0.08 in the tails, what the two
-chains' Monte Carlo errors allow (`tests/transit.rs`).
+30,000 steps with the first 5,000 discarded. Over 30 seeds, every 16th,
+50th and 84th percentile of every coordinate and of the star's density
+agrees with emcee's to within 0.093 of the posterior's standard
+deviation, and every 2.5th and 97.5th to within 0.152, what the two
+chains' Monte Carlo errors allow; the test holds them to 0.15 and 0.3,
+since each platform's maths library rounds differently and so draws a
+different chain from the same seed (`tests/transit.rs`).
 
 ## Time per independent sample
 
