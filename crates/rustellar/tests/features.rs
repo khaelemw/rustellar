@@ -76,3 +76,10 @@ fn ls_feature_brings_in_ls() {
     let grid: rustellar_ls::Frequencies = rustellar::ls::Frequencies::uniform(1.0, 0.5, 3).unwrap();
     assert_eq!(grid.max(), 2.0);
 }
+
+#[cfg(feature = "fit")]
+#[test]
+fn fit_feature_brings_in_fit() {
+    let p: rustellar_fit::Parameter = rustellar::fit::Parameter::RadiusRatio;
+    assert_eq!(p.to_string(), "k");
+}

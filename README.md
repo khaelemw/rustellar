@@ -19,7 +19,7 @@ rustellar = { version = "0.0", features = ["model"] }
 | [`rustellar`](crates/rustellar) | | Brings in the tools below by feature | in place |
 | [`rustellar-core`](crates/rustellar-core) | always on | Light curves, folding, time types | done |
 | [`rustellar-model`](crates/rustellar-model) | `model` | Transit light curves (Mandel & Agol 2002), exposure averaging | done |
-| `rustellar-fit` | `fit` | Least-squares transit fit | planned |
+| [`rustellar-fit`](crates/rustellar-fit) | `fit` | Least-squares transit fit | in progress |
 | [`rustellar-bls`](crates/rustellar-bls) | `bls` | Box least squares transit search | done |
 | [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) | done |
 | `rustellar-mcmc` | `mcmc` | Affine-invariant ensemble sampler | planned |

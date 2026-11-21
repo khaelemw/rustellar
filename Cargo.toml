@@ -14,6 +14,7 @@ license = "MIT OR Apache-2.0"
 rustellar-bls = { path = "crates/rustellar-bls", version = "0.0.0" }
 rustellar-core = { path = "crates/rustellar-core", version = "0.0.0" }
 rustellar-detrend = { path = "crates/rustellar-detrend", version = "0.0.0" }
+rustellar-fit = { path = "crates/rustellar-fit", version = "0.0.0" }
 rustellar-ls = { path = "crates/rustellar-ls", version = "0.0.0" }
 rustellar-model = { path = "crates/rustellar-model", version = "0.0.0" }
 rustellar-tls = { path = "crates/rustellar-tls", version = "0.0.0" }

@@ -7,12 +7,13 @@
 //!
 //! | Feature | Module | What it does |
 //! |---|---|---|
-//! | `bls` | [`bls`] | Box least squares transit search (in development) |
-//! | `detrend` | [`detrend`] | Detrending: a sliding biweight, median or mean, to full precision (in development) |
-//! | `ls` | [`ls`] | The Lomb-Scargle periodogram (in development) |
+//! | `bls` | [`bls`] | Box least squares transit search |
+//! | `detrend` | [`detrend`] | Detrending: a sliding biweight, median or mean, to full precision |
+//! | `ls` | [`ls`] | The Lomb-Scargle periodogram |
+//! | `fit` | [`fit`] | Least-squares transit fits (in development) |
 //! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
-//! | `tls` | [`tls`] | Transit least squares: a limb-darkened template search (in development) |
-//! | `vet` | [`vet`] | Vetting candidates: aliases, odd and even depths, coverage (in development) |
+//! | `tls` | [`tls`] | Transit least squares: a limb-darkened template search |
+//! | `vet` | [`vet`] | Vetting candidates: aliases, odd and even depths, coverage |
 //! | `full` | | Every tool |
 //! | `cuda` | | The `bls` and `tls` searches on an NVIDIA GPU where there is one (Rust 1.88 or later) |
 //!
@@ -63,6 +64,11 @@ pub use rustellar_bls as bls;
 #[cfg(feature = "detrend")]
 #[cfg_attr(docsrs, doc(cfg(feature = "detrend")))]
 pub use rustellar_detrend as detrend;
+
+/// Least-squares transit fits, from [`rustellar-fit`](rustellar_fit).
+#[cfg(feature = "fit")]
+#[cfg_attr(docsrs, doc(cfg(feature = "fit")))]
+pub use rustellar_fit as fit;
 
 /// The Lomb-Scargle periodogram, from [`rustellar-ls`](rustellar_ls).
 #[cfg(feature = "ls")]

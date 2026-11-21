@@ -1,0 +1,26 @@
+[package]
+name = "rustellar-fit"
+description = "Least-squares transit fits in pure Rust: Levenberg-Marquardt to the best parameters, with standard errors and derived quantities"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "exoplanet", "transit", "fitting"]
+categories = ["science", "algorithms"]
+# The published package holds the library and its unit tests, which need no
+# files. The integration tests and the benchmarks stay in the source.
+exclude = ["/tests/", "/benches/"]
+
+[dependencies]
+rustellar-core.workspace = true
+rustellar-model.workspace = true
+
+[dev-dependencies]
+criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "fit"
+harness = false
+
+[package.metadata.docs.rs]
+all-features = true
