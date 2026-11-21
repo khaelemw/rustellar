@@ -126,16 +126,17 @@ recorded times; `cargo bench -p rustellar-fit` runs the Rust side alone.
 
 | Case | rustellar-fit | batman 2.5.1, lm, 2-point | trf, 2-point | trf, 3-point | trf, tolerances 1e-15 | PyTransit 2.6.18, trf, 3-point |
 |---|--:|--:|--:|--:|--:|--:|
-| Hot Jupiter, noiseless | 1.6 ms | 14 ms | 19 ms | 28 ms | 35 ms | 14 ms |
-| Hot Jupiter | 1.4 ms | 12 ms | 11 ms | 19 ms | 31 ms | 9.6 ms |
-| The same, BJD-sized times | 3.3 ms | 3.0 ms† | 20 ms† | 5.9 ms† | 10 ms† | 2.7 ms† |
+| Hot Jupiter, noiseless | 1.5 ms | 14 ms | 19 ms | 28 ms | 35 ms | 14 ms |
+| Hot Jupiter | 1.3 ms | 12 ms | 11 ms | 19 ms | 31 ms | 9.6 ms |
+| The same, BJD-sized times | 3.1 ms | 3.0 ms† | 20 ms† | 5.9 ms† | 10 ms† | 2.7 ms† |
 | Small planet | 13 ms | 6.9 ms† | 17 ms† | 27 ms† | 56 ms† | 8.3 ms† |
-| Grazing | 19 ms | 0.38 s | 17 ms† | 23 ms† | 39 ms† | 8.5 ms† |
-| Long cadence | 8.5 ms | 0.20 s | 0.19 s | 0.29 s | 0.30 s | 19 ms |
+| Grazing | 14 ms | 0.38 s | 17 ms† | 23 ms† | 39 ms† | 8.5 ms† |
+| Long cadence | 8.6 ms | 0.20 s | 0.19 s | 0.29 s | 0.30 s | 19 ms |
 
 † stopped far from the minimum (chi-squared 160 to 45,000 higher; see
 the accuracy table), so not the same work. Where a method reaches the
-same minimum this crate is 2.2 to 20 times as fast.
+same minimum this crate is 2.2 to 27 times as fast as the fastest of
+them.
 
 Most of that is the Jacobian. Differencing the light curve costs two
 light curves a free parameter; here the flux depends on the parameters
