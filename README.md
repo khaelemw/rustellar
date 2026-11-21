@@ -20,12 +20,12 @@ rustellar = { version = "0.0", features = ["model"] }
 | [`rustellar-core`](crates/rustellar-core) | always on | Light curves, folding, time types | done |
 | [`rustellar-model`](crates/rustellar-model) | `model` | Transit light curves (Mandel & Agol 2002), exposure averaging | done |
 | `rustellar-fit` | `fit` | Least-squares transit fit | planned |
-| [`rustellar-bls`](crates/rustellar-bls) | `bls` | Box least squares transit search | in progress |
-| [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) | in progress |
+| [`rustellar-bls`](crates/rustellar-bls) | `bls` | Box least squares transit search | done |
+| [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) | done |
 | `rustellar-mcmc` | `mcmc` | Affine-invariant ensemble sampler | planned |
 | [`rustellar-ls`](crates/rustellar-ls) | `ls` | Lomb-Scargle periodogram, peaks, false-alarm probabilities | done |
-| [`rustellar-tls`](crates/rustellar-tls) | `tls` | Transit least squares | in progress |
-| [`rustellar-vet`](crates/rustellar-vet) | `vet` | Vetting candidates: aliases, odd and even depths, coverage | in progress |
+| [`rustellar-tls`](crates/rustellar-tls) | `tls` | Transit least squares | done |
+| [`rustellar-vet`](crates/rustellar-vet) | `vet` | Vetting candidates: aliases, odd and even depths, coverage | done |
 
 ## Development
 
