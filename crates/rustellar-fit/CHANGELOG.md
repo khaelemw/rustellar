@@ -23,6 +23,8 @@ All notable changes to this crate are recorded here. The format follows
   keeps pressing against, and converge on it.
 - `TransitFit::with_threads`: the model and Jacobian over threads, the
   same to the bit as on one.
+- `Parameter::ECosW` and `Parameter::ESinW`: eccentric orbits, fixed by
+  default; the baseline stays the last parameter.
 
 ### Changed
 

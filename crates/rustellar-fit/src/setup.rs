@@ -6,11 +6,12 @@ use std::num::NonZeroUsize;
 use rustellar_core::LightCurve;
 use rustellar_model::{Exposure, TransitParams};
 
+use crate::parameter::COUNT;
 use crate::{FitError, Parameter};
 
 /// A transit fit set up: the light curve, the starting parameters and
-/// baseline, which [`Parameter`]s are free (all by default) and, for long
-/// cadences, each point's [`Exposure`].
+/// baseline, which [`Parameter`]s are free (all but the eccentricity's by
+/// default) and, for long cadences, each point's [`Exposure`].
 ///
 /// # Examples
 ///
@@ -45,7 +46,7 @@ pub struct TransitFit<'a> {
     pub(crate) lc: &'a LightCurve,
     pub(crate) start: TransitParams,
     pub(crate) baseline: f64,
-    pub(crate) free: [bool; 8],
+    pub(crate) free: [bool; COUNT],
     pub(crate) exposure: Option<Exposure>,
     pub(crate) max_iterations: usize,
     pub(crate) accelerate: bool,
@@ -85,15 +86,26 @@ pub enum LimbDarkeningBounds {
 }
 
 impl<'a> TransitFit<'a> {
-    /// A fit of `lc` from `start`, a baseline of 1, every parameter free,
+    /// A fit of `lc` from `start`, a baseline of 1, every parameter free
+    /// but [`ECosW`](Parameter::ECosW) and [`ESinW`](Parameter::ESinW),
     /// each point an instant.
+    ///
+    /// The eccentricity is held at the start's (zero for a circular
+    /// orbit) because a transit alone hardly constrains it: `e sin w`
+    /// trades against `a / R*` and `b` through the duration, and `e cos w`
+    /// barely shows at all. Free it with
+    /// [`with_free`](Self::with_free) given a prior hold on the star's
+    /// density, or many transits of high precision.
     #[must_use]
     pub const fn new(lc: &'a LightCurve, start: TransitParams) -> Self {
+        let mut free = [true; COUNT];
+        free[Parameter::ECosW.index()] = false;
+        free[Parameter::ESinW.index()] = false;
         Self {
             lc,
             start,
             baseline: 1.0,
-            free: [true; 8],
+            free,
             exposure: None,
             max_iterations: 200,
             accelerate: true,

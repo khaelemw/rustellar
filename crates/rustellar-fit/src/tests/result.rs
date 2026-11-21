@@ -1,4 +1,5 @@
 use crate::lm::Solution;
+use crate::parameter::COUNT;
 use crate::problem::values_of;
 use crate::{
     Epoch, FitResult, ImpactParameter, LimbDarkening, Parameter, RadiusRatio, ScaledSemiMajorAxis,
@@ -17,8 +18,8 @@ fn start() -> TransitParams {
     .unwrap()
 }
 
-/// A result over every parameter with this `R` (8 by 8) and these steps.
-fn result(values: [f64; 8], r: Vec<f64>, steps: Vec<f64>) -> FitResult {
+/// A result over every parameter with this `R` (10 by 10) and these steps.
+fn result(values: [f64; COUNT], r: Vec<f64>, steps: Vec<f64>) -> FitResult {
     let solution = Solution {
         x: values.to_vec(),
         f: vec![0.0; 20],
@@ -33,8 +34,8 @@ fn result(values: [f64; 8], r: Vec<f64>, steps: Vec<f64>) -> FitResult {
 
 /// Upper triangular, with ones above a diagonal of tens.
 fn coupled() -> Vec<f64> {
-    (0..64)
-        .map(|i| match (i / 8, i % 8) {
+    (0..100)
+        .map(|i| match (i / 10, i % 10) {
             (r, c) if r == c => 10.0,
             (r, c) if r < c => 1.0,
             _ => 0.0,
@@ -45,9 +46,9 @@ fn coupled() -> Vec<f64> {
 #[test]
 fn negative_b_is_reported_as_its_size() {
     let mut values = values_of(start(), 1.0);
-    let plus = result(values, coupled(), vec![1e-6; 8]);
+    let plus = result(values, coupled(), vec![1e-6; 10]);
     values[4] = -0.3;
-    let minus = result(values, coupled(), vec![1e-6; 8]);
+    let minus = result(values, coupled(), vec![1e-6; 10]);
     assert_eq!(minus.value(Parameter::ImpactParameter), 0.3);
     assert_eq!(minus.params(), plus.params());
     let (b, k) = (Parameter::ImpactParameter, Parameter::RadiusRatio);
@@ -59,8 +60,8 @@ fn negative_b_is_reported_as_its_size() {
 
 #[test]
 fn unconstrained() {
-    let r = vec![0.0; 64];
-    let res = result(values_of(start(), 1.0), r, vec![1e-6; 8]);
+    let r = vec![0.0; 100];
+    let res = result(values_of(start(), 1.0), r, vec![1e-6; 10]);
     assert!(res.covariance().is_none());
     assert_eq!(res.estimate(Parameter::RadiusRatio).error(), f64::INFINITY);
     assert_eq!(res.depth().error(), f64::INFINITY);
@@ -68,7 +69,7 @@ fn unconstrained() {
 
 #[test]
 fn one_sided_and_missing_gradients() {
-    let mut steps = vec![1e-6; 8];
+    let mut steps = vec![1e-6; 10];
     // k beyond its range either way, a_rs below 1 downwards, u1 past the
     // limb's zero upwards.
     steps[2] = 1e5;

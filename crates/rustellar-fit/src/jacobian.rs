@@ -21,6 +21,8 @@ use std::thread;
 
 use rustellar_model::{RadiusRatio, blocked_light};
 
+use crate::Parameter;
+use crate::parameter::{BASE, COUNT};
 use crate::problem::{BLOCK, Problem, STEP};
 
 /// What every row's derivatives need at one set of values.
@@ -45,8 +47,8 @@ struct Geometry {
 
 impl Geometry {
     /// `None` where `k` is too close to its limits to be differenced.
-    fn new(values: &[f64; 8], offsets: &[f64]) -> Option<Self> {
-        let [t0, period, k, a, b, u1, u2, _] = *values;
+    fn new(values: &[f64; COUNT], offsets: &[f64]) -> Option<Self> {
+        let [t0, period, k, a, b, u1, u2, ..] = *values;
         let (hz, hk) = (STEP * k, STEP * k);
         let (Ok(rk), Ok(up), Ok(down)) = (
             RadiusRatio::new(k),
@@ -90,9 +92,9 @@ impl Geometry {
         (1.0 - self.c2).mul_add(b0, self.c2.mul_add(b1, self.u2 * b2))
     }
 
-    /// dF/d(t0, P, k, a, b, u1, u2), and F, summed over the samples of the
+    /// dF/d(t0, P, k, a, b, u1, u2), zero for the eccentricity, and F, summed over the samples of the
     /// point at `time`.
-    fn row(&self, time: f64, offsets: &[f64]) -> [f64; 8] {
+    fn row(&self, time: f64, offsets: &[f64]) -> [f64; COUNT] {
         let Self {
             t0,
             period,
@@ -110,29 +112,29 @@ impl Geometry {
             samples,
             ..
         } = *self;
-        let mut d = [0.0; 8];
+        let mut d = [0.0; COUNT];
         let middle = TAU * (((time - t0) / period + 0.5).rem_euclid(1.0) - 0.5);
         if middle.abs() - spread > clear {
-            d[7] = samples;
+            d[BASE] = samples;
             return d;
         }
         for &offset in offsets {
             let cycles = (time + offset - t0) / period;
             let phi = TAU * ((cycles + 0.5).rem_euclid(1.0) - 0.5);
             if phi.abs() > clear {
-                d[7] += 1.0;
+                d[BASE] += 1.0;
                 continue;
             }
             let (sin, cos) = phi.sin_cos();
             let (x, y) = (a * sin, b * cos);
             let z = x.mul_add(x, y * y).sqrt();
             if cos <= 0.0 || z >= reach {
-                d[7] += 1.0;
+                d[BASE] += 1.0;
                 continue;
             }
             let parts = blocked_light(z, rk);
             let l = self.light(parts);
-            d[7] += 1.0 - l / omega;
+            d[BASE] += 1.0 - l / omega;
             let dl_dz = (self.light(blocked_light(z + hz, rk))
                 - self.light(blocked_light(z - hz, rk)))
                 / (2.0 * hz);
@@ -170,7 +172,7 @@ fn fill(
     t: usize,
     threads: usize,
     mut base: Vec<&mut [f64]>,
-    out: &mut Vec<(usize, [f64; 8])>,
+    out: &mut Vec<(usize, [f64; COUNT])>,
 ) {
     out.clear();
     let blocks = (t * BLOCK..times.len()).step_by(threads * BLOCK);
@@ -179,9 +181,9 @@ fn fill(
         for i in start..end {
             let d = g.row(times[i], offsets);
             if let Some(block) = base.get_mut(b) {
-                block[i - start] = d[7] * (weight[i] / g.samples);
+                block[i - start] = d[BASE] * (weight[i] / g.samples);
             }
-            if d[..7].iter().any(|&x| x != 0.0) {
+            if d[..BASE].iter().any(|&x| x != 0.0) {
                 out.push((i, d));
             }
         }
@@ -194,11 +196,18 @@ fn fill(
 /// so only the rows in transit are written, after clearing the last call's
 /// (every row, after a Jacobian from elsewhere). Each point's row is the
 /// same on any number of threads.
-pub(crate) fn jacobian(problem: &mut Problem<'_>, values: &[f64; 8], jac: &mut [f64]) -> bool {
+pub(crate) fn jacobian(problem: &mut Problem<'_>, values: &[f64; COUNT], jac: &mut [f64]) -> bool {
+    // Circular orbits only: an eccentric one's is differenced.
+    let eccentric = [Parameter::ECosW, Parameter::ESinW]
+        .iter()
+        .any(|p| values[p.index()] != 0.0 || problem.free.contains(&p.index()));
+    if eccentric {
+        return false;
+    }
     let Some(g) = Geometry::new(values, &problem.offsets) else {
         return false;
     };
-    let baseline = values[7];
+    let baseline = values[BASE];
     let m = problem.times.len();
     let Problem {
         times,
@@ -214,7 +223,7 @@ pub(crate) fn jacobian(problem: &mut Problem<'_>, values: &[f64; 8], jac: &mut [
     let shape: Vec<(usize, usize)> = free
         .iter()
         .enumerate()
-        .filter(|&(_, &p)| p != 7)
+        .filter(|&(_, &p)| p != BASE)
         .map(|(c, &p)| (c, p))
         .collect();
     if *written {

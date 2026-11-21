@@ -1,8 +1,8 @@
 use crate::lm::Residuals;
 use crate::problem::{Problem, onto_inner_edge, onto_physical, params_from, values_of};
 use crate::{
-    Epoch, ImpactParameter, LightCurve, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TimeDelta,
-    TransitFit, TransitParams,
+    Epoch, ImpactParameter, LightCurve, LimbDarkening, Parameter, RadiusRatio, ScaledSemiMajorAxis,
+    TimeDelta, TransitFit, TransitParams,
 };
 
 fn start() -> TransitParams {
@@ -17,6 +17,13 @@ fn start() -> TransitParams {
     .unwrap()
 }
 
+/// A fit with every parameter free, so the free values are all of them.
+fn every(lc: &LightCurve) -> TransitFit<'_> {
+    TransitFit::new(lc, start())
+        .with_free(Parameter::ECosW)
+        .with_free(Parameter::ESinW)
+}
+
 fn curve() -> LightCurve {
     let time: Vec<f64> = (0..100).map(|i| 0.01 * f64::from(i)).collect();
     LightCurve::from_days(time, vec![1.0; 100], vec![1e-3; 100]).unwrap()
@@ -25,12 +32,11 @@ fn curve() -> LightCurve {
 #[test]
 fn projects_onto_the_feasible_region() {
     let lc = curve();
-    let fit = TransitFit::new(&lc, start());
+    let fit = every(&lc);
     let mut p = Problem::new(&fit, values_of(start(), 1.0));
-
-    let mut x = [0.5, -1.0, -0.1, 0.5, -3.0, 0.9, 0.3, -2.0];
+    let mut x = [0.5, -1.0, -0.1, 0.5, -3.0, 0.9, 0.3, 0.0, 0.0, -2.0];
     p.project(&mut x);
-    let [_, period, k, a_rs, b, u1, u2, baseline] = x;
+    let [_, period, k, a_rs, b, u1, u2, _, _, baseline] = x;
     assert!(period > 0.0 && k > 0.0 && a_rs > 1.0 && baseline > 0.0);
     // b keeps its sign, inside the orbit.
     assert!(b < 0.0 && b.abs() < a_rs);
@@ -56,16 +62,25 @@ fn projects_onto_the_feasible_region() {
         assert!(z[5] + z[6] <= 1.0 && (z[5] + z[6] - 1.0).abs() < 1e-15);
         assert!(p.eval(&z, &mut out));
     }
+    // The eccentricity shrunk, w kept, until the periastron clears the
+    // star: a (1 - e) > 1.
+    let mut e = values_of(start(), 1.0);
+    (e[7], e[8]) = (0.6, -0.8);
+    p.project(&mut e);
+    let size = e[7].hypot(e[8]);
+    assert!(size < 0.9 && size > 0.9 - 1e-14);
+    assert!((e[8] / e[7] + 4.0 / 3.0).abs() < 1e-14);
+    assert!(p.eval(&e, &mut out));
 }
 
 #[test]
 fn infeasible_points() {
     let lc = curve();
-    let fit = TransitFit::new(&lc, start());
+    let fit = every(&lc);
     let mut p = Problem::new(&fit, values_of(start(), 1.0));
     let mut out = vec![0.0; 100];
     let good = values_of(start(), 1.0);
-    for (i, bad) in [(7, 0.0), (2, -0.1), (3, 0.5), (5, 2.0), (1, 0.0)] {
+    for (i, bad) in [(9, 0.0), (2, -0.1), (3, 0.5), (5, 2.0), (1, 0.0), (7, 0.95)] {
         let mut x = good;
         x[i] = bad;
         assert!(!p.eval(&x, &mut out), "{i}");
@@ -74,6 +89,12 @@ fn infeasible_points() {
     let mut x = good;
     x[4] = -0.3;
     assert_eq!(params_from(&x), Some(start()));
+    // e cos w and e sin w as an eccentric orbit, and back.
+    (x[7], x[8]) = (0.3, -0.4);
+    let eccentric = params_from(&x).unwrap();
+    assert!((eccentric.eccentricity() - 0.5).abs() < 1e-15);
+    let back = values_of(eccentric, 1.0);
+    assert!((back[7] - 0.3).abs() < 1e-15 && (back[8] + 0.4).abs() < 1e-15);
 }
 
 #[test]
@@ -81,7 +102,7 @@ fn onto_the_inner_edge() {
     // Points where the intensity is negative inside the disc (u2 < -1,
     // u1 > 2 sqrt(-u2)), and one past both edges.
     let lc = curve();
-    let fit = TransitFit::new(&lc, start());
+    let fit = every(&lc);
     let mut p = Problem::new(&fit, values_of(start(), 1.0));
     let mut out = vec![0.0; 100];
     for (u1, u2) in [
@@ -144,7 +165,7 @@ fn onto_kippings_triangle() {
 
 #[test]
 fn bounds_on_the_free_coefficients() {
-    use crate::{LimbDarkeningBounds, Parameter};
+    use crate::LimbDarkeningBounds;
     let lc = curve();
     let at = |u1: f64, u2: f64| {
         let mut v = values_of(start(), 1.0);

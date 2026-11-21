@@ -21,7 +21,15 @@ fn start() -> TransitParams {
 fn defaults_and_builders() {
     let lc = LightCurve::from_days(vec![0.0, 0.5, 1.0], vec![1.0; 3], vec![1e-3; 3]).unwrap();
     let fit = TransitFit::new(&lc, start());
-    assert_eq!(fit.free(), Parameter::ALL.to_vec());
+    // Every parameter but the eccentricity's.
+    let eccentric = [Parameter::ECosW, Parameter::ESinW];
+    let circular: Vec<Parameter> = Parameter::ALL
+        .into_iter()
+        .filter(|p| !eccentric.contains(p))
+        .collect();
+    assert_eq!(fit.free(), circular);
+    let every = fit.clone().with_free(eccentric[0]).with_free(eccentric[1]);
+    assert_eq!(every.free(), Parameter::ALL.to_vec());
     assert_eq!(fit.baseline(), 1.0);
     assert_eq!(fit.start(), start());
     assert_eq!(fit.exposure(), None);
@@ -88,7 +96,12 @@ fn bad_baselines_and_messages() {
 #[test]
 fn parameter_names() {
     let names: Vec<String> = Parameter::ALL.iter().map(ToString::to_string).collect();
-    assert_eq!(names, ["t0", "P", "k", "a_rs", "b", "u1", "u2", "baseline"]);
+    assert_eq!(
+        names,
+        [
+            "t0", "P", "k", "a_rs", "b", "u1", "u2", "e_cos_w", "e_sin_w", "baseline"
+        ]
+    );
     for (i, p) in Parameter::ALL.into_iter().enumerate() {
         assert_eq!(p.index(), i);
     }

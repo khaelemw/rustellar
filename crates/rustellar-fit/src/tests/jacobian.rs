@@ -1,6 +1,7 @@
 use std::num::NonZeroUsize;
 
 use crate::lm::Residuals;
+use crate::parameter::COUNT;
 use crate::problem::{Problem, values_of};
 use crate::{
     Epoch, Exposure, ImpactParameter, LightCurve, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis,
@@ -29,7 +30,7 @@ fn curve() -> LightCurve {
 /// The largest gap between the geometric Jacobian and the differenced one
 /// (central, steps of 1e-7 of each value's scale), against each column's
 /// largest entry.
-fn worst(fit: &TransitFit<'_>, values: [f64; 8]) -> f64 {
+fn worst(fit: &TransitFit<'_>, values: [f64; COUNT]) -> f64 {
     let mut p = Problem::new(fit, values);
     let x = p.free_values();
     let (m, n) = (p.len(), x.len());

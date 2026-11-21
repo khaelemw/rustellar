@@ -150,14 +150,16 @@ fn grazing_has_no_full_duration() {
 fn pulls_on_simulated_noise() {
     const RUNS: u32 = 300;
     let truth = params(1.3, 3.0, 0.1, 10.0, 0.5, 0.4, 0.25);
-    let want = [1.3, 3.0, 0.1, 10.0, 0.5, 0.4, 0.25, 1.0];
+    let want = [1.3, 3.0, 0.1, 10.0, 0.5, 0.4, 0.25, 0.0, 0.0, 1.0];
     let mut noise = Normal(2026);
-    let mut sums = [[0.0; 2]; 8];
+    let mut sums = [[0.0; 2]; 10];
+    let fitted = TransitFit::new(&noisy(truth, 3e-4, &mut Normal(1)), truth).free();
     let mut chi2 = 0.0;
     for _ in 0..RUNS {
         let lc = noisy(truth, 3e-4, &mut noise);
         let result = TransitFit::new(&lc, truth).run().unwrap();
-        for (p, s) in Parameter::ALL.iter().zip(&mut sums) {
+        for p in &fitted {
+            let s = &mut sums[p.index()];
             let e = result.estimate(*p);
             let pull = (e.value() - want[p.index()]) / e.error();
             s[0] += pull;
@@ -166,7 +168,8 @@ fn pulls_on_simulated_noise() {
         chi2 += result.reduced_chi_squared();
     }
     let runs = f64::from(RUNS);
-    for (p, [sum, squares]) in Parameter::ALL.iter().zip(sums) {
+    for p in &fitted {
+        let [sum, squares] = sums[p.index()];
         let mean = sum / runs;
         let sd = (squares / runs - mean * mean).sqrt();
         // Within about three standard errors of 0 and 1.

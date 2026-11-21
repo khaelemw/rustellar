@@ -52,6 +52,12 @@ inclination and stellar density derived from it.
   several threads, the same to the bit as on one. The solver's linear
   algebra stays on one thread, so threads pay only for very large light
   curves (a fifth off at a million points).
+- Eccentric orbits: `e cos w` and `e sin w` as parameters, held at the
+  start's values (a circular orbit, by default) because a transit alone
+  hardly constrains them. Free `e sin w` when a / R* is known from the
+  star's density; `e cos w` barely shows in a transit at all (its error
+  is above 1 at 1e-4 a point). On an eccentric orbit the Jacobian is
+  differenced.
 - Standard errors and the covariance from the fit's own `R`, never the
   normal equations; the depth, durations, inclination and stellar density
   with errors to first order. On simulated noise the pulls of every

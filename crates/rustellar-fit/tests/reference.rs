@@ -25,6 +25,24 @@ const CASES: &str = include_str!("reference/fit_cases.csv");
 const POINTS: &str = include_str!("reference/fit_points.csv");
 const METHODS: &str = include_str!("reference/fit_methods.csv");
 
+/// The parameters of a circular orbit, in the order the CSV files list
+/// them.
+const CIRCULAR: [Parameter; 8] = [
+    Parameter::MidTime,
+    Parameter::Period,
+    Parameter::RadiusRatio,
+    Parameter::SemiMajorAxis,
+    Parameter::ImpactParameter,
+    Parameter::U1,
+    Parameter::U2,
+    Parameter::Baseline,
+];
+
+/// A parameter's place in the CSV files' values.
+fn slot(p: Parameter) -> usize {
+    CIRCULAR.iter().position(|&q| q == p).unwrap()
+}
+
 struct Case {
     sigma: f64,
     fixed: Vec<Parameter>,
@@ -60,7 +78,7 @@ fn cases() -> BTreeMap<String, Case> {
                 )
                 .unwrap()
             });
-            let fixed = Parameter::ALL
+            let fixed = CIRCULAR
                 .into_iter()
                 .filter(|p| f[4].split(';').any(|n| n == p.name()))
                 .collect();
@@ -137,10 +155,10 @@ fn chi_squared(lc: &LightCurve, case: &Case, v: &[f64; 8]) -> Option<f64> {
 /// The largest distance of `v` from the fit in its standard errors, the
 /// mid-time to the nearest transit.
 fn distance(result: &FitResult, v: &[f64; 8]) -> f64 {
-    Parameter::ALL
+    CIRCULAR
         .iter()
         .map(|&p| {
-            let mut d = v[p.index()] - result.value(p);
+            let mut d = v[slot(p)] - result.value(p);
             if p == Parameter::MidTime {
                 let period = result.value(Parameter::Period);
                 d -= (d / period).round() * period;
@@ -180,7 +198,7 @@ fn against_batman_and_pytransit() {
             "{name}"
         );
         let ours = result.chi_squared();
-        let values = std::array::from_fn(|i| result.value(Parameter::ALL[i]));
+        let values = std::array::from_fn(|i| result.value(CIRCULAR[i]));
         let check = chi_squared(&lc, case, &values).unwrap();
         assert!((check - ours).abs() <= 1e-9 * ours.max(1.0), "{name}");
         eprintln!(
@@ -208,7 +226,7 @@ fn against_batman_and_pytransit() {
             .round()
                 == 0.0;
             let off = distance(&result, &m.values);
-            let errors = Parameter::ALL
+            let errors = CIRCULAR
                 .iter()
                 .filter(|&&p| result.estimate(p).error() > 0.0)
                 .filter(|&&p| p != Parameter::MidTime || same_epoch)
@@ -217,7 +235,7 @@ fn against_batman_and_pytransit() {
                     let b = result.estimate(Parameter::ImpactParameter);
                     p != Parameter::ImpactParameter || b.value() > b.error()
                 })
-                .map(|&p| (m.errors[p.index()] / result.estimate(p).error() - 1.0).abs())
+                .map(|&p| (m.errors[slot(p)] / result.estimate(p).error() - 1.0).abs())
                 .fold(0.0, f64::max);
             // At b = 0 the errors swing with b through its correlations, so
             // they are compared only away from it.
@@ -232,8 +250,8 @@ fn against_batman_and_pytransit() {
         }
         if name.ends_with("noiseless") {
             // batman's flux, so the gap between its model and this one.
-            for p in Parameter::ALL {
-                let want = case.truth[p.index()];
+            for p in CIRCULAR {
+                let want = case.truth[slot(p)];
                 let mut d = result.value(p) - want;
                 if p == Parameter::MidTime {
                     d -= (d / want.max(1.0)).round() * case.truth[1];

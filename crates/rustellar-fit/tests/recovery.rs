@@ -39,8 +39,9 @@ fn noiseless(
     LightCurve::from_days(time, flux, vec![1e-3; n as usize]).unwrap()
 }
 
-fn values(p: TransitParams, baseline: f64) -> [f64; 8] {
+fn values(p: TransitParams, baseline: f64) -> [f64; 10] {
     let (u1, u2) = p.limb_darkening().quadratic_coefficients();
+    let (w_sin, w_cos) = p.periastron_deg().to_radians().sin_cos();
     [
         p.t0().as_days(),
         p.period().as_days(),
@@ -49,6 +50,8 @@ fn values(p: TransitParams, baseline: f64) -> [f64; 8] {
         p.b().get(),
         u1,
         u2,
+        p.eccentricity() * w_cos,
+        p.eccentricity() * w_sin,
         baseline,
     ]
 }
@@ -69,7 +72,9 @@ fn assert_recovered(result: &FitResult, truth: TransitParams, baseline: f64, tol
         (have[4] - want[4]).abs() * tol / b_tol,
         (have[5] - want[5]).abs(),
         (have[6] - want[6]).abs(),
-        (have[7] - want[7]).abs() / want[7],
+        (have[7] - want[7]).abs(),
+        (have[8] - want[8]).abs(),
+        (have[9] - want[9]).abs() / want[9],
     ];
     for (p, e) in Parameter::ALL.iter().zip(errors) {
         assert!(
@@ -86,7 +91,7 @@ fn hot_jupiter() -> TransitParams {
 }
 
 #[test]
-fn hot_jupiter_every_parameter_free() {
+fn hot_jupiter_every_circular_parameter_free() {
     // Three transits at two-minute cadence.
     let truth = hot_jupiter();
     let lc = noiseless(truth, 1.002, (0.0, 2.0 / 1440.0, 5040), None);
@@ -96,7 +101,8 @@ fn hot_jupiter_every_parameter_free() {
         let result = fit.run().unwrap();
         assert_recovered(&result, truth, 1.002, 1e-9, 1e-9);
         assert!(result.chi_squared() < 1e-15);
-        assert_eq!(result.free(), Parameter::ALL);
+        assert_eq!(result.free(), TransitFit::new(&lc, start).free());
+        assert_eq!(result.free().len(), 8);
         assert_eq!(result.points(), 5040);
         assert_eq!(result.jacobians(), result.iterations() + 1);
         assert!(result.evaluations() <= 4 * result.iterations() + 4);

@@ -9,6 +9,7 @@ use rustellar_model::{
 
 use crate::jacobian::jacobian;
 use crate::lm::Residuals;
+use crate::parameter::{BASE, COUNT};
 use crate::{LimbDarkeningBounds, Parameter, TransitFit};
 
 /// A differencing step's size against its parameter's scale: `eps^(1/3)`,
@@ -45,14 +46,14 @@ pub(crate) struct Problem<'a> {
     flux: &'a [f64],
     pub(crate) weight: Vec<f64>,
     /// Every parameter's value, the free ones overwritten on each call.
-    values: [f64; 8],
+    values: [f64; COUNT],
     pub(crate) free: Vec<usize>,
     /// Whether the limb darkening is held to Kipping's triangle.
     physical: bool,
     /// Each thread's points, beyond the first thread.
     parts: Vec<Part>,
     /// Each thread's Jacobian rows with shape derivatives.
-    pub(crate) rows_out: Vec<Vec<(usize, [f64; 8])>>,
+    pub(crate) rows_out: Vec<Vec<(usize, [f64; COUNT])>>,
     /// The rows with shape derivatives in the last Jacobian.
     pub(crate) active: Vec<usize>,
     /// Whether the last Jacobian was this crate's, so only its rows in
@@ -61,7 +62,7 @@ pub(crate) struct Problem<'a> {
 }
 
 impl<'a> Problem<'a> {
-    pub(crate) fn new(fit: &TransitFit<'a>, values: [f64; 8]) -> Self {
+    pub(crate) fn new(fit: &TransitFit<'a>, values: [f64; COUNT]) -> Self {
         let times = fit.lc.time().to_vec();
         let days = times.iter().map(|t| t.as_days()).collect();
         let threads = fit.threads.get();
@@ -112,7 +113,7 @@ impl<'a> Problem<'a> {
     }
 
     /// Every value with the free ones from `x`.
-    pub(crate) fn values_at(&self, x: &[f64]) -> [f64; 8] {
+    pub(crate) fn values_at(&self, x: &[f64]) -> [f64; COUNT] {
         let mut values = self.values;
         for (&i, &v) in self.free.iter().zip(x) {
             values[i] = v;
@@ -128,7 +129,7 @@ impl Residuals for Problem<'_> {
 
     fn eval(&mut self, x: &[f64], out: &mut [f64]) -> bool {
         let values = self.values_at(x);
-        let baseline = values[Parameter::Baseline.index()];
+        let baseline = values[BASE];
         let Some(params) = params_from(&values) else {
             return false;
         };
@@ -204,13 +205,21 @@ impl Residuals for Problem<'_> {
 
     fn project(&self, x: &mut [f64]) {
         let mut v = self.values_at(x);
-        let [_, period, k, a_rs, b, u1, u2, baseline] = &mut v;
+        let [_, period, k, a_rs, b, u1, u2, e_cos, e_sin, baseline] = &mut v;
         *period = period.max(f64::MIN_POSITIVE);
         *baseline = baseline.max(f64::MIN_POSITIVE);
         *k = k.max(f64::EPSILON);
         *a_rs = a_rs.max(1.0 + f64::EPSILON);
         if b.abs() >= *a_rs {
             *b = (*a_rs * (1.0 - f64::EPSILON)).copysign(*b);
+        }
+        // The periastron outside the star, a (1 - e) > 1, by shrinking e
+        // with w kept.
+        let e = e_cos.hypot(*e_sin);
+        let most = (1.0 - a_rs.recip()) * (1.0 - 4.0 * f64::EPSILON);
+        if e > most {
+            *e_cos *= most / e;
+            *e_sin *= most / e;
         }
         let u_free = (
             self.free.contains(&Parameter::U1.index()),
@@ -327,9 +336,9 @@ pub(crate) fn onto_inner_edge(u1: f64, u2: f64) -> (f64, f64) {
 
 /// The transit parameters of `values`, with `|b|` as `b` (the flux depends
 /// on `b^2` alone), or `None` where they are not a valid transit.
-pub(crate) fn params_from(values: &[f64; 8]) -> Option<TransitParams> {
-    let [t0, period, k, a_rs, b, u1, u2, _] = *values;
-    TransitParams::new(
+pub(crate) fn params_from(values: &[f64; COUNT]) -> Option<TransitParams> {
+    let [t0, period, k, a_rs, b, u1, u2, e_cos, e_sin, _] = *values;
+    let circular = TransitParams::new(
         Epoch::from_days(t0).ok()?,
         TimeDelta::from_days(period).ok()?,
         RadiusRatio::new(k).ok()?,
@@ -337,12 +346,20 @@ pub(crate) fn params_from(values: &[f64; 8]) -> Option<TransitParams> {
         ImpactParameter::new(b.abs()).ok()?,
         LimbDarkening::quadratic(u1, u2).ok()?,
     )
-    .ok()
+    .ok()?;
+    if e_cos == 0.0 && e_sin == 0.0 {
+        return Some(circular);
+    }
+    circular
+        .with_eccentricity(e_cos.hypot(e_sin), e_sin.atan2(e_cos).to_degrees())
+        .ok()
 }
 
 /// Every parameter's value from transit parameters and a baseline.
-pub(crate) fn values_of(params: TransitParams, baseline: f64) -> [f64; 8] {
+pub(crate) fn values_of(params: TransitParams, baseline: f64) -> [f64; COUNT] {
     let (u1, u2) = params.limb_darkening().quadratic_coefficients();
+    let e = params.eccentricity();
+    let (w_sin, w_cos) = params.periastron_deg().to_radians().sin_cos();
     [
         params.t0().as_days(),
         params.period().as_days(),
@@ -351,6 +368,8 @@ pub(crate) fn values_of(params: TransitParams, baseline: f64) -> [f64; 8] {
         params.b().get(),
         u1,
         u2,
+        e * w_cos,
+        e * w_sin,
         baseline,
     ]
 }

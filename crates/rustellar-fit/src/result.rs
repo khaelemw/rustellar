@@ -1,5 +1,6 @@
 //! What a fit gives back.
 
+use crate::parameter::{BASE, COUNT};
 use std::f64::consts::PI;
 
 use rustellar_model::TransitParams;
@@ -61,7 +62,7 @@ const SECONDS_PER_DAY: f64 = 86_400.0;
 pub struct FitResult {
     params: TransitParams,
     /// Every parameter's value, `b` as its size.
-    values: [f64; 8],
+    values: [f64; COUNT],
     /// The differencing steps of the derived quantities, over `free`.
     steps: Vec<f64>,
     free: Vec<Parameter>,
@@ -78,15 +79,16 @@ impl FitResult {
     /// The result at `values` (with `b` signed as fitted), over `free`,
     /// with the solver's `steps` and `solution`.
     pub(crate) fn new(
-        mut values: [f64; 8],
+        mut values: [f64; COUNT],
         free: Vec<Parameter>,
         steps: Vec<f64>,
         solution: Solution,
     ) -> Self {
         let mut covariance = Covariance::from_r(free.clone(), &solution.r);
         // Reported as |b|, so its covariances change sign with b.
-        if values[4] < 0.0 {
-            values[4] = -values[4];
+        let b = Parameter::ImpactParameter.index();
+        if values[b] < 0.0 {
+            values[b] = -values[b];
             let place = free.iter().position(|&p| p == Parameter::ImpactParameter);
             if let (Some(c), Some(i)) = (covariance.as_mut(), place) {
                 c.flip(i);
@@ -117,7 +119,7 @@ impl FitResult {
     /// The best baseline.
     #[must_use]
     pub const fn baseline(&self) -> f64 {
-        self.values[7]
+        self.values[BASE]
     }
 
     /// One parameter's best value (its starting value if it was fixed).
@@ -196,7 +198,7 @@ impl FitResult {
     /// gradient by central differences (one-sided where the quantity is
     /// undefined on the other side).
     fn derived(&self, f: impl Fn(TransitParams) -> Option<f64>) -> Option<Estimate> {
-        let at = |values: &[f64; 8]| params_from(values).and_then(&f);
+        let at = |values: &[f64; COUNT]| params_from(values).and_then(&f);
         let value = at(&self.values)?;
         let Some(covariance) = &self.covariance else {
             return Some(Estimate::new(value, f64::INFINITY));

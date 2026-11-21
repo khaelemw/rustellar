@@ -1,6 +1,7 @@
 //! Running a set-up's fit.
 
 use crate::lm::{self, Residuals, Settings};
+use crate::parameter::BASE;
 use crate::problem::{Problem, STEP, values_of};
 use crate::{FitError, FitResult, Parameter, TransitFit};
 
@@ -79,7 +80,9 @@ impl TransitFit<'_> {
             values[4].max(values[2]),
             1.0,
             1.0,
-            values[7],
+            1.0,
+            1.0,
+            values[BASE],
         ];
 
         let mut problem = Problem::new(self, values);
