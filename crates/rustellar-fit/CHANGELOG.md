@@ -18,3 +18,6 @@ All notable changes to this crate are recorded here. The format follows
 - `FitResult::jacobians`: the Jacobians from the geometry, which replace
   differencing the light curve.
 - A criterion bench on the reference test's six fits.
+- `LimbDarkeningBounds` and `TransitFit::with_limb_darkening_bounds`:
+  Kipping's (2013) triangle as an option; steps follow a bound the fit
+  keeps pressing against, and converge on it.

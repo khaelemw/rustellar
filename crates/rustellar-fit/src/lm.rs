@@ -27,14 +27,13 @@ pub enum Termination {
     /// A full Gauss-Newton step would move the parameters by less than
     /// `1e-7 |r| + 1e-10` of their standard errors, `|r|` the norm of the
     /// weighted residuals (a few millionths of a standard error for a good
-    /// fit): the minimum to well within its uncertainty.
+    /// fit): the minimum to well within its uncertainty. At a minimum on a
+    /// limb-darkening bound, the step along the bound.
     Converged,
     /// No step lowered chi-squared before the steps fell to the parameters'
-    /// rounding. The usual reason is a minimum on a bound, where the
-    /// Gauss-Newton step keeps pointing past it: limb darkening at the
-    /// edge of its valid range, or `b = 0`, where the flux depends on
-    /// `b^2` and the Jacobian's column for `b` vanishes. The parameters are
-    /// then the minimum within the bounds.
+    /// rounding. The usual reason is `b = 0`, where the flux depends on
+    /// `b^2` and the Jacobian's column for `b` vanishes, so the minimum is
+    /// flat to first order. The parameters are then the minimum.
     PrecisionLimit,
     /// The iteration limit was reached first.
     MaxIterations,
@@ -58,6 +57,12 @@ pub(crate) trait Residuals {
     /// differenced.
     fn jacobian(&mut self, _x: &[f64], _jac: &mut [f64]) -> bool {
         false
+    }
+
+    /// The bounds `x` lies on, each as its inward normal (`n` long; for a
+    /// curved bound, its tangent's): a step leaving one is kept to it.
+    fn bounds(&self, _x: &[f64]) -> Vec<Vec<f64>> {
+        Vec::new()
     }
 }
 
@@ -98,6 +103,8 @@ const FLOOR: f64 = 1e-10;
 const ACCEL_STEP: f64 = 0.1;
 /// The largest acceleration taken, against the velocity, in the scaled norm.
 const ACCEL_RATIO: f64 = 0.75;
+/// Iterations in a row pressing against a bound before steps follow it.
+const PRESSED: usize = 2;
 
 /// Minimises `sum f(x)^2` from `x0`, which must be feasible, with the
 /// Jacobian the residuals' own, or its columns differenced over `steps`.
@@ -125,6 +132,8 @@ pub(crate) fn solve(
     let mut nu = 2.0;
     let mut iterations = 0;
     let mut jacobians = 0;
+    // Iterations in a row whose step would leave a bound.
+    let mut pressed = 0;
 
     loop {
         if p.jacobian(&x, &mut jac) {
@@ -140,7 +149,15 @@ pub(crate) fn solve(
         let unit = scale.iter().map(|&s| if s > 0.0 { s } else { 1.0 });
         let d: Vec<f64> = unit.collect();
 
-        let termination = if norm(&c) <= TOLERANCE.mul_add(norm(&f), FLOOR) {
+        // The step's direction at the current damping says which bounds
+        // it would leave; the test is then the step along them.
+        let (_, delta) = damped(&r, &c, &d, mu);
+        let (_, face) = onto_face(p, &x, &r, &c, &d, mu, delta);
+        pressed = if face.is_some() { pressed + 1 } else { 0 };
+        let gain = face
+            .as_ref()
+            .map_or_else(|| norm(&c), |z| face_gain(&r, &c, z));
+        let termination = if gain <= TOLERANCE.mul_add(norm(&f), FLOOR) {
             Some(Termination::Converged)
         } else if iterations == settings.max_iterations {
             Some(Termination::MaxIterations)
@@ -161,8 +178,17 @@ pub(crate) fn solve(
 
         // Damped steps until one lowers chi-squared.
         loop {
-            let (s, mut delta) = damped(&r, &c, &d, mu);
-            if settings.accelerate {
+            let (s, delta) = damped(&r, &c, &d, mu);
+            // A bound passed on the way is crossed by projection; one the
+            // fit keeps pressing against is followed, so the other
+            // parameters move as they would along it.
+            let (mut delta, face) = if pressed >= PRESSED {
+                onto_face(p, &x, &r, &c, &d, mu, delta)
+            } else {
+                (delta, None)
+            };
+            // The acceleration is for the free step; along a bound, none.
+            if settings.accelerate && face.is_none() {
                 for ((xt, &xi), &v) in x_try.iter_mut().zip(&x).zip(&delta) {
                     *xt = ACCEL_STEP.mul_add(v, xi);
                 }
@@ -388,6 +414,118 @@ fn acceleration(jac: &[f64], s: &[f64], f: &[f64], f_h: &[f64], v: &[f64], m: us
     }
     back_substitute(s, &mut g);
     g
+}
+
+/// The damped step kept to the bounds `x` lies on that `delta` would
+/// leave, and those bounds' null space (`None` if it leaves none): the
+/// bounds taken one round at a time, as a step along some can leave
+/// others.
+fn onto_face(
+    p: &dyn Residuals,
+    x: &[f64],
+    r: &[f64],
+    c: &[f64],
+    d: &[f64],
+    mu: f64,
+    mut delta: Vec<f64>,
+) -> (Vec<f64>, Option<Vec<Vec<f64>>>) {
+    let bounds = p.bounds(x);
+    let mut held: Vec<&[f64]> = Vec::new();
+    let mut face = None;
+    loop {
+        let leaving: Vec<&[f64]> = bounds
+            .iter()
+            .map(Vec::as_slice)
+            .filter(|b| !held.contains(b) && dot(b, &delta) < 0.0)
+            .collect();
+        if leaving.is_empty() {
+            return (delta, face);
+        }
+        held.extend(leaving);
+        let z = null_space(&held, x.len());
+        delta = face_step(r, c, d, mu, &z);
+        face = Some(z);
+    }
+}
+
+/// `v` less its parts along `basis` (orthonormal), twice over for
+/// orthogonality, and normalised; `None` if nothing is left of it.
+fn orthogonal(mut v: Vec<f64>, basis: &[Vec<f64>]) -> Option<Vec<f64>> {
+    let before = norm(&v);
+    for _ in 0..2 {
+        for u in basis {
+            let along = dot(u, &v);
+            for (vi, ui) in v.iter_mut().zip(u) {
+                *vi = (-along).mul_add(*ui, *vi);
+            }
+        }
+    }
+    let after = norm(&v);
+    (after > 1e-10 * before).then(|| v.iter().map(|vi| vi / after).collect())
+}
+
+/// An orthonormal basis of the vectors square to every one of `normals`
+/// (`n` long), by Gram-Schmidt.
+pub(crate) fn null_space(normals: &[&[f64]], n: usize) -> Vec<Vec<f64>> {
+    let mut all: Vec<Vec<f64>> = Vec::new();
+    for normal in normals {
+        if let Some(u) = orthogonal(normal.to_vec(), &all) {
+            all.push(u);
+        }
+    }
+    let rank = all.len();
+    for i in 0..n {
+        let mut e = vec![0.0; n];
+        e[i] = 1.0;
+        if let Some(u) = orthogonal(e, &all) {
+            all.push(u);
+        }
+    }
+    all.split_off(rank)
+}
+
+/// `R Z` (column-major, `n` by `z.len()`), with `r` row-major upper
+/// triangular.
+fn times_r(r: &[f64], z: &[Vec<f64>], n: usize) -> Vec<f64> {
+    z.iter()
+        .flat_map(|zj| (0..n).map(move |i| (i..n).map(|k| r[i * n + k] * zj[k]).sum::<f64>()))
+        .collect()
+}
+
+/// The damped step within the span of `z`: `Z y`, `y` minimising
+/// `|R Z y + c|^2 + mu |D Z y|^2`, by Householder QR of the stacked rows.
+fn face_step(r: &[f64], c: &[f64], d: &[f64], mu: f64, z: &[Vec<f64>]) -> Vec<f64> {
+    let n = c.len();
+    let rz = times_r(r, z, n);
+    let root = mu.sqrt();
+    let mut a = vec![0.0; 2 * n * z.len()];
+    for (j, zj) in z.iter().enumerate() {
+        let column = &mut a[j * 2 * n..(j + 1) * 2 * n];
+        column[..n].copy_from_slice(&rz[j * n..(j + 1) * n]);
+        for i in 0..n {
+            column[n + i] = root * d[i] * zj[i];
+        }
+    }
+    let mut rhs = c.to_vec();
+    rhs.resize(2 * n, 0.0);
+    let (s, mut y) = householder(&mut a, 2 * n, z.len(), &rhs);
+    back_substitute(&s, &mut y);
+    let mut delta = vec![0.0; n];
+    for (yj, zj) in y.iter().zip(z) {
+        for (di, zi) in delta.iter_mut().zip(zj) {
+            *di = (-yj).mul_add(*zi, *di);
+        }
+    }
+    delta
+}
+
+/// What a full Gauss-Newton step within the span of `z` would gain, in
+/// the same units as `|c|` for the free step: `|Q^T c|` for the QR of
+/// `R Z`.
+fn face_gain(r: &[f64], c: &[f64], z: &[Vec<f64>]) -> f64 {
+    let n = c.len();
+    let mut rz = times_r(r, z, n);
+    norm(&householder(&mut rz, n, z.len(), c).1)
 }
 
 /// Solves `S x = b` in place for upper triangular `S`.

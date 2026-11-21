@@ -7,7 +7,7 @@ use rustellar_model::{
 
 use crate::jacobian::jacobian;
 use crate::lm::Residuals;
-use crate::{Parameter, TransitFit};
+use crate::{LimbDarkeningBounds, Parameter, TransitFit};
 
 /// A differencing step's size against its parameter's scale: `eps^(1/3)`,
 /// which balances truncation against rounding for central differences.
@@ -26,6 +26,8 @@ pub(crate) struct Problem<'a> {
     /// Every parameter's value, the free ones overwritten on each call.
     values: [f64; 8],
     pub(crate) free: Vec<usize>,
+    /// Whether the limb darkening is held to Kipping's triangle.
+    physical: bool,
 }
 
 impl<'a> Problem<'a> {
@@ -47,6 +49,7 @@ impl<'a> Problem<'a> {
             weight: fit.lc.flux_err().iter().map(|e| e.recip()).collect(),
             values,
             free: fit.free().iter().map(|p| p.index()).collect(),
+            physical: fit.bounds == LimbDarkeningBounds::Physical,
         }
     }
 
@@ -91,6 +94,42 @@ impl Residuals for Problem<'_> {
         jacobian(self, &self.values_at(x), jac)
     }
 
+    fn bounds(&self, x: &[f64]) -> Vec<Vec<f64>> {
+        let v = self.values_at(x);
+        let (u1, u2) = (v[Parameter::U1.index()], v[Parameter::U2.index()]);
+        let at = |p: Parameter| self.free.iter().position(|&i| i == p.index());
+        let (i1, i2) = (at(Parameter::U1), at(Parameter::U2));
+        let mut out = Vec::new();
+        let mut push = |g1: f64, g2: f64| {
+            let mut normal = vec![0.0; x.len()];
+            if let Some(i) = i1 {
+                normal[i] = g1;
+            }
+            if let Some(i) = i2 {
+                normal[i] = g2;
+            }
+            if normal.iter().any(|&g| g != 0.0) {
+                out.push(normal);
+            }
+        };
+        // On a bound to within the rounding of the projection onto it.
+        let near = 4.0 * f64::EPSILON;
+        if u1 + u2 >= 1.0 - near {
+            push(-1.0, -1.0);
+        }
+        // The triangle's other edges; the valid range's curved inner edge is
+        // left to the projection, as a step along its tangent leaves it.
+        if self.physical {
+            if u1 <= near {
+                push(1.0, 0.0);
+            }
+            if 2.0f64.mul_add(u2, u1) <= near {
+                push(1.0, 2.0);
+            }
+        }
+        out
+    }
+
     fn project(&self, x: &mut [f64]) {
         let mut v = self.values_at(x);
         let [_, period, k, a_rs, b, u1, u2, baseline] = &mut v;
@@ -100,6 +139,17 @@ impl Residuals for Problem<'_> {
         *a_rs = a_rs.max(1.0 + f64::EPSILON);
         if b.abs() >= *a_rs {
             *b = (*a_rs * (1.0 - f64::EPSILON)).copysign(*b);
+        }
+        let u_free = (
+            self.free.contains(&Parameter::U1.index()),
+            self.free.contains(&Parameter::U2.index()),
+        );
+        if self.physical {
+            (*u1, *u2) = onto_physical(*u1, *u2, u_free);
+            for (xi, &i) in x.iter_mut().zip(&self.free) {
+                *xi = v[i];
+            }
+            return;
         }
         // The limb's intensity, 1 - u1 - u2, at zero, by the nearest point
         // of u1 + u2 = 1 (exactly 1 in floating point, as u1 + (1 - u1)).
@@ -118,6 +168,70 @@ impl Residuals for Problem<'_> {
             *xi = v[i];
         }
     }
+}
+
+/// The nearest point to `(u1, u2)` of Kipping's (2013) triangle, with
+/// corners `(0, 0)`, `(2, -1)` and `(0, 1)`, moving only the free ones
+/// (`free`: whether `u1`, `u2` are): with both, the nearest point of the
+/// triangle; with one, the nearest point of the triangle's chord through
+/// the fixed one, if it has one.
+pub(crate) fn onto_physical(u1: f64, u2: f64, free: (bool, bool)) -> (f64, f64) {
+    match free {
+        (true, true) => onto_triangle([u1, u2], [[0.0, 0.0], [2.0, -1.0], [0.0, 1.0]]).into(),
+        (true, false) => {
+            let (lo, hi) = ((-2.0 * u2).max(0.0), 1.0 - u2);
+            (if lo <= hi { u1.clamp(lo, hi) } else { u1 }, u2)
+        }
+        (false, true) => {
+            let (lo, hi) = (-0.5 * u1, 1.0 - u1);
+            (
+                u1,
+                if u1 >= 0.0 && lo <= hi {
+                    u2.clamp(lo, hi)
+                } else {
+                    u2
+                },
+            )
+        }
+        (false, false) => (u1, u2),
+    }
+}
+
+/// The nearest point to `p` of the triangle `abc` (Ericson 2005, 5.1.5):
+/// `p` itself inside, else on the nearest edge or corner.
+fn onto_triangle(p: [f64; 2], [a, b, c]: [[f64; 2]; 3]) -> [f64; 2] {
+    let sub = |x: [f64; 2], y: [f64; 2]| [x[0] - y[0], x[1] - y[1]];
+    let dot = |x: [f64; 2], y: [f64; 2]| x[0].mul_add(y[0], x[1] * y[1]);
+    let along = |x: [f64; 2], d: [f64; 2], t: f64| [t.mul_add(d[0], x[0]), t.mul_add(d[1], x[1])];
+    let (ab, ac, ap) = (sub(b, a), sub(c, a), sub(p, a));
+    let (d1, d2) = (dot(ab, ap), dot(ac, ap));
+    if d1 <= 0.0 && d2 <= 0.0 {
+        return a;
+    }
+    let bp = sub(p, b);
+    let (d3, d4) = (dot(ab, bp), dot(ac, bp));
+    if d3 >= 0.0 && d4 <= d3 {
+        return b;
+    }
+    let vc = d1.mul_add(d4, -(d3 * d2));
+    if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
+        return along(a, ab, d1 / (d1 - d3));
+    }
+    let cp = sub(p, c);
+    let (d5, d6) = (dot(ab, cp), dot(ac, cp));
+    if d6 >= 0.0 && d5 <= d6 {
+        return c;
+    }
+    let vb = d5.mul_add(d2, -(d1 * d6));
+    if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
+        return along(a, ac, d2 / (d2 - d6));
+    }
+    let va = d3.mul_add(d6, -(d5 * d4));
+    if va <= 0.0 && d4 - d3 >= 0.0 && d5 - d6 >= 0.0 {
+        return along(b, sub(c, b), (d4 - d3) / ((d4 - d3) + (d5 - d6)));
+    }
+    // Inside.
+    p
 }
 
 /// The point of the curve `(2t, -t^2)`, `t >= 1`, nearest `(u1, u2)`, a

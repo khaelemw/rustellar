@@ -221,7 +221,8 @@ fn against_batman_and_pytransit() {
                 .fold(0.0, f64::max);
             // At b = 0 the errors swing with b through its correlations, so
             // they are compared only away from it.
-            if off < 1e-2 && result.termination() == Termination::Converged {
+            let b = result.estimate(Parameter::ImpactParameter);
+            if off < 1e-2 && b.value() > b.error() {
                 assert!(errors < 1e-2, "{name}, {}: errors {errors}", m.name);
             }
             eprintln!(

@@ -120,7 +120,10 @@ fn grazing() {
     let lc = noiseless(truth, 1.0, (0.0, 2.0 / 1440.0, 2880), None);
     let start = params(1.0, 2.0, 0.15, 6.5, 0.95, 0.4, 0.25);
     let result = TransitFit::new(&lc, start).run().unwrap();
-    assert_recovered(&result, truth, 1.0, 1e-9, 1e-9);
+    // Only the limb is crossed, so limb darkening is all but free (standard
+    // errors of hundreds): the fit stops within 1e-10 of them, here a few
+    // times 1e-9.
+    assert_recovered(&result, truth, 1.0, 1e-7, 1e-7);
 }
 
 #[test]

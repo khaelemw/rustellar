@@ -1,5 +1,5 @@
 use crate::lm::Residuals;
-use crate::problem::{Problem, onto_inner_edge, params_from, values_of};
+use crate::problem::{Problem, onto_inner_edge, onto_physical, params_from, values_of};
 use crate::{
     Epoch, ImpactParameter, LightCurve, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TimeDelta,
     TransitFit, TransitParams,
@@ -111,4 +111,71 @@ fn onto_the_inner_edge() {
             "{d} against {nearest}"
         );
     }
+}
+
+#[test]
+fn onto_kippings_triangle() {
+    let both = (true, true);
+    // Inside: unmoved.
+    assert_eq!(onto_physical(0.4, 0.25, both), (0.4, 0.25));
+    // Nearest the corners.
+    assert_eq!(onto_physical(-1.0, -1.0, both), (0.0, 0.0));
+    assert_eq!(onto_physical(3.0, -2.0, both), (2.0, -1.0));
+    assert_eq!(onto_physical(-1.0, 2.0, both), (0.0, 1.0));
+    // Onto each edge, square to it.
+    let close =
+        |(a, b): (f64, f64), (c, d): (f64, f64)| (a - c).abs() < 1e-15 && (b - d).abs() < 1e-15;
+    assert!(close(onto_physical(-0.2, 0.3, both), (0.0, 0.3)));
+    assert!(close(onto_physical(1.0, 1.0, both), (0.5, 0.5)));
+    // u1 + 2 u2 = 0: (1, -1) to (1.2, -0.6).
+    assert!(close(onto_physical(1.0, -1.0, both), (1.2, -0.6)));
+    // One free: along the chord through the fixed one.
+    assert_eq!(onto_physical(-0.2, 0.3, (true, false)), (0.0, 0.3));
+    assert_eq!(onto_physical(0.9, 0.3, (true, false)), (0.7, 0.3));
+    assert_eq!(onto_physical(0.5, -0.4, (true, false)), (0.8, -0.4));
+    assert_eq!(onto_physical(0.4, 0.9, (false, true)), (0.4, 0.6));
+    assert_eq!(onto_physical(0.4, -0.5, (false, true)), (0.4, -0.2));
+    // No chord through the fixed one: unmoved.
+    assert_eq!(onto_physical(-0.5, 1.5, (true, false)), (-0.5, 1.5));
+    assert_eq!(onto_physical(-0.5, 0.2, (false, true)), (-0.5, 0.2));
+    assert_eq!(onto_physical(2.5, 0.2, (false, true)), (2.5, 0.2));
+    assert_eq!(onto_physical(-0.5, 0.2, (false, false)), (-0.5, 0.2));
+}
+
+#[test]
+fn bounds_on_the_free_coefficients() {
+    use crate::{LimbDarkeningBounds, Parameter};
+    let lc = curve();
+    let at = |u1: f64, u2: f64| {
+        let mut v = values_of(start(), 1.0);
+        v[5] = u1;
+        v[6] = u2;
+        v
+    };
+    // On u1 + u2 = 1 with u2 fixed: the normal is u1's alone.
+    let fit = TransitFit::new(&lc, start()).with_fixed(Parameter::U2);
+    let p = Problem::new(&fit, at(0.6, 0.4));
+    let bounds = p.bounds(&p.free_values());
+    assert_eq!(bounds.len(), 1);
+    assert_eq!(bounds[0][5], -1.0);
+    assert_eq!(bounds[0].iter().filter(|&&g| g != 0.0).count(), 1);
+    // With u1 fixed instead, u2's alone.
+    let fit = TransitFit::new(&lc, start()).with_fixed(Parameter::U1);
+    let p = Problem::new(&fit, at(0.6, 0.4));
+    let bounds = p.bounds(&p.free_values());
+    assert_eq!(bounds[0][5], -1.0);
+    // Both fixed: no bound to keep to.
+    let fit = TransitFit::new(&lc, start())
+        .with_fixed(Parameter::U1)
+        .with_fixed(Parameter::U2);
+    let p = Problem::new(&fit, at(0.6, 0.4));
+    assert!(p.bounds(&p.free_values()).is_empty());
+    // The triangle's corner (0, 0): two bounds.
+    let fit =
+        TransitFit::new(&lc, start()).with_limb_darkening_bounds(LimbDarkeningBounds::Physical);
+    let p = Problem::new(&fit, at(0.0, 0.0));
+    assert_eq!(p.bounds(&p.free_values()).len(), 2);
+    // Inside: none.
+    let p = Problem::new(&fit, at(0.4, 0.25));
+    assert!(p.bounds(&p.free_values()).is_empty());
 }

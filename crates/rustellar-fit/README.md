@@ -43,6 +43,11 @@ inclination and stellar density derived from it.
   differenced. Noiseless light curves are
   recovered to 1e-9 or better from offset starts, grazing and long-cadence
   ones included.
+- `LimbDarkeningBounds`: limb darkening anywhere the model is valid (the
+  default, limb brightening included), or held to Kipping's (2013)
+  triangle of stars that darken to their limb. A fit pressing against a
+  bound follows it: the step is solved within the bound, so the other
+  parameters move as they should along it and the fit converges there.
 - Standard errors and the covariance from the fit's own `R`, never the
   normal equations; the depth, durations, inclination and stellar density
   with errors to first order. On simulated noise the pulls of every
@@ -51,8 +56,9 @@ inclination and stellar density derived from it.
 ## Accuracy
 
 The fit stops when a full Gauss-Newton step would move the parameters by
-less than a few millionths of their standard errors, or, at a minimum on
-a bound (`b = 0`, or limb darkening at the edge of its valid range), when
+less than a few millionths of their standard errors, along the bound
+where the minimum is on one (limb darkening at the edge of its range).
+At `b = 0`, where the flux is flat in `b` to first order, it stops when
 no step lowers chi-squared at all (`Termination::PrecisionLimit`). Steps
 that cross a bound are projected back onto it, so the fit slides along a
 bound rather than stopping at it or leaving the model's valid range.

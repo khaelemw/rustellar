@@ -191,3 +191,17 @@ fn a_parameter_with_no_effect_between_two_that_have() {
         assert!((rtr(i, j) - want).abs() < 1e-9, "({i}, {j}): {}", rtr(i, j));
     }
 }
+
+#[test]
+fn null_space_of_dependent_normals() {
+    // The second normal is the first's multiple: one bound, a plane left.
+    let (a, b) = ([1.0, 1.0, 0.0], [2.0, 2.0, 0.0]);
+    let z = crate::lm::null_space(&[&a, &b], 3);
+    assert_eq!(z.len(), 2);
+    for v in &z {
+        let along: f64 = v.iter().zip(&a).map(|(x, y)| x * y).sum();
+        assert!(along.abs() < 1e-15);
+        let length: f64 = v.iter().map(|x| x * x).sum();
+        assert!((length - 1.0).abs() < 1e-15);
+    }
+}

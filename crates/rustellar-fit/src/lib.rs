@@ -61,7 +61,7 @@ pub use error::FitError;
 pub use lm::Termination;
 pub use parameter::Parameter;
 pub use result::FitResult;
-pub use setup::TransitFit;
+pub use setup::{LimbDarkeningBounds, TransitFit};
 
 // The types a fit takes and returns, so `rustellar-core` and
 // `rustellar-model` need not be listed beside this crate.

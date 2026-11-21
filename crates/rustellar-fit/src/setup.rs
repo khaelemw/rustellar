@@ -47,6 +47,38 @@ pub struct TransitFit<'a> {
     pub(crate) exposure: Option<Exposure>,
     pub(crate) max_iterations: usize,
     pub(crate) accelerate: bool,
+    pub(crate) bounds: LimbDarkeningBounds,
+}
+
+/// Which limb-darkening coefficients a fit may reach.
+///
+/// For the quadratic law `I(mu) / I(1) = 1 - u1 (1 - mu) - u2 (1 - mu)^2`:
+///
+/// - [`Valid`](Self::Valid), the default: any the model accepts, the
+///   intensity nowhere negative. Limb brightening (`u1 < 0`) is allowed,
+///   as some stars and some fits to noise show it.
+/// - [`Physical`](Self::Physical): the intensity also nowhere rising
+///   towards the limb, Kipping's (2013) triangle `u1 + u2 <= 1`,
+///   `u1 >= 0`, `u1 + 2 u2 >= 0`, for a star that darkens to its limb.
+///
+/// The bounds apply to the coefficients that are free; a fixed one keeps
+/// its value, and the free one is held to what the bounds allow beside it.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_fit::LimbDarkeningBounds;
+///
+/// assert_eq!(LimbDarkeningBounds::default(), LimbDarkeningBounds::Valid);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum LimbDarkeningBounds {
+    /// The intensity nowhere negative.
+    #[default]
+    Valid,
+    /// The intensity nowhere negative nor rising towards the limb.
+    Physical,
 }
 
 impl<'a> TransitFit<'a> {
@@ -62,6 +94,7 @@ impl<'a> TransitFit<'a> {
             exposure: None,
             max_iterations: 200,
             accelerate: true,
+            bounds: LimbDarkeningBounds::Valid,
         }
     }
 
@@ -121,6 +154,20 @@ impl<'a> TransitFit<'a> {
     #[must_use]
     pub const fn with_acceleration(self, accelerate: bool) -> Self {
         Self { accelerate, ..self }
+    }
+
+    /// The limb-darkening coefficients the fit may reach
+    /// ([`LimbDarkeningBounds::Valid`] by default). A start outside them is
+    /// moved to their nearest point.
+    #[must_use]
+    pub const fn with_limb_darkening_bounds(self, bounds: LimbDarkeningBounds) -> Self {
+        Self { bounds, ..self }
+    }
+
+    /// The limb-darkening bounds.
+    #[must_use]
+    pub const fn limb_darkening_bounds(&self) -> LimbDarkeningBounds {
+        self.bounds
     }
 
     /// Whether `parameter` is fitted.

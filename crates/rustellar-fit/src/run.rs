@@ -1,6 +1,6 @@
 //! Running a set-up's fit.
 
-use crate::lm::{self, Settings};
+use crate::lm::{self, Residuals, Settings};
 use crate::problem::{Problem, STEP, values_of};
 use crate::{FitError, FitResult, Parameter, TransitFit};
 
@@ -85,7 +85,9 @@ impl TransitFit<'_> {
         let mut problem = Problem::new(self, values);
         let free = self.free();
         let steps: Vec<f64> = free.iter().map(|p| STEP * scales[p.index()]).collect();
-        let x0 = problem.free_values();
+        let mut x0 = problem.free_values();
+        // Onto the limb-darkening bounds, where the start is outside them.
+        problem.project(&mut x0);
         let settings = Settings {
             max_iterations: self.max_iterations,
             accelerate: self.accelerate,
