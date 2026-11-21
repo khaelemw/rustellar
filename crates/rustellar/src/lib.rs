@@ -9,6 +9,7 @@
 //! |---|---|---|
 //! | `bls` | [`bls`] | Box least squares transit search (in development) |
 //! | `detrend` | [`detrend`] | Detrending: a sliding biweight, median or mean, to full precision (in development) |
+//! | `ls` | [`ls`] | The Lomb-Scargle periodogram (in development) |
 //! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
 //! | `tls` | [`tls`] | Transit least squares: a limb-darkened template search (in development) |
 //! | `vet` | [`vet`] | Vetting candidates: aliases, odd and even depths, coverage (in development) |
@@ -62,6 +63,11 @@ pub use rustellar_bls as bls;
 #[cfg(feature = "detrend")]
 #[cfg_attr(docsrs, doc(cfg(feature = "detrend")))]
 pub use rustellar_detrend as detrend;
+
+/// The Lomb-Scargle periodogram, from [`rustellar-ls`](rustellar_ls).
+#[cfg(feature = "ls")]
+#[cfg_attr(docsrs, doc(cfg(feature = "ls")))]
+pub use rustellar_ls as ls;
 
 /// Transit light curves, from [`rustellar-model`](rustellar_model).
 #[cfg(feature = "model")]

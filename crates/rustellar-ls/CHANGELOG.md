@@ -1,0 +1,14 @@
+# Changelog
+
+All notable changes to this crate are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/).
+
+## Unreleased
+
+### Added
+
+- `Frequencies`: the trial frequencies in cycles per day, an even grid or
+  any list, checked once; `AutoFrequency`, astropy's automatic grid
+  (VanderPlas 2018) with its defaults and every setting overridable.
+- `LsError`.

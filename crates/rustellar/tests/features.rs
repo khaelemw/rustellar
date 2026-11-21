@@ -69,3 +69,10 @@ fn vet_feature_brings_in_vet() {
     .unwrap();
     assert_eq!(c.period(), TimeDelta::from_days(3.0).unwrap());
 }
+
+#[cfg(feature = "ls")]
+#[test]
+fn ls_feature_brings_in_ls() {
+    let grid: rustellar_ls::Frequencies = rustellar::ls::Frequencies::uniform(1.0, 0.5, 3).unwrap();
+    assert_eq!(grid.max(), 2.0);
+}

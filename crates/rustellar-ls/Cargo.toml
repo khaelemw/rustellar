@@ -1,0 +1,19 @@
+[package]
+name = "rustellar-ls"
+description = "The Lomb-Scargle periodogram for unevenly sampled series in pure Rust: exact and fast, with false-alarm probabilities"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "periodogram", "lomb-scargle", "time-series"]
+categories = ["science", "algorithms"]
+# The published package holds the library and its unit tests, which need no
+# files. The reference data, the integration tests that read it and the
+# benchmarks stay in the source.
+exclude = ["/tests/", "/benches/"]
+
+[dependencies]
+rustellar-core.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
