@@ -23,4 +23,9 @@ All notable changes to this crate are recorded here. The format follows
   tolerance by three non-uniform FFTs (exponential-of-semicircle kernel),
   each power's error bounded and computed exactly where the bound fails;
   2 to 5 times faster than astropy's fast method, which has no tolerance.
+- `LombScargle::peaks` and `Peak`: the highest peaks refined off the grid
+  to the zero of the power's derivative, by its own sums and the ITP
+  method, to 1e-14 of a peak's width.
+- `LombScargle::model` and `Sinusoid`: the fitted sinusoid's offset,
+  amplitude and phase with standard errors, and its value at any time.
 - `LsError`, with `NotUniform` for the fast method on a listed grid.

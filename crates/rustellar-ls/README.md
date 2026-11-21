@@ -44,6 +44,10 @@ per day of the data's own time scale; nothing is tied to an instrument.
 - `LombScargle::power_fast`: the same on an even grid to a stated
   tolerance, by non-uniform FFTs, with every power checked against a
   bound on its error and computed exactly where the bound is not met.
+- `LombScargle::peaks`: the highest peaks, each refined off the grid to
+  where the power's derivative is zero (`Peak`).
+- `LombScargle::model`: the sinusoid fitted at a frequency, its offset,
+  amplitude and phase with their standard errors (`Sinusoid`).
 
 ## Accuracy
 
@@ -102,6 +106,31 @@ tolerance, and each power's error is bounded from theirs and the fit's
 conditioning. Where the bound fails (the lowest frequencies, where the
 fit's terms nearly coincide, and degenerate ones such as the Nyquist
 frequency of even sampling) that power is computed exactly instead.
+
+### Peaks and the sinusoid
+
+Each peak is moved to where the power's derivative is zero, from the
+derivative's own sums (the same centred terms as the power), by the ITP
+method (Oliveira & Takahashi 2020). Interpolating the power instead cannot
+place a peak closer than about 1e-8 of its width, where its change falls
+below its rounding. Against the maximum at 40 digits on the same cases
+(each case's three highest peaks with every mean), the largest error in
+the peak's frequency as a fraction of its width 1 / T:
+
+| Case | rustellar-ls | parabola through three powers | grid's best (astropy) |
+|---|--:|--:|--:|
+| Uneven sampling | 1e-14 | 1e-2 | 6e-2 |
+| BJD-sized times | 1e-14 | 1e-2 | 6e-2 |
+| Near-perfect sinusoid | 2e-15 | 2e-5 | 3e-3 |
+| Far below 1 / T | 4e-14 | 2e-5 | 1e-4 |
+| Even sampling, Nyquist | 7e-15 | 5e-3 | 6e-2 |
+| Five points | 2e-15 | 1e-1 | 9e-2 |
+
+The power there is within 2e-15 of the exact power at the maximum. The
+sinusoid there (offset, amplitude, phase and their standard errors) is
+within 4e-15 of 40 digits on every case; astropy's `model_parameters`
+gives an amplitude off by up to 5e-10 at BJD-sized times and by 100% far
+below 1 / T, where the normal equations of its raw terms cancel.
 
 ```rust
 use rustellar_ls::{AutoFrequency, LightCurve};

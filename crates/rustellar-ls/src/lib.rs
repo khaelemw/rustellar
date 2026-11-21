@@ -18,6 +18,9 @@
 //!   default), and its power at any frequencies in any [`Normalization`],
 //!   exactly ([`Periodogram`]); and on an even grid by non-uniform FFTs,
 //!   every power within a tolerance ([`LombScargle::power_fast`]).
+//! - [`LombScargle::peaks`]: the highest peaks refined off the grid to the
+//!   power's maximum ([`Peak`]); [`LombScargle::model`]: the sinusoid
+//!   fitted at a frequency, with standard errors ([`Sinusoid`]).
 //!
 //! # Examples
 //!
@@ -35,8 +38,10 @@ mod error;
 mod fast;
 mod fft;
 mod frequencies;
+mod model;
 mod nufft;
 mod parallel;
+mod peaks;
 mod periodogram;
 mod sums;
 
@@ -45,6 +50,8 @@ mod tests;
 
 pub use error::LsError;
 pub use frequencies::{AutoFrequency, Frequencies};
+pub use model::Sinusoid;
+pub use peaks::Peak;
 pub use periodogram::{LombScargle, Mean, Normalization, Periodogram};
 
 // Core's types, which this crate's API takes and returns: with them the

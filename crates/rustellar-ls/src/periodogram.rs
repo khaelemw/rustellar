@@ -7,11 +7,11 @@ use rustellar_core::LightCurve;
 
 use crate::parallel::{run_all, threads_for};
 use crate::sums::{Sum, phase, split};
+use crate::{Frequencies, LsError};
 
 /// The fewest point-frequencies worth a thread of their own: about
 /// two milliseconds of work.
 pub(crate) const GRAIN: usize = 1 << 18;
-use crate::{Frequencies, LsError};
 
 /// What the sinusoid is fitted with.
 ///
@@ -102,6 +102,8 @@ pub struct LombScargle {
     pub(crate) weight: Vec<f64>,
     /// `1 / e_min^2`, the scale of the weights.
     pub(crate) scale: f64,
+    /// The weighted mean taken from the flux (0 with [`Mean::Zero`]).
+    pub(crate) level: f64,
     pub(crate) mean: Mean,
     /// The reference chi-squared, in scaled weights.
     pub(crate) chi2_ref: f64,
@@ -131,6 +133,7 @@ impl LombScargle {
             })
             .collect();
         let mut flux = lc.flux().to_vec();
+        let mut level = 0.0;
         if mean != Mean::Zero {
             let (mut wy, mut w) = (Sum::default(), Sum::default());
             for (&y, &wi) in flux.iter().zip(&weight) {
@@ -142,6 +145,7 @@ impl LombScargle {
             // constant that the sinusoid alone (without a floating mean)
             // fits at low frequency.
             let (hi, lo) = wy.quotient(w);
+            level = hi + lo;
             for y in &mut flux {
                 *y = (*y - hi) - lo;
             }
@@ -162,6 +166,7 @@ impl LombScargle {
             flux,
             weight,
             scale: 1.0 / (e_min * e_min),
+            level,
             mean,
             chi2_ref,
             threads: std::thread::available_parallelism().unwrap_or(NonZeroUsize::MIN),
@@ -255,6 +260,36 @@ impl LombScargle {
     /// [`fit`](Self::fit) for any processor.
     #[inline(always)]
     fn fit_any(&self, f: f64, residual: bool, buffer: &mut Buffer) -> Fit {
+        self.centred(f, buffer);
+        let [cc, cs, ss, yc, ys] = self.sums(buffer);
+        #[expect(clippy::cast_precision_loss, reason = "a point count")]
+        let (beta, gamma) = solve(cc, cs, ss, yc, ys, self.time.len() as f64);
+        let reduction = (beta * yc + gamma * ys).max(0.0);
+        let mut chi2 = Sum::default();
+        if residual {
+            for (((c, s), &wi), &y) in buffer
+                .c
+                .iter()
+                .zip(&buffer.s)
+                .zip(&self.weight)
+                .zip(&self.flux)
+            {
+                let r = y - (beta * c.0 + gamma * s.0);
+                chi2.add(wi * r * r);
+            }
+        }
+        Fit {
+            reduction,
+            chi2: chi2.value(),
+        }
+    }
+
+    /// Each point's two terms at `f` into `buffer`: base and part in the
+    /// pair, then the term, less its weighted mean with a
+    /// floating mean, in the first. Returns the weights' sum and the terms'
+    /// weighted means `(cos, sin)` (0 without a floating mean).
+    #[inline(always)]
+    pub(crate) fn centred(&self, f: f64, buffer: &mut Buffer) -> (f64, f64, f64) {
         // Each term as a whole base and a small part (exact near 0 and 1).
         // The means need no compensation: one off by a few roundings only
         // adds its square to the centred sums.
@@ -291,6 +326,13 @@ impl LombScargle {
             let (b, x) = buffer.s[i];
             buffer.s[i].0 = (b - sb) + (x - sx);
         }
+        (w, cb + cx, sb + sx)
+    }
+
+    /// The normal equations' sums from the centred terms in `buffer`:
+    /// `[cc, cs, ss, yc, ys]`, weighted.
+    #[inline(always)]
+    pub(crate) fn sums(&self, buffer: &Buffer) -> [f64; 5] {
         let mut sums = [Sum::default(); 5];
         for i in 0..self.time.len() {
             let (c, s) = (buffer.c[i].0, buffer.s[i].0);
@@ -302,27 +344,7 @@ impl LombScargle {
             sums[3].add(wc * y);
             sums[4].add(ws * y);
         }
-        let [cc, cs, ss, yc, ys] = sums.map(Sum::value);
-        #[expect(clippy::cast_precision_loss, reason = "a point count")]
-        let (beta, gamma) = solve(cc, cs, ss, yc, ys, self.time.len() as f64);
-        let reduction = (beta * yc + gamma * ys).max(0.0);
-        let mut chi2 = Sum::default();
-        if residual {
-            for (((c, s), &wi), &y) in buffer
-                .c
-                .iter()
-                .zip(&buffer.s)
-                .zip(&self.weight)
-                .zip(&self.flux)
-            {
-                let r = y - (beta * c.0 + gamma * s.0);
-                chi2.add(wi * r * r);
-            }
-        }
-        Fit {
-            reduction,
-            chi2: chi2.value(),
-        }
+        sums.map(Sum::value)
     }
 
     /// `fit`'s power in `normalization`.
@@ -356,8 +378,8 @@ pub(crate) fn has_avx2() -> bool {
 /// Each point's two terms at one frequency: base and part, then the term
 /// (centred with a floating mean) in the base.
 pub(crate) struct Buffer {
-    c: Vec<(f64, f64)>,
-    s: Vec<(f64, f64)>,
+    pub(crate) c: Vec<(f64, f64)>,
+    pub(crate) s: Vec<(f64, f64)>,
 }
 
 impl Buffer {
@@ -380,7 +402,7 @@ impl Buffer {
 pub(crate) fn solve(a: f64, b: f64, d: f64, u: f64, v: f64, n: f64) -> (f64, f64) {
     let trace = a + d;
     let det = a.mul_add(d, -(b * b));
-    if det > 8.0 * n * f64::EPSILON * (a * d) {
+    if full_rank(a, d, det, n) {
         ((d * u - b * v) / det, (a * v - b * u) / det)
     } else if trace > 0.0 {
         // Rank one: the matrix is about e e^T trace, e along its larger
@@ -393,6 +415,12 @@ pub(crate) fn solve(a: f64, b: f64, d: f64, u: f64, v: f64, n: f64) -> (f64, f64
     } else {
         (0.0, 0.0)
     }
+}
+
+/// Whether the normal equations of `n` points with diagonal `a`, `d` and
+/// determinant `det` are of full rank above their rounding.
+pub(crate) fn full_rank(a: f64, d: f64, det: f64, n: f64) -> bool {
+    det > 8.0 * n * f64::EPSILON * (a * d)
 }
 
 /// A periodogram: the frequencies and the power at each.
