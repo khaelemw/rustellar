@@ -33,6 +33,12 @@ inclination and stellar density derived from it.
 
 - `TransitFit`: the light curve, the starting parameters and baseline,
   which parameters are free (`Parameter`), and each point's exposure.
+- `TransitFit::run`: Levenberg-Marquardt (More 1978; Nielsen 1999) by
+  Householder QR and Givens rotations, never the normal equations, with
+  geodesic acceleration (Transtrum & Sethna 2012) and steps projected onto
+  the bounds; a central-difference Jacobian. Noiseless light curves are
+  recovered to 1e-9 or better from offset starts, grazing and long-cadence
+  ones included.
 
 ## License
 

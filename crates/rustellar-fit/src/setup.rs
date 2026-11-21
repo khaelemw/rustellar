@@ -46,6 +46,7 @@ pub struct TransitFit<'a> {
     pub(crate) free: [bool; 8],
     pub(crate) exposure: Option<Exposure>,
     pub(crate) max_iterations: usize,
+    pub(crate) accelerate: bool,
 }
 
 impl<'a> TransitFit<'a> {
@@ -60,6 +61,7 @@ impl<'a> TransitFit<'a> {
             free: [true; 8],
             exposure: None,
             max_iterations: 200,
+            accelerate: true,
         }
     }
 
@@ -110,6 +112,15 @@ impl<'a> TransitFit<'a> {
             max_iterations: iterations,
             ..self
         }
+    }
+
+    /// Whether each step carries the geodesic acceleration of Transtrum &
+    /// Sethna (2012), a second-order correction that follows curved
+    /// valleys, such as `a / R*` against `b`, in fewer steps (on by
+    /// default).
+    #[must_use]
+    pub const fn with_acceleration(self, accelerate: bool) -> Self {
+        Self { accelerate, ..self }
     }
 
     /// Whether `parameter` is fitted.

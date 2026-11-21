@@ -11,6 +11,10 @@
 //!
 //! - [`TransitFit`]: the light curve, the starting parameters and
 //!   baseline, which [`Parameter`]s are free, and each point's exposure.
+//! - [`TransitFit::run`]: Levenberg-Marquardt to the minimum (More 1978;
+//!   Nielsen 1999) with geodesic acceleration (Transtrum & Sethna 2012),
+//!   by QR throughout and a central-difference Jacobian, giving a
+//!   [`FitResult`].
 //!
 //! # Examples
 //!
@@ -37,14 +41,20 @@
 //! ```
 
 mod error;
+mod lm;
 mod parameter;
+mod problem;
+mod result;
+mod run;
 mod setup;
 
 #[cfg(test)]
 mod tests;
 
 pub use error::FitError;
+pub use lm::Termination;
 pub use parameter::Parameter;
+pub use result::FitResult;
 pub use setup::TransitFit;
 
 // The types a fit takes and returns, so `rustellar-core` and
