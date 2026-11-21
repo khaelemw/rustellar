@@ -38,6 +38,47 @@ per day of the data's own time scale; nothing is tied to an instrument.
 - `Frequencies`: an even grid or any list of frequencies, checked once.
 - `AutoFrequency`: astropy's automatic grid (VanderPlas 2018), with its
   defaults and every setting overridable.
+- `LombScargle`: the periodogram with a floating mean (Zechmeister &
+  Kurster 2009), the mean subtracted once, or none (`Mean`), in astropy's
+  four normalisations (`Normalization`), exactly, on all cores.
+
+## Accuracy
+
+The power is the weighted least-squares fit at each frequency, computed
+so that rounding does not grow with the data:
+
+- each phase from the exact product of frequency and time, reduced to the
+  nearest quarter cycle, so times of millions of days lose nothing;
+- each sine and cosine as a whole base and a small part, so terms near 0
+  or 1 keep their digits, and the sums centred on their means with
+  compensated summation, so frequencies far below 1 / T lose nothing;
+- the weighted mean subtracted to twice the digits of an `f64`;
+- where the sinusoid's terms are the same at every point to rounding (the
+  Nyquist frequency of even sampling), the term that is not is fitted.
+
+Against the same least squares at 40 digits on six seeded cases (uneven
+sampling, BJD-sized times, a near-perfect sinusoid, frequencies far below
+1 / T, even sampling through its Nyquist frequency, five points), with
+astropy 7.2's three methods on the same frequencies, the largest error
+as a fraction of the periodogram's peak (floating mean, standard
+normalisation):
+
+| Case | rustellar-ls | astropy slow | astropy cython | astropy fast |
+|---|--:|--:|--:|--:|
+| Uneven sampling | 6e-16 | 5e-15 | 1e-14 | 3e-3 |
+| BJD-sized times | 3e-16 | 2e-10 | 2e-10 | 3e-3 |
+| Near-perfect sinusoid | 3e-16 | 5e-15 | 5e-15 | 5e-2 |
+| Far below 1 / T | 8e-16 | 0.18 | 0.18 | 0.20 |
+| Even sampling, Nyquist | 4e-16 | NaN | NaN | 0.51 |
+| Five points | 6e-16 | 5e-15 | 1e-14 | 9e-2 |
+
+Every mean and normalisation is within ten roundings of the peak (the
+model and log normalisations, which divide by the chi-squared left, also
+within a few roundings of the flux over the residuals). One frequency is
+left out: five points at 2.5 cycles per day, where the fit's terms
+depend on each other to 1e-15 and the exact answer rests on digits no
+`f64` computation of them holds; there all four methods agree with each
+other, not with 40 digits.
 
 ```rust
 use rustellar_ls::{AutoFrequency, LightCurve};

@@ -35,6 +35,9 @@ pub enum LsError {
     FrequencyRangeEmpty,
     /// The grid would hold more than a billion frequencies.
     GridTooLarge,
+    /// The reference chi-squared is zero (the flux is constant, or zero
+    /// without a mean), so no power is defined.
+    NoVariation,
 }
 
 impl fmt::Display for LsError {
@@ -52,6 +55,7 @@ impl fmt::Display for LsError {
                 f,
                 "the frequency grid would hold more than a billion frequencies"
             ),
+            Self::NoVariation => write!(f, "the flux must vary about its reference fit"),
         }
     }
 }

@@ -14,6 +14,9 @@
 //!
 //! - [`Frequencies`]: the trial frequencies, an even grid or any list,
 //!   checked once; [`AutoFrequency`], astropy's automatic grid.
+//! - [`LombScargle`]: the light curve set up with a [`Mean`] (floating by
+//!   default), and its power at any frequencies in any [`Normalization`],
+//!   exactly ([`Periodogram`]).
 //!
 //! # Examples
 //!
@@ -29,9 +32,15 @@
 
 mod error;
 mod frequencies;
+mod periodogram;
+mod sums;
+
+#[cfg(test)]
+mod tests;
 
 pub use error::LsError;
 pub use frequencies::{AutoFrequency, Frequencies};
+pub use periodogram::{LombScargle, Mean, Normalization, Periodogram};
 
 // Core's types, which this crate's API takes and returns: with them the
 // crate works on its own, without listing rustellar-core, and always with
