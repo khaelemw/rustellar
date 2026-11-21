@@ -28,4 +28,8 @@ All notable changes to this crate are recorded here. The format follows
   method, to 1e-14 of a peak's width.
 - `LombScargle::model` and `Sinusoid`: the fitted sinusoid's offset,
   amplitude and phase with standard errors, and its value at any time.
-- `LsError`, with `NotUniform` for the fast method on a listed grid.
+- `LombScargle::false_alarm_probability`, `false_alarm_level` and
+  `FalseAlarm`: Baluev (2008), Davies, naive and single-frequency
+  probabilities of the highest peak and their inverses, in logarithms, to
+  1e-13 of 40 digits; checked against simulated noise.
+- `LsError`, with `NotUniform`, `NotProbability` and `TooFewPoints`.

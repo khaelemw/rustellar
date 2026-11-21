@@ -21,6 +21,9 @@
 //! - [`LombScargle::peaks`]: the highest peaks refined off the grid to the
 //!   power's maximum ([`Peak`]); [`LombScargle::model`]: the sinusoid
 //!   fitted at a frequency, with standard errors ([`Sinusoid`]).
+//! - [`LombScargle::false_alarm_probability`] and its inverse
+//!   [`LombScargle::false_alarm_level`]: how likely noise alone gives a
+//!   peak so high ([`FalseAlarm`]: Baluev 2008, Davies, naive, single).
 //!
 //! # Examples
 //!
@@ -35,6 +38,7 @@
 //! ```
 
 mod error;
+mod fap;
 mod fast;
 mod fft;
 mod frequencies;
@@ -49,6 +53,7 @@ mod sums;
 mod tests;
 
 pub use error::LsError;
+pub use fap::FalseAlarm;
 pub use frequencies::{AutoFrequency, Frequencies};
 pub use model::Sinusoid;
 pub use peaks::Peak;

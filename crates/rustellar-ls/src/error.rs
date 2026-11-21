@@ -40,6 +40,14 @@ pub enum LsError {
     NoVariation,
     /// The fast method was given frequencies that are not an even grid.
     NotUniform,
+    /// A probability is not above 0 and below 1.
+    NotProbability,
+    /// Too few points for the false-alarm probability: the fit must leave
+    /// at least one degree of freedom.
+    TooFewPoints {
+        /// The fewest points needed.
+        needed: usize,
+    },
 }
 
 impl fmt::Display for LsError {
@@ -59,6 +67,8 @@ impl fmt::Display for LsError {
             ),
             Self::NoVariation => write!(f, "the flux must vary about its reference fit"),
             Self::NotUniform => write!(f, "the fast method needs an even grid of frequencies"),
+            Self::NotProbability => write!(f, "the probability must be above 0 and below 1"),
+            Self::TooFewPoints { needed } => write!(f, "at least {needed} points are needed"),
         }
     }
 }

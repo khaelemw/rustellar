@@ -48,6 +48,10 @@ per day of the data's own time scale; nothing is tied to an instrument.
   where the power's derivative is zero (`Peak`).
 - `LombScargle::model`: the sinusoid fitted at a frequency, its offset,
   amplitude and phase with their standard errors (`Sinusoid`).
+- `LombScargle::false_alarm_probability` and `false_alarm_level`: the
+  probability that noise alone gives the highest peak so high, and its
+  inverse, by Baluev's (2008) approximation, the Davies bound, the naive
+  count of independent frequencies or one frequency (`FalseAlarm`).
 
 ## Accuracy
 
@@ -131,6 +135,29 @@ sinusoid there (offset, amplitude, phase and their standard errors) is
 within 4e-15 of 40 digits on every case; astropy's `model_parameters`
 gives an amplitude off by up to 5e-10 at BJD-sized times and by 100% far
 below 1 / T, where the normal equations of its raw terms cancel.
+
+### False-alarm probabilities
+
+Against Baluev's (2008) formulas at 40 digits on the same cases and
+100,000 even points, for probabilities from 0.5 to 1e-40 in every
+normalisation, the largest relative error:
+
+| Method | probability | level | astropy probability | astropy level |
+|---|--:|--:|--:|--:|
+| Baluev | 9e-14 | 2e-14 | 6e-11 | 1e-8, fails below 1e-16 |
+| Davies | 8e-14 | 2e-14 | 7e-11 | 1e-8, fails below 1e-16 |
+| Naive | 1e-14 | 5e-15 | 4e-12 | 8e-4, fails below 1e-16 |
+| Single | 1e-14 | 3e-15 | 4e-12 | 3e-12 |
+
+Each probability is computed in logarithms, so one far below 1e-16 keeps
+its digits; the gamma ratio from its asymptotic series, not a difference
+of log-gammas; each level found to the last bits by ITP. Without a mean,
+the degrees of freedom are Baluev's (no parameter for the reference fit,
+two with the sinusoid), where astropy refuses. Against 4,000 simulations
+of Gaussian noise on 60 uneven points, the share whose highest peak
+passes the Baluev level for 0.5, 0.1 and 0.01 is 0.464, 0.097 and
+0.0105 (an upper bound, close for small probabilities); for the naive
+level for 0.1 it is 0.24.
 
 ```rust
 use rustellar_ls::{AutoFrequency, LightCurve};
