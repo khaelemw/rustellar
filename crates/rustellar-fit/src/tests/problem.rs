@@ -1,5 +1,5 @@
 use crate::lm::Residuals;
-use crate::problem::{Problem, params_from, values_of};
+use crate::problem::{Problem, onto_inner_edge, params_from, values_of};
 use crate::{
     Epoch, ImpactParameter, LightCurve, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TimeDelta,
     TransitFit, TransitParams,
@@ -74,4 +74,41 @@ fn infeasible_points() {
     let mut x = good;
     x[4] = -0.3;
     assert_eq!(params_from(&x), Some(start()));
+}
+
+#[test]
+fn onto_the_inner_edge() {
+    // Points where the intensity is negative inside the disc (u2 < -1,
+    // u1 > 2 sqrt(-u2)), and one past both edges.
+    let lc = curve();
+    let fit = TransitFit::new(&lc, start());
+    let mut p = Problem::new(&fit, values_of(start(), 1.0));
+    let mut out = vec![0.0; 100];
+    for (u1, u2) in [
+        (3.0, -1.5),
+        (2.6, -1.5),
+        (10.0, -4.0),
+        (2.05, -1.01),
+        (5.0, -3.0),
+    ] {
+        let mut x = values_of(start(), 1.0);
+        (x[5], x[6]) = (u1, u2);
+        p.project(&mut x);
+        let (v1, v2) = (x[5], x[6]);
+        assert!(p.eval(&x, &mut out), "({u1}, {u2}) to ({v1}, {v2})");
+        assert!(v2 <= -1.0 && (v1 * v1 + 4.0 * v2).abs() < 1e-12);
+    }
+    // The nearest point of the curve, against a fine sample of it.
+    for (u1, u2) in [(3.0, -1.5), (10.0, -4.0), (2.05, -1.01)] {
+        let (v1, v2) = onto_inner_edge(u1, u2);
+        let d = (v1 - u1).hypot(v2 - u2);
+        let nearest = (0..400_000)
+            .map(|i| 1.0 + 1e-5 * f64::from(i))
+            .map(|t| (2.0 * t - u1).hypot(-t * t - u2))
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            d <= nearest + 1e-9 && d >= nearest - 1e-6,
+            "{d} against {nearest}"
+        );
+    }
 }

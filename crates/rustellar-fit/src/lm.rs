@@ -25,12 +25,16 @@
 #[non_exhaustive]
 pub enum Termination {
     /// A full Gauss-Newton step would move the parameters by less than
-    /// `1e-8 |r| + 1e-10` of their standard errors, `|r|` the norm of the
-    /// weighted residuals: the minimum to well within its uncertainty.
+    /// `1e-7 |r| + 1e-10` of their standard errors, `|r|` the norm of the
+    /// weighted residuals (a few millionths of a standard error for a good
+    /// fit): the minimum to well within its uncertainty.
     Converged,
     /// No step lowered chi-squared before the steps fell to the parameters'
-    /// rounding: the minimum to machine precision, or a point the model
-    /// cannot leave.
+    /// rounding. The usual reason is a minimum on a bound, where the
+    /// Gauss-Newton step keeps pointing past it: limb darkening at the
+    /// edge of its valid range, or `b = 0`, where the flux depends on
+    /// `b^2` and the Jacobian's column for `b` vanishes. The parameters are
+    /// then the minimum within the bounds.
     PrecisionLimit,
     /// The iteration limit was reached first.
     MaxIterations,
@@ -76,7 +80,7 @@ pub(crate) struct Solution {
 /// The converged test's tolerance, in standard errors per unit of the
 /// residual norm: above the Jacobian's differencing error, which grows with
 /// the residuals.
-const TOLERANCE: f64 = 1e-8;
+const TOLERANCE: f64 = 1e-7;
 /// The converged test's floor, in standard errors: above the rounding of
 /// residuals that are all but zero.
 const FLOOR: f64 = 1e-10;

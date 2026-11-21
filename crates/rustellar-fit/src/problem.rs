@@ -89,10 +89,35 @@ impl Residuals for Problem<'_> {
             *u1 -= 0.5 * excess;
             *u2 = 1.0 - *u1;
         }
+        // For u2 < -1 the intensity first reaches zero inside the disc,
+        // where u1^2 + 4 u2 = 0: past u1 = 2 sqrt(-u2), to that curve's
+        // nearest point.
+        if *u2 < -1.0 && *u1 > 2.0 * (-*u2).sqrt() {
+            (*u1, *u2) = onto_inner_edge(*u1, *u2);
+        }
         for (xi, &i) in x.iter_mut().zip(&self.free) {
             *xi = v[i];
         }
     }
+}
+
+/// The point of the curve `(2t, -t^2)`, `t >= 1`, nearest `(u1, u2)`, a
+/// point beyond it with `u2 < -1`: the root of `t^3 + (u2 + 2) t - u1`,
+/// which rises and is convex from `t = sqrt(-u2)`, where it is negative,
+/// so Newton's method from there converges from above after one step.
+/// `u2` is `-(u1 / 2)^2` as rounded, so `u1^2 + 4 u2` is exactly zero.
+pub(crate) fn onto_inner_edge(u1: f64, u2: f64) -> (f64, f64) {
+    let mut t = (-u2).sqrt();
+    for _ in 0..100 {
+        let step = t.mul_add(t * t, (u2 + 2.0).mul_add(t, -u1)) / (3.0 * t).mul_add(t, u2 + 2.0);
+        let next = t - step;
+        if next >= t && t > (-u2).sqrt() {
+            break;
+        }
+        t = next;
+    }
+    let u1 = 2.0 * t.max(1.0);
+    (u1, -(0.25 * (u1 * u1)))
 }
 
 /// The transit parameters of `values`, with `|b|` as `b` (the flux depends
