@@ -13,6 +13,9 @@
 //!   `Fn(&[f64]) -> f64`.
 //! - [`Ensemble`]: the walkers' starting points, checked once, a seed and
 //!   a number of threads.
+//! - [`Ensemble::run`]: the stretch move ([`Move`]) in two halves,
+//!   reproducible from the seed on any number of threads, giving a
+//!   [`Chain`] with its acceptance fractions, means and covariance.
 //!
 //! # Examples
 //!
@@ -37,16 +40,19 @@
 //! # Ok::<(), rustellar_mcmc::McmcError>(())
 //! ```
 
+mod chain;
 mod ensemble;
 mod error;
+mod moves;
 mod probability;
-// The moves draw from it from the next phase on.
-#[cfg_attr(not(test), allow(dead_code))]
 mod rng;
+mod run;
 
 #[cfg(test)]
 mod tests;
 
+pub use chain::Chain;
 pub use ensemble::Ensemble;
 pub use error::McmcError;
+pub use moves::Move;
 pub use probability::LogProbability;

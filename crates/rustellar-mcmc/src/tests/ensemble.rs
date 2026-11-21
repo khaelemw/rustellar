@@ -2,6 +2,8 @@
 // dimensions, to rounding, and with repeated points.
 
 use crate::ensemble::rank;
+use crate::rng::Rng;
+use crate::{Ensemble, Move};
 
 #[test]
 fn ranks() {
@@ -36,4 +38,26 @@ fn ranks() {
         vec![1.0, 0.0],
     ];
     assert_eq!(rank(&twice), 1);
+}
+
+#[test]
+fn moves_picked_by_weight() {
+    let (narrow, wide) = (Move::stretch(1.5).unwrap(), Move::stretch(3.0).unwrap());
+    let ensemble = Ensemble::new(vec![vec![0.0], vec![1.0]])
+        .unwrap()
+        .with_moves(vec![(narrow, 1.0), (wide, 3.0)])
+        .unwrap();
+    let mut rng = Rng::new(4);
+    let n = 40_000;
+    let narrow_count = (0..n).filter(|_| ensemble.pick(&mut rng) == narrow).count();
+    // A quarter, within five standard deviations (87).
+    assert!(
+        (narrow_count as f64 - 1e4).abs() < 5.0 * 86.6,
+        "{narrow_count}"
+    );
+    // One move: no random number drawn.
+    let single = Ensemble::new(vec![vec![0.0], vec![1.0]]).unwrap();
+    let (mut a, b) = (Rng::new(5), Rng::new(5));
+    assert_eq!(single.pick(&mut a), Move::default());
+    assert_eq!(a, b);
 }

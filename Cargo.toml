@@ -23,11 +23,14 @@ rustellar-vet = { path = "crates/rustellar-vet", version = "0.0.0" }
 
 # The searches' tests run thousands of searches (injection-recovery against
 # astropy and transitleastsquares), and the fit's thousands of fits to
-# simulated noise, so their debug builds are optimised. Overflow checks and
+# simulated noise, and the sampler's long chains, so their debug builds are
+# optimised. Overflow checks and
 # debug assertions stay on.
 [profile.dev.package.rustellar-bls]
 opt-level = 2
 [profile.dev.package.rustellar-fit]
+opt-level = 2
+[profile.dev.package.rustellar-mcmc]
 opt-level = 2
 [profile.dev.package.rustellar-model]
 opt-level = 2

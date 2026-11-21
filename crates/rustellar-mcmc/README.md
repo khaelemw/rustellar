@@ -37,6 +37,17 @@ faster per independent sample than the Python samplers.
 - `Ensemble`: the walkers' starting points, checked once (an even number,
   at least twice the dimensions, finite, not in a subspace), a seed and a
   number of threads; `check` that every walker starts inside the support.
+- `Ensemble::run`: Goodman & Weare's stretch move (`Move::Stretch`, scale
+  2 by default, or any mixture of moves by weight), the walkers moved in
+  two halves as emcee does. A half's random numbers are all drawn before
+  its log-probabilities, so a seed gives the same chain on any number of
+  threads. The chain is the image of itself under an affine map of the
+  space, proposal for proposal. Gaussians in one, three (standard
+  deviations from 1e-3 to 1e3, correlated) and ten dimensions are
+  recovered: means and covariances within a few percent of their spread.
+- `Chain`: every walker's position and log-probability after each step,
+  acceptance fractions, means, covariance, traces, and the last positions
+  to start another run from.
 - The random numbers: xoshiro256** (Blackman & Vigna 2021) seeded through
   SplitMix64, matching the reference implementations' outputs, so a seed
   gives the same chain on every platform.
@@ -48,8 +59,8 @@ use rustellar_mcmc::{Ensemble, LogProbability};
 
 let target = |x: &[f64]| -0.5 * x.iter().map(|v| v * v).sum::<f64>();
 let start = vec![vec![0.1], vec![-0.1]];
-let ensemble = Ensemble::new(start)?.with_seed(1);
-ensemble.check(&target)?;
+let chain = Ensemble::new(start)?.with_seed(1).run(&target, 1000)?;
+assert_eq!(chain.steps(), 1000);
 # Ok::<(), rustellar_mcmc::McmcError>(())
 ```
 

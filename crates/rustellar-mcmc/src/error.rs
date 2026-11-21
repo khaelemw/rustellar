@@ -40,6 +40,11 @@ pub enum McmcError {
     /// The walkers lie in a subspace (on a line in a plane, say), which an
     /// ensemble's moves never leave.
     Degenerate,
+    /// A move's setting or weight is out of range, or no move is given.
+    InvalidMove {
+        /// Which setting, such as `"a"`.
+        name: &'static str,
+    },
     /// A walker starts where the log-probability is not finite (outside
     /// the prior, or NaN).
     OutsideSupport {
@@ -59,6 +64,7 @@ impl fmt::Display for McmcError {
             }
             Self::NonFinite { walker } => write!(f, "walker {walker} must be finite"),
             Self::Degenerate => write!(f, "the walkers must not lie in a subspace"),
+            Self::InvalidMove { name } => write!(f, "the move's {name} is out of range"),
             Self::OutsideSupport { walker } => {
                 write!(
                     f,

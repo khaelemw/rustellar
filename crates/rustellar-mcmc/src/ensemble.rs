@@ -1,11 +1,13 @@
-//! The ensemble: its walkers' starting points, seed and threads.
+//! The ensemble: its walkers' starting points, moves, seed and threads.
 
 use std::num::NonZeroUsize;
 
-use crate::{LogProbability, McmcError};
+use crate::rng::Rng;
+use crate::{LogProbability, McmcError, Move};
 
 /// An ensemble of walkers set up to sample: their starting points (checked
-/// once), the seed of the random numbers and the threads to run on.
+/// once), how they move (the [stretch move](Move::Stretch) by default),
+/// the seed of the random numbers and the threads to run on.
 ///
 /// The walkers move in two halves, each by the other's positions, so there
 /// must be an even number of them, at least twice the dimensions, and they
@@ -35,6 +37,7 @@ use crate::{LogProbability, McmcError};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ensemble {
     start: Vec<Vec<f64>>,
+    moves: Vec<(Move, f64)>,
     seed: u64,
     threads: NonZeroUsize,
 }
@@ -80,9 +83,61 @@ impl Ensemble {
         }
         Ok(Self {
             start,
+            moves: vec![(Move::default(), 1.0)],
             seed: 0,
             threads: NonZeroUsize::MIN,
         })
+    }
+
+    /// Every step's walkers moved by `mv`.
+    #[must_use]
+    pub fn with_move(self, mv: Move) -> Self {
+        Self {
+            moves: vec![(mv, 1.0)],
+            ..self
+        }
+    }
+
+    /// Each half-step's move drawn from `moves` with probabilities in
+    /// proportion to their weights, as emcee's mixtures of moves.
+    ///
+    /// # Errors
+    ///
+    /// [`McmcError::InvalidMove`] if `moves` is empty or a weight is not
+    /// finite and above zero.
+    pub fn with_moves(self, moves: Vec<(Move, f64)>) -> Result<Self, McmcError> {
+        if moves.is_empty() {
+            return Err(McmcError::InvalidMove { name: "moves" });
+        }
+        if moves.iter().any(|&(_, w)| !(w.is_finite() && w > 0.0)) {
+            return Err(McmcError::InvalidMove { name: "weight" });
+        }
+        Ok(Self { moves, ..self })
+    }
+
+    /// The moves and their weights.
+    #[must_use]
+    pub fn moves(&self) -> &[(Move, f64)] {
+        &self.moves
+    }
+
+    /// A move drawn by weight (no random number drawn for a single move).
+    pub(crate) fn pick(&self, rng: &mut Rng) -> Move {
+        if let [(only, _)] = self.moves[..] {
+            return only;
+        }
+        let total: f64 = self.moves.iter().map(|&(_, w)| w).sum();
+        let mut u = rng.unit() * total;
+        // The last, where rounding carries `u` past every weight.
+        let last = self.moves[self.moves.len() - 1].0;
+        self.moves
+            .iter()
+            .find(|&&(_, w)| {
+                let hit = u < w;
+                u -= w;
+                hit
+            })
+            .map_or(last, |&(mv, _)| mv)
     }
 
     /// The seed of the random numbers: the same seed gives the same chain.

@@ -11,4 +11,6 @@ All notable changes to this crate are recorded here. The format follows
 - `LogProbability`, for any closure `Fn(&[f64]) -> f64`.
 - `Ensemble`: walkers' starting points checked once, a seed and threads;
   `check` against a log-probability.
+- `Ensemble::run`, `Move` (the stretch move, mixtures by weight) and
+  `Chain`.
 - `McmcError`.
