@@ -53,4 +53,29 @@ impl Rng {
     pub(crate) fn unit(&mut self) -> f64 {
         (self.next_u64() >> 11) as f64 * f64::EPSILON / 2.0
     }
+
+    /// Uniform on `(0, 1)`, never 0 or 1: the midpoints of the steps of
+    /// `2^-52`, each exact.
+    #[allow(clippy::cast_precision_loss)]
+    pub(crate) fn open_unit(&mut self) -> f64 {
+        Self::midpoint(self.next_u64())
+    }
+
+    /// The open unit's value for 64 random bits.
+    #[allow(clippy::cast_precision_loss)]
+    pub(crate) fn midpoint(bits: u64) -> f64 {
+        ((bits >> 12) as f64 + 0.5) * f64::EPSILON
+    }
+
+    /// A standard normal, by Marsaglia's polar method (one of each pair).
+    pub(crate) fn normal(&mut self) -> f64 {
+        loop {
+            let u = 2.0f64.mul_add(self.unit(), -1.0);
+            let v = 2.0f64.mul_add(self.unit(), -1.0);
+            let s = u.mul_add(u, v * v);
+            if s > 0.0 && s < 1.0 {
+                return u * (-2.0 * s.ln() / s).sqrt();
+            }
+        }
+    }
 }

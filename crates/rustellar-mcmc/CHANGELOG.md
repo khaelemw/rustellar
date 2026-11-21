@@ -14,5 +14,8 @@ All notable changes to this crate are recorded here. The format follows
 - `Ensemble::run`, `Move` (the stretch move, mixtures by weight) and
   `Chain`.
 - `McmcError`.
+- `Move::Walk`, `Move::DifferentialEvolution`, `Move::Snooker` and
+  `Move::Slice` with its `Direction` (differential or Gaussian); the
+  halves split at random each step.
 - `diagnostics`: `integrated_time`, `rhat`, `ess_bulk`, `ess_tail`;
   `Chain::traces`, `autocorrelation_times`, `rhat`, `ess_bulk`, `ess_tail`.

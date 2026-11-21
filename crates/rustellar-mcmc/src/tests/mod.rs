@@ -4,3 +4,4 @@ mod fft;
 mod moves;
 mod normal;
 mod rng;
+mod slice;

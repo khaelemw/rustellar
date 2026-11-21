@@ -121,23 +121,24 @@ impl Ensemble {
         &self.moves
     }
 
-    /// A move drawn by weight (no random number drawn for a single move).
-    pub(crate) fn pick(&self, rng: &mut Rng) -> Move {
-        if let [(only, _)] = self.moves[..] {
-            return only;
+    /// The index of a move drawn by weight (no random number drawn for a
+    /// single move).
+    pub(crate) fn pick(&self, rng: &mut Rng) -> usize {
+        if self.moves.len() == 1 {
+            return 0;
         }
         let total: f64 = self.moves.iter().map(|&(_, w)| w).sum();
         let mut u = rng.unit() * total;
         // The last, where rounding carries `u` past every weight.
-        let last = self.moves[self.moves.len() - 1].0;
+        let last = self.moves.len() - 1;
         self.moves
             .iter()
-            .find(|&&(_, w)| {
+            .position(|&(_, w)| {
                 let hit = u < w;
                 u -= w;
                 hit
             })
-            .map_or(last, |&(mv, _)| mv)
+            .unwrap_or(last)
     }
 
     /// The seed of the random numbers: the same seed gives the same chain.

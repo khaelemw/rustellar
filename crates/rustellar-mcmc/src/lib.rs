@@ -13,9 +13,13 @@
 //!   `Fn(&[f64]) -> f64`.
 //! - [`Ensemble`]: the walkers' starting points, checked once, a seed and
 //!   a number of threads.
-//! - [`Ensemble::run`]: the stretch move ([`Move`]) in two halves,
-//!   reproducible from the seed on any number of threads, giving a
-//!   [`Chain`] with its acceptance fractions, means and covariance.
+//! - [`Ensemble::run`]: the walkers moved in two halves split at random
+//!   each step, reproducible from the seed on any number of threads,
+//!   giving a [`Chain`] with its acceptance fractions, means and
+//!   covariance.
+//! - [`Move`]: the stretch and walk moves, differential evolution, the
+//!   snooker move and the ensemble slice sampler (along differences of
+//!   walkers or Gaussian directions, [`Direction`]), or any mixture.
 //! - [`diagnostics`]: the integrated autocorrelation time (as emcee), and
 //!   the rank-normalised split-R-hat and bulk and tail effective sample
 //!   sizes (as ArviZ), for any chains or per parameter of a [`Chain`].
@@ -53,6 +57,7 @@ mod normal;
 mod probability;
 mod rng;
 mod run;
+mod slice;
 
 #[cfg(test)]
 mod tests;
@@ -60,5 +65,5 @@ mod tests;
 pub use chain::Chain;
 pub use ensemble::Ensemble;
 pub use error::McmcError;
-pub use moves::Move;
+pub use moves::{Direction, Move};
 pub use probability::LogProbability;

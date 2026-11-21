@@ -49,7 +49,9 @@ fn moves_picked_by_weight() {
         .unwrap();
     let mut rng = Rng::new(4);
     let n = 40_000;
-    let narrow_count = (0..n).filter(|_| ensemble.pick(&mut rng) == narrow).count();
+    let narrow_count = (0..n)
+        .filter(|_| ensemble.moves()[ensemble.pick(&mut rng)].0 == narrow)
+        .count();
     // A quarter, within five standard deviations (87).
     assert!(
         (narrow_count as f64 - 1e4).abs() < 5.0 * 86.6,
@@ -58,6 +60,6 @@ fn moves_picked_by_weight() {
     // One move: no random number drawn.
     let single = Ensemble::new(vec![vec![0.0], vec![1.0]]).unwrap();
     let (mut a, b) = (Rng::new(5), Rng::new(5));
-    assert_eq!(single.pick(&mut a), Move::default());
+    assert_eq!(single.pick(&mut a), 0);
     assert_eq!(a, b);
 }

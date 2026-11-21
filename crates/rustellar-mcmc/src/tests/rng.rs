@@ -54,3 +54,27 @@ fn seeded_and_uniform() {
     assert!((mean - 0.5).abs() < 4.0 * (1.0 / 12.0 / f64::from(n)).sqrt());
     assert!((var - 1.0 / 12.0).abs() < 4.0 * (1.0 / 180.0 / f64::from(n)).sqrt());
 }
+
+#[test]
+fn normals_and_open_units() {
+    let mut rng = Rng::new(12);
+    let n = 200_000;
+    let (mut m1, mut m2, mut m4) = (0.0, 0.0, 0.0);
+    for _ in 0..n {
+        let z = rng.normal();
+        m1 += z;
+        m2 += z * z;
+        m4 += z * z * z * z;
+    }
+    let n = f64::from(n);
+    assert!((m1 / n).abs() < 0.01);
+    assert!((m2 / n - 1.0).abs() < 0.01);
+    assert!((m4 / n - 3.0).abs() < 0.06);
+    for _ in 0..1000 {
+        let u = rng.open_unit();
+        assert!(u > 0.0 && u < 1.0);
+    }
+    // The extremes: the midpoints of the first and last steps.
+    assert_eq!(Rng::midpoint(0), f64::EPSILON / 2.0);
+    assert_eq!(Rng::midpoint(u64::MAX), 1.0 - f64::EPSILON / 2.0);
+}
