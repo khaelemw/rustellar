@@ -32,4 +32,6 @@ All notable changes to this crate are recorded here. The format follows
   `FalseAlarm`: Baluev (2008), Davies, naive and single-frequency
   probabilities of the highest peak and their inverses, in logarithms, to
   1e-13 of 40 digits; checked against simulated noise.
+- Speed against astropy on the same light curves in
+  `rustellar-benchmarks` (`compare -- speed-ls`).
 - `LsError`, with `NotUniform`, `NotProbability` and `TooFewPoints`.

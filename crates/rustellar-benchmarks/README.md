@@ -149,11 +149,11 @@ cargo run --release -p rustellar-benchmarks --bin compare -- speed-model
 ```
 
 `speed` times every crate on the cases of its README's speed tables and
-prints those tables; `speed-model`, `speed-detrend`, `speed-bls` and
-`speed-tls` one crate each. The rustellar side is timed as the references
+prints those tables; `speed-model`, `speed-detrend`, `speed-bls`,
+`speed-tls` and `speed-ls` one crate each. The rustellar side is timed as the references
 were: the best of several runs (seven for the model and the detrender,
 three for a search, one where a search takes minutes). Nothing is timed by
-default, as the numbers want a quiet machine; all four take about five
+default, as the numbers want a quiet machine; all five take about five
 minutes, most of it the BLS searches on one thread.
 
 The references' times are in `data/speed_<crate>.csv`, one row per case,
@@ -162,7 +162,8 @@ package (with its version) and seconds. They were run on the same machine
 scripts kept outside the repository, each package on its own settings as
 the README says: batman, PyTransit and exoplanet-core on one thread, wotan
 on one thread after its first call, astropy's `BoxLeastSquares` on one
-thread, transitleastsquares on every core. The rustellar columns are
+thread, transitleastsquares on every core, astropy's `LombScargle` as it
+runs (one thread; its fast method uses numpy's FFT). The rustellar columns are
 always timed afresh, so on another machine they are that machine's while
 the references' stay this one's: compare the ratios only on a similar
 processor, or time the references there in the same way and replace the

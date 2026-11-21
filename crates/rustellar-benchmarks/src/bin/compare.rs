@@ -15,7 +15,7 @@
 //! `--export-methods FILE` writes those curves for wotan to be run on, and
 //! `--search-flattened IN OUT` searches the curves wotan flattened.
 //! `speed` times every crate against its Python references, and
-//! `speed-model`, `speed-detrend`, `speed-bls` or `speed-tls` one crate;
+//! `speed-model`, `speed-detrend`, `speed-bls`, `speed-tls` or `speed-ls` one crate;
 //! never by default, as it wants a quiet machine. `--limit` searches only
 //! each TLS set's first N curves (for vet too), and the window, methods,
 //! masking and whitening studies' first N of 400;
@@ -35,7 +35,7 @@ const HELP: &str =
     "compare [SET...] [--limit N] [--step N] [--threads N] [--cpu] [--export-methods FILE]
         [--search-flattened IN OUT]
   SET: many, mixed, varying, short, sectors, limb, window, methods, masking, whitening or vet (default all),
-       speed or speed-CRATE: model, detrend, bls or tls (never by default)";
+       speed or speed-CRATE: model, detrend, bls, tls or ls (never by default)";
 
 fn main() -> ExitCode {
     let (mut kinds, mut with_limb, mut with_window) = (vec![], false, false);
@@ -261,10 +261,10 @@ fn main() -> ExitCode {
 }
 
 /// The crates with speed tables.
-const SPEEDS: [&str; 4] = ["model", "detrend", "bls", "tls"];
+const SPEEDS: [&str; 5] = ["model", "detrend", "bls", "tls", "ls"];
 
 fn speed_report(name: &str, threads: NonZeroUsize) -> String {
-    use speed::{bls, detrend, model, references, tls};
+    use speed::{bls, detrend, ls, model, references, tls};
     let start = Instant::now();
     let table = match name {
         "model" => model::report(&model::run(7), &references(model::reference())),
@@ -276,6 +276,11 @@ fn speed_report(name: &str, threads: NonZeroUsize) -> String {
         "bls" => bls::report(
             &bls::run(&bls::cases(), threads),
             &references(bls::reference()),
+            threads,
+        ),
+        "ls" => ls::report(
+            &ls::run(threads, &ls::EXACT, &ls::FAST),
+            &references(ls::reference()),
             threads,
         ),
         _ => tls::report(

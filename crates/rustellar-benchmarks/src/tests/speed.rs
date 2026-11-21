@@ -4,8 +4,8 @@
 use std::num::NonZeroUsize;
 
 use crate::speed::{
-    Reference, best, bls, detrend, model, package, references, seconds, short, significant, tls,
-    two_figures,
+    Reference, best, bls, detrend, ls, model, package, references, seconds, short, significant,
+    tls, two_figures,
 };
 
 const TWO: NonZeroUsize = NonZeroUsize::new(2).unwrap();
@@ -29,6 +29,7 @@ fn the_reference_files() {
         detrend::reference(),
         bls::reference(),
         tls::reference(),
+        ls::reference(),
     ] {
         let rows = references(csv);
         assert!(!rows.is_empty());
@@ -168,6 +169,36 @@ fn the_tls_table() {
     );
     assert!(
         out.contains("`Method::Fold`, transitleastsquares' own way: "),
+        "{out}"
+    );
+}
+
+#[test]
+fn the_ls_table() {
+    let lc = ls::curve(1000);
+    assert_eq!(lc.len(), 1000);
+    let days: Vec<f64> = lc.time().iter().map(|t| t.as_days()).collect();
+    assert!(days.windows(2).all(|w| w[0] < w[1]) && days[999] < 30.0);
+    let timings = ls::run(TWO, &[(100, 50)], &[(100, 64)]);
+    assert_eq!(timings.len(), 4);
+    assert_eq!(timings[0].0, "exact 100 x 50 1");
+    assert_eq!(timings[3].0, "fast 100 x 64 1e-12");
+    let refs = table(&[
+        "slow 1000 x 10000,astropy 7.2.0,0.54",
+        "fast 1000 x 10000,astropy 7.2.0,0.0074",
+    ]);
+    let out = ls::report(&timings, &refs, TWO);
+    assert!(
+        out.contains("| Points x frequencies | exact, 1 thread | exact, 2 threads | astropy 7.2.0 slow | astropy 7.2.0 cython |"),
+        "{out}"
+    );
+    assert!(
+        out.contains("| 1,000 x 10,000 | - | - | 0.54 s | - |"),
+        "{out}"
+    );
+    assert!(out.contains("| 1,000 x 10,000 | - | - | 7.4 ms |"), "{out}");
+    assert!(
+        out.contains("| 1,000,000 x 1,000,000 | - | - | - |"),
         "{out}"
     );
 }

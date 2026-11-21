@@ -16,6 +16,7 @@ cuda = ["rustellar-bls/cuda", "rustellar-tls/cuda"]
 rustellar-bls.workspace = true
 rustellar-core.workspace = true
 rustellar-detrend.workspace = true
+rustellar-ls.workspace = true
 rustellar-model.workspace = true
 rustellar-tls.workspace = true
 rustellar-vet.workspace = true

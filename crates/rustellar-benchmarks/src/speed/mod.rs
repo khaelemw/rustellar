@@ -9,6 +9,7 @@ use std::time::Instant;
 
 pub mod bls;
 pub mod detrend;
+pub mod ls;
 pub mod model;
 pub mod tls;
 

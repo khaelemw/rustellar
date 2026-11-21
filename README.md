@@ -23,7 +23,7 @@ rustellar = { version = "0.0", features = ["model"] }
 | [`rustellar-bls`](crates/rustellar-bls) | `bls` | Box least squares transit search | in progress |
 | [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) | in progress |
 | `rustellar-mcmc` | `mcmc` | Affine-invariant ensemble sampler | planned |
-| [`rustellar-ls`](crates/rustellar-ls) | `ls` | Lomb-Scargle periodogram | in progress |
+| [`rustellar-ls`](crates/rustellar-ls) | `ls` | Lomb-Scargle periodogram, peaks, false-alarm probabilities | done |
 | [`rustellar-tls`](crates/rustellar-tls) | `tls` | Transit least squares | in progress |
 | [`rustellar-vet`](crates/rustellar-vet) | `vet` | Vetting candidates: aliases, odd and even depths, coverage | in progress |
 
@@ -72,6 +72,7 @@ Run the benchmarks:
 cargo bench -p rustellar-model
 cargo bench -p rustellar-bls
 cargo bench -p rustellar-tls
+cargo bench -p rustellar-ls
 ```
 
 Compare the searches with their Python references on the same injected

@@ -28,7 +28,7 @@ sinusoid and a floating mean are fitted by weighted least squares
 (Zechmeister & Kurster 2009), and the power is how much they lower
 chi-squared.
 
-This crate will give that periodogram exactly, and fast to a stated
+This crate gives that periodogram exactly, and fast to a stated
 tolerance, with its peaks refined between the grid's frequencies, the
 best-fit sinusoid and false-alarm probabilities. Frequencies are in cycles
 per day of the data's own time scale; nothing is tied to an instrument.
@@ -175,34 +175,39 @@ assert_eq!(grid.min(), 0.01);
 
 ## Speed
 
-On one AMD Ryzen (16 threads), floating mean, standard normalisation, an
-even grid of frequencies (`cargo bench -p rustellar-ls`), against astropy
-7.2 on the same machine and sizes:
+On one AMD Ryzen 7 5700G (8 cores, 16 threads), floating mean, standard
+normalisation, against astropy 7.2 on the same machine and the same light
+curves (`n` points over 30 days with a 2.7-day sinusoid, an even grid from
+0.01 per day, step 0.005), each the best of three; `cargo run --release -p
+rustellar-benchmarks --bin compare -- speed-ls` prints these tables:
 
-| Points x frequencies | exact, 1 thread | exact, all threads | astropy slow | astropy cython |
+| Points x frequencies | exact, 1 thread | exact, 16 threads | astropy slow | astropy cython |
 |---|--:|--:|--:|--:|
-| 1,000 x 10,000 | 69 ms | 10 ms | 539 ms | 303 ms |
-| 10,000 x 10,000 | 703 ms | 99 ms | 5,355 ms | 2,718 ms |
+| 1,000 x 10,000 | 69 ms | 9.2 ms | 0.51 s | 0.23 s |
+| 10,000 x 10,000 | 0.70 s | 93 ms | 5.4 s | 2.3 s |
 
 The exact method costs about 7 ns per point and frequency on one thread,
-4 times less than astropy's cython method: the phase from two exact
+3 times less than astropy's cython method: the phase from two exact
 products and fdlibm's minimax polynomials on the reduced angle (no
 library sine, no fused multiply-add needed), compiled for AVX2 where the
 processor has it (the same arithmetic, so the same bits either way).
 
-The fast method, all threads, against astropy's fast method (which has no
+The fast method on 16 threads, against astropy's fast method (which has no
 tolerance; see Accuracy):
 
 | Points x frequencies | tolerance 1e-6 | tolerance 1e-12 | astropy fast |
 |---|--:|--:|--:|
-| 1,000 x 10,000 | 3.2 ms | 3.6 ms | 7.4 ms |
-| 10,000 x 10,000 | 4.4 ms | 5.1 ms | 9.8 ms |
-| 10,000 x 100,000 | 33 ms | 34 ms | 81 ms |
-| 100,000 x 100,000 | 42 ms | 45 ms | 125 ms |
-| 1,000,000 x 1,000,000 | 381 ms | 404 ms | 2,019 ms |
+| 1,000 x 10,000 | 4.6 ms | 5.4 ms | 7.7 ms |
+| 10,000 x 10,000 | 6.0 ms | 7.0 ms | 9.4 ms |
+| 10,000 x 100,000 | 35 ms | 34 ms | 80 ms |
+| 100,000 x 100,000 | 44 ms | 45 ms | 0.12 s |
+| 1,000,000 x 1,000,000 | 0.39 s | 0.42 s | 2.0 s |
 
 It costs `O(n + m log m)` for `n` points and `m` frequencies, on our own
-cache-blocked FFT, with the same bits on any number of threads.
+cache-blocked FFT, with the same bits on any number of threads. Its
+frequencies below a few times 1 / T are computed exactly (see Accuracy),
+which is most of its time on the smallest grids. `cargo bench -p
+rustellar-ls` times both methods on their own.
 
 ## License
 
