@@ -1,0 +1,17 @@
+[package]
+name = "rustellar-mcmc"
+description = "Ensemble Markov chain Monte Carlo in pure Rust: affine-invariant sampling, convergence diagnostics and transit posteriors"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+keywords = ["astronomy", "exoplanet", "mcmc", "bayesian"]
+categories = ["science", "algorithms", "mathematics"]
+# The published package holds the library and its unit tests, which need no
+# files. The integration tests stay in the source.
+exclude = ["/tests/"]
+
+[dependencies]
+
+[package.metadata.docs.rs]
+all-features = true

@@ -10,6 +10,7 @@
 //! | `bls` | [`bls`] | Box least squares transit search |
 //! | `detrend` | [`detrend`] | Detrending: a sliding biweight, median or mean, to full precision |
 //! | `ls` | [`ls`] | The Lomb-Scargle periodogram |
+//! | `mcmc` | [`mcmc`] | Ensemble Markov chain Monte Carlo (in development) |
 //! | `fit` | [`fit`] | Least-squares transit fits (in development) |
 //! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
 //! | `tls` | [`tls`] | Transit least squares: a limb-darkened template search |
@@ -74,6 +75,11 @@ pub use rustellar_fit as fit;
 #[cfg(feature = "ls")]
 #[cfg_attr(docsrs, doc(cfg(feature = "ls")))]
 pub use rustellar_ls as ls;
+
+/// Ensemble Markov chain Monte Carlo, from [`rustellar-mcmc`](rustellar_mcmc).
+#[cfg(feature = "mcmc")]
+#[cfg_attr(docsrs, doc(cfg(feature = "mcmc")))]
+pub use rustellar_mcmc as mcmc;
 
 /// Transit light curves, from [`rustellar-model`](rustellar_model).
 #[cfg(feature = "model")]

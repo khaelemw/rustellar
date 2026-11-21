@@ -15,12 +15,13 @@ exclude = ["/tests/"]
 # build compiles only what it uses. rustellar-core is always included.
 [features]
 default = []
-full = ["bls", "detrend", "fit", "ls", "model", "tls", "vet"]
+full = ["bls", "detrend", "fit", "ls", "mcmc", "model", "tls", "vet"]
 # With `vet`, each search also brings its conversion into a vet candidate.
 bls = ["dep:rustellar-bls", "rustellar-vet?/bls"]
 detrend = ["dep:rustellar-detrend"]
 fit = ["dep:rustellar-fit"]
 ls = ["dep:rustellar-ls"]
+mcmc = ["dep:rustellar-mcmc"]
 model = ["dep:rustellar-model"]
 tls = ["dep:rustellar-tls", "rustellar-vet?/tls"]
 vet = ["dep:rustellar-vet"]
@@ -35,6 +36,7 @@ rustellar-core.workspace = true
 rustellar-detrend = { workspace = true, optional = true }
 rustellar-fit = { workspace = true, optional = true }
 rustellar-ls = { workspace = true, optional = true }
+rustellar-mcmc = { workspace = true, optional = true }
 rustellar-model = { workspace = true, optional = true }
 rustellar-tls = { workspace = true, optional = true }
 rustellar-vet = { workspace = true, optional = true }
@@ -48,4 +50,5 @@ rustellar-core.workspace = true
 rustellar-fit.workspace = true
 rustellar-model.workspace = true
 rustellar-ls.workspace = true
+rustellar-mcmc.workspace = true
 rustellar-vet.workspace = true

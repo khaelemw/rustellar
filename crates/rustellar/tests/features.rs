@@ -83,3 +83,11 @@ fn fit_feature_brings_in_fit() {
     let p: rustellar_fit::Parameter = rustellar::fit::Parameter::RadiusRatio;
     assert_eq!(p.to_string(), "k");
 }
+
+#[cfg(feature = "mcmc")]
+#[test]
+fn mcmc_feature_brings_in_mcmc() {
+    let ensemble: rustellar_mcmc::Ensemble =
+        rustellar::mcmc::Ensemble::new(vec![vec![0.0], vec![1.0]]).unwrap();
+    assert_eq!(ensemble.walkers(), 2);
+}

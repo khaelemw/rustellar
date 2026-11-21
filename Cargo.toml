@@ -16,6 +16,7 @@ rustellar-core = { path = "crates/rustellar-core", version = "0.0.0" }
 rustellar-detrend = { path = "crates/rustellar-detrend", version = "0.0.0" }
 rustellar-fit = { path = "crates/rustellar-fit", version = "0.0.0" }
 rustellar-ls = { path = "crates/rustellar-ls", version = "0.0.0" }
+rustellar-mcmc = { path = "crates/rustellar-mcmc", version = "0.0.0" }
 rustellar-model = { path = "crates/rustellar-model", version = "0.0.0" }
 rustellar-tls = { path = "crates/rustellar-tls", version = "0.0.0" }
 rustellar-vet = { path = "crates/rustellar-vet", version = "0.0.0" }

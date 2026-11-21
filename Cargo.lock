@@ -374,6 +374,7 @@ dependencies = [
  "rustellar-detrend",
  "rustellar-fit",
  "rustellar-ls",
+ "rustellar-mcmc",
  "rustellar-model",
  "rustellar-tls",
  "rustellar-vet",
@@ -436,6 +437,10 @@ dependencies = [
  "criterion",
  "rustellar-core",
 ]
+
+[[package]]
+name = "rustellar-mcmc"
+version = "0.0.0"
 
 [[package]]
 name = "rustellar-model"

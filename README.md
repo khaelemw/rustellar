@@ -22,7 +22,7 @@ rustellar = { version = "0.0", features = ["model"] }
 | [`rustellar-fit`](crates/rustellar-fit) | `fit` | Least-squares transit fit | done |
 | [`rustellar-bls`](crates/rustellar-bls) | `bls` | Box least squares transit search | done |
 | [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) | done |
-| `rustellar-mcmc` | `mcmc` | Affine-invariant ensemble sampler | planned |
+| [`rustellar-mcmc`](crates/rustellar-mcmc) | `mcmc` | Ensemble MCMC, diagnostics and transit posteriors | in development |
 | [`rustellar-ls`](crates/rustellar-ls) | `ls` | Lomb-Scargle periodogram, peaks, false-alarm probabilities | done |
 | [`rustellar-tls`](crates/rustellar-tls) | `tls` | Transit least squares | done |
 | [`rustellar-vet`](crates/rustellar-vet) | `vet` | Vetting candidates: aliases, odd and even depths, coverage | done |
