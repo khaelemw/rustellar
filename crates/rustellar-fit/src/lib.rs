@@ -15,6 +15,9 @@
 //!   Nielsen 1999) with geodesic acceleration (Transtrum & Sethna 2012),
 //!   by QR throughout and a central-difference Jacobian, giving a
 //!   [`FitResult`].
+//! - Standard errors and the [`Covariance`] from the fit's `R`, and the
+//!   depth, durations, inclination and stellar density, each an
+//!   [`Estimate`] with its error to first order.
 //!
 //! # Examples
 //!
@@ -40,6 +43,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod covariance;
 mod error;
 mod lm;
 mod parameter;
@@ -51,6 +55,7 @@ mod setup;
 #[cfg(test)]
 mod tests;
 
+pub use covariance::{Covariance, Estimate};
 pub use error::FitError;
 pub use lm::Termination;
 pub use parameter::Parameter;

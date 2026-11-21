@@ -1,7 +1,7 @@
 //! Running a set-up's fit.
 
 use crate::lm::{self, Settings};
-use crate::problem::{Problem, params_from, values_of};
+use crate::problem::{Problem, values_of};
 use crate::{FitError, FitResult, Parameter, TransitFit};
 
 /// The differencing step's size against each parameter's scale:
@@ -97,9 +97,7 @@ impl TransitFit<'_> {
         };
         let solution = lm::solve(&mut problem, x0, &steps, settings);
 
-        let mut values = problem.values_at(&solution.x);
-        values[4] = values[4].abs();
-        let params = params_from(&values).expect("the solver keeps to feasible points");
-        Ok(FitResult::new(params, values[7], free, solution))
+        let values = problem.values_at(&solution.x);
+        Ok(FitResult::new(values, free, steps, solution))
     }
 }

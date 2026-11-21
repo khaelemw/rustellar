@@ -261,6 +261,11 @@ fn householder(a: &mut [f64], m: usize, n: usize, f: &[f64]) -> (Vec<f64>, Vec<f
         let v = &mut left[j * m + j..];
         let length = norm(v);
         if length == 0.0 {
+            // Nothing to reflect: R's row is the columns' entries as they
+            // stand, with a zero pivot.
+            for k in j + 1..n {
+                r[j * n + k] = right[(k - j - 1) * m + j];
+            }
             continue;
         }
         let alpha = if v[0] > 0.0 { -length } else { length };

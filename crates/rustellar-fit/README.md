@@ -39,6 +39,10 @@ inclination and stellar density derived from it.
   the bounds; a central-difference Jacobian. Noiseless light curves are
   recovered to 1e-9 or better from offset starts, grazing and long-cadence
   ones included.
+- Standard errors and the covariance from the fit's own `R`, never the
+  normal equations; the depth, durations, inclination and stellar density
+  with errors to first order. On simulated noise the pulls of every
+  parameter have mean 0 and spread 1 to within 0.2.
 
 ## License
 

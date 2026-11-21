@@ -166,3 +166,28 @@ fn a_parameter_with_no_feasible_neighbour() {
     assert_eq!(s.x[1], 0.0);
     assert_eq!(s.r[3], 0.0);
 }
+
+#[test]
+fn a_parameter_with_no_effect_between_two_that_have() {
+    // x1 does nothing: a zero column in the middle of J, which R must still
+    // carry past, so that R^T R = J^T J = [[2, 0, 1], [0, 0, 0], [1, 0, 2]].
+    let mut p = Test {
+        m: 3,
+        f: |x: &[f64], out: &mut [f64]| {
+            out[0] = x[0] - 1.0;
+            out[1] = x[2] - 2.0;
+            out[2] = x[0] + x[2] - 3.0;
+        },
+        feasible: |_: &[f64]| true,
+        project: |_: &mut [f64]| {},
+    };
+    let s = solve(&mut p, vec![0.0, 5.0, 0.0], &[1e-3; 3], settings(50, true));
+    assert_eq!(s.termination, Termination::Converged);
+    assert!((s.x[0] - 1.0).abs() < 1e-9 && (s.x[2] - 2.0).abs() < 1e-9);
+    assert_eq!(s.x[1], 5.0);
+    let r = &s.r;
+    let rtr = |i: usize, j: usize| -> f64 { (0..3).map(|k| r[k * 3 + i] * r[k * 3 + j]).sum() };
+    for (i, j, want) in [(0, 0, 2.0), (0, 2, 1.0), (2, 2, 2.0), (1, 1, 0.0)] {
+        assert!((rtr(i, j) - want).abs() < 1e-9, "({i}, {j}): {}", rtr(i, j));
+    }
+}
