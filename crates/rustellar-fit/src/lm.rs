@@ -297,6 +297,9 @@ fn jacobian(
     2 * steps.len()
 }
 
+/// The rows checked at once for being all zero in a Householder column.
+const CHUNK: usize = 64;
+
 /// Householder QR of `a` (column-major, `m` by `n`, overwritten): `R`
 /// (row-major `n` by `n`) and the first `n` entries of `Q^T f`.
 ///
@@ -313,7 +316,13 @@ fn householder(a: &mut [f64], m: usize, n: usize, f: &[f64]) -> (Vec<f64>, Vec<f
         let v = &mut left[j * m..(j + 1) * m];
         rows.clear();
         rows.push(j);
-        rows.extend((j + 1..m).filter(|&i| v[i] != 0.0));
+        // In chunks, so long runs of zeros are passed over quickly.
+        for (c, chunk) in v[j + 1..].chunks(CHUNK).enumerate() {
+            if chunk.iter().fold(0.0f64, |s, x| s.max(x.abs())) != 0.0 {
+                let start = j + 1 + c * CHUNK;
+                rows.extend((start..start + chunk.len()).filter(|&i| v[i] != 0.0));
+            }
+        }
         let length = rows.iter().map(|&i| v[i] * v[i]).sum::<f64>().sqrt();
         if length == 0.0 {
             // Nothing to reflect: R's row is the columns' entries as they
@@ -399,14 +408,24 @@ fn damped(r: &[f64], c: &[f64], d: &[f64], mu: f64) -> (Vec<f64>, Vec<f64>) {
 fn acceleration(jac: &[f64], s: &[f64], f: &[f64], f_h: &[f64], v: &[f64], m: usize) -> Vec<f64> {
     let n = v.len();
     let scale = 2.0 / ACCEL_STEP;
-    let mut g = vec![0.0; n];
-    for (i, (&fi, &fh)) in f.iter().zip(f_h).enumerate() {
-        let jv: f64 = (0..n).map(|j| jac[j * m + i] * v[j]).sum();
-        let fvv = scale * ((fh - fi) / ACCEL_STEP - jv);
-        for (j, gj) in g.iter_mut().enumerate() {
-            *gj = jac[j * m + i].mul_add(fvv, *gj);
+    // Column by column, as the Jacobian is stored.
+    let mut fvv = vec![0.0; m];
+    for (j, &vj) in v.iter().enumerate() {
+        for (a, &c) in fvv.iter_mut().zip(&jac[j * m..(j + 1) * m]) {
+            *a += c * vj;
         }
     }
+    for ((a, &fi), &fh) in fvv.iter_mut().zip(f).zip(f_h) {
+        *a = scale * ((fh - fi) / ACCEL_STEP - *a);
+    }
+    let mut g: Vec<f64> = (0..n)
+        .map(|j| {
+            jac[j * m..(j + 1) * m]
+                .iter()
+                .zip(&fvv)
+                .fold(0.0, |gj, (&c, &a)| c.mul_add(a, gj))
+        })
+        .collect();
     // S^T y = -g, then S a = y.
     for i in 0..n {
         let sum: f64 = (0..i).map(|k| s[k * n + i] * g[k]).sum();

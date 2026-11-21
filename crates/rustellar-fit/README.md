@@ -48,6 +48,10 @@ inclination and stellar density derived from it.
   triangle of stars that darken to their limb. A fit pressing against a
   bound follows it: the step is solved within the bound, so the other
   parameters move as they should along it and the fit converges there.
+- `TransitFit::with_threads`: the model and the Jacobian's rows over
+  several threads, the same to the bit as on one. The solver's linear
+  algebra stays on one thread, so threads pay only for very large light
+  curves (a fifth off at a million points).
 - Standard errors and the covariance from the fit's own `R`, never the
   normal equations; the depth, durations, inclination and stellar density
   with errors to first order. On simulated noise the pulls of every

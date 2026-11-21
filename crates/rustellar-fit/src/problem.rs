@@ -1,5 +1,7 @@
 //! The transit fit as weighted residuals over the free parameters.
 
+use std::thread;
+
 use rustellar_core::{Epoch, TimeDelta};
 use rustellar_model::{
     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitModel, TransitParams,
@@ -12,6 +14,25 @@ use crate::{LimbDarkeningBounds, Parameter, TransitFit};
 /// A differencing step's size against its parameter's scale: `eps^(1/3)`,
 /// which balances truncation against rounding for central differences.
 pub(crate) const STEP: f64 = 6.055_454_452_393_343e-6;
+
+/// Points are shared out over threads in blocks this long, dealt in turn,
+/// so each thread has its share of the points in transit.
+pub(crate) const BLOCK: usize = 256;
+
+/// The points of thread `t` of `threads`, out of `m`.
+pub(crate) fn rows(t: usize, threads: usize, m: usize) -> impl Iterator<Item = usize> {
+    (t * BLOCK..m)
+        .step_by(threads * BLOCK)
+        .flat_map(move |start| start..(start + BLOCK).min(m))
+}
+
+/// One thread's points for the model: their indices, a model at their
+/// times, and the flux there.
+struct Part {
+    rows: Vec<usize>,
+    model: TransitModel,
+    flux: Vec<f64>,
+}
 
 /// The residuals `(baseline * model - flux) / err` of a set-up, over its
 /// free parameters; the fixed ones keep their starting values.
@@ -28,12 +49,40 @@ pub(crate) struct Problem<'a> {
     pub(crate) free: Vec<usize>,
     /// Whether the limb darkening is held to Kipping's triangle.
     physical: bool,
+    /// Each thread's points, beyond the first thread.
+    parts: Vec<Part>,
+    /// Each thread's Jacobian rows with shape derivatives.
+    pub(crate) rows_out: Vec<Vec<(usize, [f64; 8])>>,
+    /// The rows with shape derivatives in the last Jacobian.
+    pub(crate) active: Vec<usize>,
+    /// Whether the last Jacobian was this crate's, so only its rows in
+    /// transit need clearing.
+    pub(crate) written: bool,
 }
 
 impl<'a> Problem<'a> {
     pub(crate) fn new(fit: &TransitFit<'a>, values: [f64; 8]) -> Self {
         let times = fit.lc.time().to_vec();
         let days = times.iter().map(|t| t.as_days()).collect();
+        let threads = fit.threads.get();
+        let model_of = |times: Vec<Epoch>| match fit.exposure {
+            Some(exposure) => TransitModel::with_exposure(times, exposure),
+            None => TransitModel::new(times),
+        };
+        let parts = if threads > 1 {
+            (0..threads)
+                .map(|t| {
+                    let rows: Vec<usize> = rows(t, threads, times.len()).collect();
+                    Part {
+                        model: model_of(rows.iter().map(|&i| times[i]).collect()),
+                        flux: vec![0.0; rows.len()],
+                        rows,
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         let (model, offsets) = match fit.exposure {
             Some(exposure) => (
                 TransitModel::with_exposure(times, exposure),
@@ -50,6 +99,10 @@ impl<'a> Problem<'a> {
             values,
             free: fit.free().iter().map(|p| p.index()).collect(),
             physical: fit.bounds == LimbDarkeningBounds::Physical,
+            parts,
+            rows_out: vec![Vec::new(); threads],
+            active: Vec::new(),
+            written: false,
         }
     }
 
@@ -83,7 +136,22 @@ impl Residuals for Problem<'_> {
             return false;
         }
         // The lengths match by construction.
-        let _ = self.model.light_curve_into(params, out);
+        if self.parts.is_empty() {
+            let _ = self.model.light_curve_into(params, out);
+        } else {
+            thread::scope(|scope| {
+                for part in &mut self.parts {
+                    scope.spawn(move || {
+                        let _ = part.model.light_curve_into(params, &mut part.flux);
+                    });
+                }
+            });
+            for part in &self.parts {
+                for (&i, &v) in part.rows.iter().zip(&part.flux) {
+                    out[i] = v;
+                }
+            }
+        }
         for ((o, &y), &w) in out.iter_mut().zip(self.flux).zip(&self.weight) {
             *o = baseline.mul_add(*o, -y) * w;
         }
@@ -91,7 +159,11 @@ impl Residuals for Problem<'_> {
     }
 
     fn jacobian(&mut self, x: &[f64], jac: &mut [f64]) -> bool {
-        jacobian(self, &self.values_at(x), jac)
+        let values = self.values_at(x);
+        let given = jacobian(self, &values, jac);
+        // Differenced instead: every entry may be set.
+        self.written &= given;
+        given
     }
 
     fn bounds(&self, x: &[f64]) -> Vec<Vec<f64>> {

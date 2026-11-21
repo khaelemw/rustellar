@@ -1,6 +1,8 @@
 //! What a fit starts from: the light curve, the starting parameters, which
 //! are free, and how each point is measured.
 
+use std::num::NonZeroUsize;
+
 use rustellar_core::LightCurve;
 use rustellar_model::{Exposure, TransitParams};
 
@@ -48,6 +50,7 @@ pub struct TransitFit<'a> {
     pub(crate) max_iterations: usize,
     pub(crate) accelerate: bool,
     pub(crate) bounds: LimbDarkeningBounds,
+    pub(crate) threads: NonZeroUsize,
 }
 
 /// Which limb-darkening coefficients a fit may reach.
@@ -95,6 +98,7 @@ impl<'a> TransitFit<'a> {
             max_iterations: 200,
             accelerate: true,
             bounds: LimbDarkeningBounds::Valid,
+            threads: NonZeroUsize::MIN,
         }
     }
 
@@ -162,6 +166,23 @@ impl<'a> TransitFit<'a> {
     #[must_use]
     pub const fn with_limb_darkening_bounds(self, bounds: LimbDarkeningBounds) -> Self {
         Self { bounds, ..self }
+    }
+
+    /// The model and its Jacobian over `threads` threads (one by default).
+    /// The solver's linear algebra stays on one thread, so this pays only
+    /// for very large light curves: about a fifth off at a million points,
+    /// nothing at a hundred thousand, and a loss below that, where starting
+    /// the threads costs more than they save. The result is the same to
+    /// the bit on any number.
+    #[must_use]
+    pub const fn with_threads(self, threads: NonZeroUsize) -> Self {
+        Self { threads, ..self }
+    }
+
+    /// The threads the fit runs on.
+    #[must_use]
+    pub const fn threads(&self) -> NonZeroUsize {
+        self.threads
     }
 
     /// The limb-darkening bounds.

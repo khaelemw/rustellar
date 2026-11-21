@@ -4,7 +4,7 @@
 //
 // Run with `cargo bench -p rustellar-fit`.
 
-use std::{hint::black_box, num::NonZeroUsize};
+use std::{hint::black_box, num::NonZeroUsize, thread};
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use rustellar_fit::{
@@ -64,5 +64,37 @@ fn fit(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, fit);
+/// The hot Jupiter over `n` two-minute points with a deterministic wobble
+/// as noise, from an offset start, on one thread and on every
+/// core.
+fn threads(c: &mut Criterion) {
+    let truth = [1.3, 3.0, 0.1, 10.0, 0.3, 0.4, 0.25];
+    // P within a minute of the truth over the longest span.
+    let start = [1.302, 3.000_001, 0.105, 9.0, 0.4, 0.3, 0.2];
+    let all = thread::available_parallelism().unwrap_or(NonZeroUsize::MIN);
+    let mut group = c.benchmark_group("threads");
+    group.sample_size(10);
+    for n in [10_000u32, 100_000, 1_000_000] {
+        let time: Vec<f64> = (0..n).map(|i| f64::from(i) * 2.0 / 1440.0).collect();
+        let truth = params(&truth);
+        let flux = time
+            .iter()
+            .enumerate()
+            .map(|(i, &t)| {
+                let wobble = 1e-3 * (f64::from(i as u32) * 0.754_877_666_246_692_7).fract() - 5e-4;
+                truth.flux_at(Epoch::from_days(t).unwrap()) + wobble
+            })
+            .collect();
+        let lc = LightCurve::from_days(time, flux, vec![3e-4; n as usize]).unwrap();
+        for t in [NonZeroUsize::MIN, all] {
+            let set_up = TransitFit::new(&lc, params(&start)).with_threads(t);
+            group.bench_function(format!("{n} points, {t} threads"), |b| {
+                b.iter(|| black_box(&set_up).run().unwrap());
+            });
+        }
+    }
+    group.finish();
+}
+
+criterion_group!(benches, fit, threads);
 criterion_main!(benches);

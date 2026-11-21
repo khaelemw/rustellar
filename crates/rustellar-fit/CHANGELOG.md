@@ -21,3 +21,10 @@ All notable changes to this crate are recorded here. The format follows
 - `LimbDarkeningBounds` and `TransitFit::with_limb_darkening_bounds`:
   Kipping's (2013) triangle as an option; steps follow a bound the fit
   keeps pressing against, and converge on it.
+- `TransitFit::with_threads`: the model and Jacobian over threads, the
+  same to the bit as on one.
+
+### Changed
+
+- The Jacobian writes only the rows in transit, and the geodesic
+  acceleration runs column by column: 10% to 25% faster on one thread.
