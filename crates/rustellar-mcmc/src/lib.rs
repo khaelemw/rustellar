@@ -16,6 +16,9 @@
 //! - [`Ensemble::run`]: the stretch move ([`Move`]) in two halves,
 //!   reproducible from the seed on any number of threads, giving a
 //!   [`Chain`] with its acceptance fractions, means and covariance.
+//! - [`diagnostics`]: the integrated autocorrelation time (as emcee), and
+//!   the rank-normalised split-R-hat and bulk and tail effective sample
+//!   sizes (as ArviZ), for any chains or per parameter of a [`Chain`].
 //!
 //! # Examples
 //!
@@ -41,9 +44,12 @@
 //! ```
 
 mod chain;
+pub mod diagnostics;
 mod ensemble;
 mod error;
+mod fft;
 mod moves;
+mod normal;
 mod probability;
 mod rng;
 mod run;

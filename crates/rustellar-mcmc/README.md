@@ -48,6 +48,17 @@ faster per independent sample than the Python samplers.
 - `Chain`: every walker's position and log-probability after each step,
   acceptance fractions, means, covariance, traces, and the last positions
   to start another run from.
+- `diagnostics`: the integrated autocorrelation time with Sokal's
+  automatic window (as emcee's `integrated_time`, with `trusted` for its
+  50-times rule), and the rank-normalised split-R-hat and bulk and tail
+  effective sample sizes (Vehtari et al. 2021, as ArviZ). Per parameter of
+  a `Chain`, the walkers taken as chains, or on any equal-length chains.
+  On 14 sets of chains (independent, autocorrelated up to 0.99,
+  anticorrelated, unconverged, tied, heavy-tailed, drifting, too short,
+  constant) they agree with emcee 3.1.6 and ArviZ 1.0 to within 5e-15
+  relative. The normal quantile behind the rank normalisation (Wichura's
+  AS 241) is within 4.9e-16 of 50-digit values, where scipy's is within
+  6.2e-16.
 - The random numbers: xoshiro256** (Blackman & Vigna 2021) seeded through
   SplitMix64, matching the reference implementations' outputs, so a seed
   gives the same chain on every platform.
@@ -68,7 +79,11 @@ assert_eq!(chain.steps(), 1000);
 
 - Blackman, D. & Vigna, S. 2021, ACM TOMS, 47, 36
 - Foreman-Mackey, D., Hogg, D. W., Lang, D. & Goodman, J. 2013, PASP, 125, 306
+- Geyer, C. J. 1992, Statistical Science, 7, 473
 - Goodman, J. & Weare, J. 2010, CAMCoS, 5, 65
+- Sokal, A. 1997, in Functional Integration, NATO ASI Series B, 361, 131
+- Vehtari, A., Gelman, A., Simpson, D., Carpenter, B. & Bürkner, P.-C. 2021, Bayesian Analysis, 16, 667
+- Wichura, M. J. 1988, Applied Statistics, 37, 477
 
 ## License
 

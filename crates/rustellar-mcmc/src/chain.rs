@@ -1,5 +1,7 @@
 //! The chains a run produces.
 
+use crate::diagnostics::{self, IntegratedTime};
+
 /// Every walker's position and log-probability after each step of a run,
 /// and how often each walker's proposals were accepted.
 ///
@@ -165,6 +167,58 @@ impl Chain {
         };
         from.chunks_exact(self.dimensions)
             .map(<[f64]>::to_vec)
+            .collect()
+    }
+
+    /// One parameter's draws past the first `discard` steps, walker by
+    /// walker: the chains the [`diagnostics`] take.
+    #[must_use]
+    pub fn traces(&self, dimension: usize, discard: usize) -> Vec<Vec<f64>> {
+        assert!(dimension < self.dimensions, "out of range");
+        (0..self.walkers)
+            .map(|w| {
+                (discard.min(self.steps())..self.steps())
+                    .map(|s| self.position(s, w)[dimension])
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Each parameter's integrated autocorrelation time past the first
+    /// `discard` steps, as emcee's `get_autocorr_time` (window step 5).
+    ///
+    /// # Panics
+    ///
+    /// If no steps are left.
+    #[must_use]
+    pub fn autocorrelation_times(&self, discard: usize) -> Vec<IntegratedTime> {
+        self.per_dimension(discard, |c| diagnostics::integrated_time(c, 5.0))
+    }
+
+    /// Each parameter's rank-normalised split-R-hat past the first
+    /// `discard` steps, the walkers taken as chains.
+    #[must_use]
+    pub fn rhat(&self, discard: usize) -> Vec<f64> {
+        self.per_dimension(discard, diagnostics::rhat)
+    }
+
+    /// Each parameter's bulk effective sample size past the first
+    /// `discard` steps, the walkers taken as chains.
+    #[must_use]
+    pub fn ess_bulk(&self, discard: usize) -> Vec<f64> {
+        self.per_dimension(discard, diagnostics::ess_bulk)
+    }
+
+    /// Each parameter's tail effective sample size past the first
+    /// `discard` steps, the walkers taken as chains.
+    #[must_use]
+    pub fn ess_tail(&self, discard: usize) -> Vec<f64> {
+        self.per_dimension(discard, diagnostics::ess_tail)
+    }
+
+    fn per_dimension<T>(&self, discard: usize, f: impl Fn(&[Vec<f64>]) -> T) -> Vec<T> {
+        (0..self.dimensions)
+            .map(|d| f(&self.traces(d, discard)))
             .collect()
     }
 }
