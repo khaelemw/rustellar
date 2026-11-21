@@ -411,7 +411,7 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn separation(self, t: Epoch) -> f64 {
-        let (sin_phi, cos_phi) = self.phase_angle(t).sin_cos();
+        let (sin_phi, cos_phi) = sin_cos(self.phase_angle(t));
         let a = self.a_rs.get();
         let b = self.b.get();
 
@@ -656,7 +656,7 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn flux_at(self, t: Epoch) -> f64 {
-        let (sin_phi, cos_phi) = self.phase_angle(t).sin_cos();
+        let (sin_phi, cos_phi) = sin_cos(self.phase_angle(t));
         self.flux_at_phase(sin_phi, cos_phi)
     }
 
@@ -817,7 +817,7 @@ impl TransitParams {
             return 1.0;
         }
         let at = |sin_phi, cos_phi| self.flux_at_phase(sin_phi, cos_phi);
-        let (s, c) = phase.sin_cos();
+        let (s, c) = sin_cos(phase);
         let (step_sin, step_cos) = averaging.step;
         let (mut sin_theta, mut cos_theta) = averaging.first;
         let mut sum = if averaging.samples % 2 == 1 {
@@ -854,8 +854,8 @@ impl TransitParams {
         // instant is out of transit.
         Averaging {
             samples,
-            step: step.sin_cos(),
-            first: first.sin_cos(),
+            step: sin_cos(step),
+            first: sin_cos(first),
             clear: self.clear() + PI * (exposure.duration() / self.period),
         }
     }
@@ -887,7 +887,7 @@ impl TransitParams {
         if phase.abs() >= clear {
             return 1.0;
         }
-        let (sin_phi, cos_phi) = phase.sin_cos();
+        let (sin_phi, cos_phi) = sin_cos(phase);
         self.flux_at_phase(sin_phi, cos_phi)
     }
 }
@@ -915,4 +915,15 @@ pub(crate) fn check_lengths<T>(times: &[T], out: &[f64]) -> Result<(), LengthMis
             output: out.len(),
         })
     }
+}
+
+/// `x.sin_cos()`, compiled once. Where both are wanted, LLVM may join a
+/// sine and cosine into one call to the platform's `sincos`, which can
+/// round an ulp differently from the two apart, and whether it does
+/// depends on what each caller inlines. One body for every phase keeps
+/// the binned flux of one sample, and every other path, equal to
+/// [`TransitParams::flux_at`] to the bit on every platform.
+#[inline(never)]
+fn sin_cos(x: f64) -> (f64, f64) {
+    x.sin_cos()
 }
