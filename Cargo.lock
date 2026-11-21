@@ -386,6 +386,7 @@ dependencies = [
  "rustellar-bls",
  "rustellar-core",
  "rustellar-detrend",
+ "rustellar-fit",
  "rustellar-ls",
  "rustellar-model",
  "rustellar-tls",

@@ -15,3 +15,6 @@ All notable changes to this crate are recorded here. The format follows
 - `Covariance` and `Estimate`: standard errors from `R`, and the depth,
   durations, inclination and stellar density with errors.
 - `FitError`.
+- `FitResult::jacobians`: the Jacobians from the geometry, which replace
+  differencing the light curve.
+- A criterion bench on the reference test's six fits.

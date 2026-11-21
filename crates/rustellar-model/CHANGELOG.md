@@ -15,6 +15,8 @@ All notable changes to this crate are recorded here. The format follows
   - flux: `flux_at`, `light_curve`, `light_curve_into`, `binned_flux_at`.
 - `RadiusRatio` (at most `RadiusRatio::MAX`, 10,000), `ImpactParameter`,
   `ScaledSemiMajorAxis` and `LimbDarkening` (uniform, linear, quadratic).
+- `blocked_light`: the three parts of the blocked light that the flux is
+  linear in, for every limb-darkening law at once.
 - `flux`: the analytic flux for quadratic limb darkening (Mandel & Agol 2002),
   with `B1` from Agol, Luger & Foreman-Mackey (2020) and Bulirsch's `cel`,
   and the area and `r^2` moments by Green's theorem. Within 1e-15 of exact for

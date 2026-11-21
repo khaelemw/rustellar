@@ -100,15 +100,7 @@ pub fn flux(z: f64, k: RadiusRatio, ld: LimbDarkening) -> f64 {
         return 0.0;
     }
 
-    // Across the limb `B0` and `B2` share one lens and its arcs.
-    let (b0, b2) = if z > 1.0 - p {
-        let lens = Lens::new(z, p);
-        let (arc1, arc2) = arcs(lens.kappa0);
-        (lens_area(z, p, lens, arc1), lens_r2(z, p, lens, arc1, arc2))
-    } else {
-        (blocked_area(z, p), blocked_r2(z, p))
-    };
-    let b1 = blocked_mu(z, p);
+    let [b0, b1, b2] = overlap(z, p);
 
     // I(mu) = c0 + c2 mu + c4 mu^2, and mu^2 = 1 - r^2, so the blocked light
     // over pi is c0 B0 + c2 B1 + c4 (B0 - B2), with c0 + c4 = 1 - c2.
@@ -121,6 +113,67 @@ pub fn flux(z: f64, k: RadiusRatio, ld: LimbDarkening) -> f64 {
     // The exact flux is in [0, 1]; rounding can take it about 1e-12 outside,
     // near first contact and near full cover.
     flux.clamp(0.0, 1.0)
+}
+
+/// The light a planet blocks, split by the terms of the quadratic law:
+/// `[B0, B1, B2]`, the part of the star it covers integrated against `1`,
+/// `mu` and `r^2` and divided by `pi` (Mandel & Agol's area, `lambda_d` and
+/// `eta_d`). Over the whole star they are 1, 2/3 and 1/2.
+///
+/// The flux is linear in them: for limb darkening `(u1, u2)`, with
+/// `c2 = u1 + 2 u2`,
+///
+/// ```text
+/// flux = 1 - ((1 - c2) B0 + c2 B1 + u2 B2) / (1 - u1 / 3 - u2 / 6)
+/// ```
+///
+/// so one call gives the flux for every law, and its derivatives with
+/// respect to `u1` and `u2`, which [`flux`] computes from the same three.
+/// `z` is in stellar radii and only its size matters; all three are 0 once
+/// `|z| >= 1 + k`, and NaN for a NaN `z`.
+///
+/// # Examples
+///
+/// ```
+/// use rustellar_model::{LimbDarkening, RadiusRatio, blocked_light, flux};
+///
+/// let k = RadiusRatio::new(0.1)?;
+/// let [b0, b1, b2] = blocked_light(0.3, k);
+/// let (u1, u2) = (0.3, 0.25);
+/// let c2 = u1 + 2.0 * u2;
+/// let from_parts = 1.0 - ((1.0 - c2) * b0 + c2 * b1 + u2 * b2) / (1.0 - u1 / 3.0 - u2 / 6.0);
+/// let ld = LimbDarkening::quadratic(u1, u2)?;
+/// assert!((from_parts - flux(0.3, k, ld)).abs() < 1e-15);
+/// assert_eq!(blocked_light(1.1, k), [0.0; 3]);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+#[must_use]
+pub fn blocked_light(z: f64, k: RadiusRatio) -> [f64; 3] {
+    if z.is_nan() {
+        return [f64::NAN; 3];
+    }
+    let z = z.abs();
+    let p = k.get();
+    if z >= 1.0 + p {
+        return [0.0; 3];
+    }
+    if p > 1.0 && z <= p - 1.0 {
+        return [1.0, 2.0 / 3.0, 0.5];
+    }
+    overlap(z, p)
+}
+
+/// `[B0, B1, B2]` for a planet that overlaps the star without covering it.
+fn overlap(z: f64, p: f64) -> [f64; 3] {
+    // Across the limb `B0` and `B2` share one lens and its arcs.
+    let (b0, b2) = if z > 1.0 - p {
+        let lens = Lens::new(z, p);
+        let (arc1, arc2) = arcs(lens.kappa0);
+        (lens_area(z, p, lens, arc1), lens_r2(z, p, lens, arc1, arc2))
+    } else {
+        (blocked_area(z, p), blocked_r2(z, p))
+    };
+    [b0, blocked_mu(z, p), b2]
 }
 
 /// `B1`: the covered part of the star integrated against `mu`, divided by

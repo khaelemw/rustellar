@@ -25,6 +25,7 @@ fn result(values: [f64; 8], r: Vec<f64>, steps: Vec<f64>) -> FitResult {
         r,
         iterations: 1,
         evaluations: 1,
+        jacobians: 1,
         termination: Termination::Converged,
     };
     FitResult::new(values, Parameter::ALL.to_vec(), steps, solution)

@@ -8,9 +8,9 @@
 //!
 //! Steps that cross a bound are projected back onto it (as in projected
 //! Levenberg-Marquardt, Kanzow, Yamashita & Fukushima 2004), so a fit can
-//! slide along a bound rather than stall at it. The Jacobian is by central
-//! differences, falling back to one side where the other leaves the
-//! feasible region.
+//! slide along a bound rather than stall at it. The Jacobian is the
+//! residuals' own where they give one, else by central differences, falling
+//! back to one side where the other leaves the feasible region.
 
 /// Why a fit stopped.
 ///
@@ -52,6 +52,13 @@ pub(crate) trait Residuals {
     /// Moves `x` onto the feasible region's boundary where it has crossed
     /// it, so steps can slide along a bound rather than stall at it.
     fn project(&self, x: &mut [f64]);
+
+    /// The Jacobian at `x` into `jac` (column-major), where the residuals
+    /// know it better than by differencing them: `false` to have it
+    /// differenced.
+    fn jacobian(&mut self, _x: &[f64], _jac: &mut [f64]) -> bool {
+        false
+    }
 }
 
 /// How the solver runs.
@@ -72,8 +79,10 @@ pub(crate) struct Solution {
     pub r: Vec<f64>,
     /// The steps accepted.
     pub iterations: usize,
-    /// Every evaluation of the residuals, the Jacobian's included.
+    /// Every evaluation of the residuals, differenced Jacobians' included.
     pub evaluations: usize,
+    /// The Jacobians the residuals gave themselves.
+    pub jacobians: usize,
     pub termination: Termination,
 }
 
@@ -91,7 +100,7 @@ const ACCEL_STEP: f64 = 0.1;
 const ACCEL_RATIO: f64 = 0.75;
 
 /// Minimises `sum f(x)^2` from `x0`, which must be feasible, with the
-/// Jacobian's columns differenced over `steps`.
+/// Jacobian the residuals' own, or its columns differenced over `steps`.
 pub(crate) fn solve(
     p: &mut dyn Residuals,
     x0: Vec<f64>,
@@ -115,9 +124,14 @@ pub(crate) fn solve(
     let mut mu = 1e-3;
     let mut nu = 2.0;
     let mut iterations = 0;
+    let mut jacobians = 0;
 
     loop {
-        evaluations += jacobian(p, &x, &f, steps, &mut jac, &mut trial, &mut spare);
+        if p.jacobian(&x, &mut jac) {
+            jacobians += 1;
+        } else {
+            evaluations += jacobian(p, &x, &f, steps, &mut jac, &mut trial, &mut spare);
+        }
         qr.copy_from_slice(&jac);
         let (r, c) = householder(&mut qr, m, n, &f);
         for (j, s) in scale.iter_mut().enumerate() {
@@ -140,6 +154,7 @@ pub(crate) fn solve(
                 r,
                 iterations,
                 evaluations,
+                jacobians,
                 termination,
             };
         }
@@ -173,6 +188,7 @@ pub(crate) fn solve(
                     r,
                     iterations,
                     evaluations,
+                    jacobians,
                     termination: Termination::PrecisionLimit,
                 };
             }
@@ -257,13 +273,22 @@ fn jacobian(
 
 /// Householder QR of `a` (column-major, `m` by `n`, overwritten): `R`
 /// (row-major `n` by `n`) and the first `n` entries of `Q^T f`.
+///
+/// Each reflection touches only the rows where its column is nonzero, the
+/// pivot's aside: out of transit only the baseline's column is, so the
+/// cost is in the points in transit. Exact zeros add nothing to a sum, so
+/// the result is the same to the bit as reflecting every row.
 fn householder(a: &mut [f64], m: usize, n: usize, f: &[f64]) -> (Vec<f64>, Vec<f64>) {
     let mut r = vec![0.0; n * n];
     let mut qtf = f.to_vec();
+    let mut rows = Vec::with_capacity(m);
     for j in 0..n {
         let (left, right) = a.split_at_mut((j + 1) * m);
-        let v = &mut left[j * m + j..];
-        let length = norm(v);
+        let v = &mut left[j * m..(j + 1) * m];
+        rows.clear();
+        rows.push(j);
+        rows.extend((j + 1..m).filter(|&i| v[i] != 0.0));
+        let length = rows.iter().map(|&i| v[i] * v[i]).sum::<f64>().sqrt();
         if length == 0.0 {
             // Nothing to reflect: R's row is the columns' entries as they
             // stand, with a zero pivot.
@@ -272,27 +297,28 @@ fn householder(a: &mut [f64], m: usize, n: usize, f: &[f64]) -> (Vec<f64>, Vec<f
             }
             continue;
         }
-        let alpha = if v[0] > 0.0 { -length } else { length };
-        v[0] -= alpha;
+        let alpha = if v[j] > 0.0 { -length } else { length };
+        v[j] -= alpha;
         // |v|^2 = 2 |a| (|a| + |a_0|).
-        let vv = length * (length + (v[0] + alpha).abs()) * 2.0;
+        let vv = length * (length + (v[j] + alpha).abs()) * 2.0;
         r[j * n + j] = alpha;
         for k in j + 1..n {
-            let col = &mut right[(k - j - 1) * m + j..(k - j) * m];
-            let s = 2.0 * dot(v, col) / vv;
-            for (ci, vi) in col.iter_mut().zip(&*v) {
-                *ci = (-s).mul_add(*vi, *ci);
-            }
-            r[j * n + k] = col[0];
+            let col = &mut right[(k - j - 1) * m..(k - j) * m];
+            reflect(v, &rows, vv, col);
+            r[j * n + k] = col[j];
         }
-        let tail = &mut qtf[j..];
-        let s = 2.0 * dot(v, tail) / vv;
-        for (ti, vi) in tail.iter_mut().zip(&*v) {
-            *ti = (-s).mul_add(*vi, *ti);
-        }
+        reflect(v, &rows, vv, &mut qtf);
     }
     qtf.truncate(n);
     (r, qtf)
+}
+
+/// `x - 2 v (v . x) / vv` on `rows`, where `v` is nonzero.
+fn reflect(v: &[f64], rows: &[usize], vv: f64, x: &mut [f64]) {
+    let s = 2.0 * rows.iter().map(|&i| v[i] * x[i]).sum::<f64>() / vv;
+    for &i in rows {
+        x[i] = (-s).mul_add(v[i], x[i]);
+    }
 }
 
 /// The damped step `-(R^T R + mu D^2)^-1 R^T c`, by Givens rotations of the

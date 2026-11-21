@@ -36,7 +36,11 @@ inclination and stellar density derived from it.
 - `TransitFit::run`: Levenberg-Marquardt (More 1978; Nielsen 1999) by
   Householder QR and Givens rotations, never the normal equations, with
   geodesic acceleration (Transtrum & Sethna 2012) and steps projected onto
-  the bounds; a central-difference Jacobian. Noiseless light curves are
+  the bounds. The Jacobian comes from the geometry: the chain rule
+  through the planet's separation for the orbit's parameters, exact for
+  limb darkening and baseline (the flux is linear in them), and only the
+  separation's and radius ratio's derivatives of the blocked light
+  differenced. Noiseless light curves are
   recovered to 1e-9 or better from offset starts, grazing and long-cadence
   ones included.
 - Standard errors and the covariance from the fit's own `R`, never the
@@ -89,6 +93,45 @@ agree with these to 6e-4. The rest is where they fail:
 Noiseless light curves of this crate's model are recovered to 1e-9 or
 better (`tests/recovery.rs`); batman's noiseless flux to within the gap
 between the two models (batman's accuracy is about 2e-8).
+
+## Speed
+
+The setup for these timings:
+
+- one thread, on an AMD Ryzen 7 5700G desktop CPU, Rust 1.99, Python 3.12,
+  numpy 2.4, scipy 1.17.1;
+- the light curves and starts of the accuracy table above, each fit timed
+  from its set-up to its result (the references' from the model's set-up
+  to scipy's answer), the best of seven repeats.
+
+`cargo run --release -p rustellar-benchmarks --bin compare -- speed-fit`
+prints this table again, this crate timed afresh beside the references'
+recorded times; `cargo bench -p rustellar-fit` runs the Rust side alone.
+
+| Case | rustellar-fit | batman 2.5.1, lm, 2-point | trf, 2-point | trf, 3-point | trf, tolerances 1e-15 | PyTransit 2.6.18, trf, 3-point |
+|---|--:|--:|--:|--:|--:|--:|
+| Hot Jupiter, noiseless | 1.6 ms | 14 ms | 19 ms | 28 ms | 35 ms | 14 ms |
+| Hot Jupiter | 1.4 ms | 12 ms | 11 ms | 19 ms | 31 ms | 9.6 ms |
+| The same, BJD-sized times | 3.3 ms | 3.0 ms† | 20 ms† | 5.9 ms† | 10 ms† | 2.7 ms† |
+| Small planet | 13 ms | 6.9 ms† | 17 ms† | 27 ms† | 56 ms† | 8.3 ms† |
+| Grazing | 19 ms | 0.38 s | 17 ms† | 23 ms† | 39 ms† | 8.5 ms† |
+| Long cadence | 8.5 ms | 0.20 s | 0.19 s | 0.29 s | 0.30 s | 19 ms |
+
+† stopped far from the minimum (chi-squared 160 to 45,000 higher; see
+the accuracy table), so not the same work. Where a method reaches the
+same minimum this crate is 2.2 to 20 times as fast.
+
+Most of that is the Jacobian. Differencing the light curve costs two
+light curves a free parameter; here the flux depends on the parameters
+only through the separation, the radius ratio and the limb darkening, so
+the orbit's columns follow by the chain rule, limb darkening's and the
+baseline's exactly (the flux is linear in them), and only two derivatives
+of the blocked light ([`blocked_light`] in rustellar-model) are
+differenced, at five evaluations a point in transit and none out of it.
+The QR factorisation skips the rows out of transit too, where only the
+baseline's column is nonzero.
+
+[`blocked_light`]: https://docs.rs/rustellar-model/latest/rustellar_model/fn.blocked_light.html
 
 ## License
 

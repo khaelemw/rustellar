@@ -4,8 +4,8 @@
 use std::num::NonZeroUsize;
 
 use crate::speed::{
-    Reference, best, bls, detrend, ls, model, package, references, seconds, short, significant,
-    tls, two_figures,
+    Reference, best, bls, detrend, fit, ls, model, package, references, seconds, short,
+    significant, tls, two_figures,
 };
 
 const TWO: NonZeroUsize = NonZeroUsize::new(2).unwrap();
@@ -30,6 +30,7 @@ fn the_reference_files() {
         bls::reference(),
         tls::reference(),
         ls::reference(),
+        fit::reference(),
     ] {
         let rows = references(csv);
         assert!(!rows.is_empty());
@@ -201,4 +202,24 @@ fn the_ls_table() {
         out.contains("| 1,000,000 x 1,000,000 | - | - | - |"),
         "{out}"
     );
+}
+
+#[test]
+fn the_fit_table() {
+    let cases = fit::cases();
+    assert_eq!(cases.len(), 6);
+    // Each case's set-up as the reference test's: exposure and fixed limb
+    // darkening where the case has them.
+    let long = cases.iter().find(|c| c.name == "long_cadence").unwrap();
+    assert!(long.exposure.is_some() && long.fixed.len() == 2);
+    let timings = fit::run(&cases[..1], 1, 0.0);
+    assert_eq!(timings.len(), 1);
+    let refs = references(fit::reference());
+    let out = fit::report(&timings, &refs);
+    assert!(out.contains("| batman 2.5.1 lm 2-point |"), "{out}");
+    assert!(out.contains("| PyTransit 2.6.18 trf 3-point |"), "{out}");
+    assert!(out.contains("| bjd times | - |"), "{out}");
+    // A missing time is a dash.
+    let out = fit::report(&[], &[]);
+    assert!(out.contains("| grazing | - | - | - | - | - | - |"), "{out}");
 }

@@ -13,8 +13,8 @@
 //!   baseline, which [`Parameter`]s are free, and each point's exposure.
 //! - [`TransitFit::run`]: Levenberg-Marquardt to the minimum (More 1978;
 //!   Nielsen 1999) with geodesic acceleration (Transtrum & Sethna 2012),
-//!   by QR throughout and a central-difference Jacobian, giving a
-//!   [`FitResult`].
+//!   by QR throughout and a Jacobian from the transit's geometry, giving
+//!   a [`FitResult`].
 //! - Standard errors and the [`Covariance`] from the fit's `R`, and the
 //!   depth, durations, inclination and stellar density, each an
 //!   [`Estimate`] with its error to first order.
@@ -45,6 +45,7 @@
 
 mod covariance;
 mod error;
+mod jacobian;
 mod lm;
 mod parameter;
 mod problem;

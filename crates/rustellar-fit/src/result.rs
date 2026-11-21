@@ -70,6 +70,7 @@ pub struct FitResult {
     points: usize,
     iterations: usize,
     evaluations: usize,
+    jacobians: usize,
     termination: Termination,
 }
 
@@ -102,6 +103,7 @@ impl FitResult {
             points: solution.f.len(),
             iterations: solution.iterations,
             evaluations: solution.evaluations,
+            jacobians: solution.jacobians,
             termination: solution.termination,
         }
     }
@@ -250,7 +252,16 @@ impl FitResult {
         self.iterations
     }
 
-    /// The model evaluations, the Jacobians' included.
+    /// The Jacobians from the geometry (see the crate's docs): one an
+    /// iteration, unless `k` was too near its limits to difference, when
+    /// the light curve was differenced instead.
+    #[must_use]
+    pub const fn jacobians(&self) -> usize {
+        self.jacobians
+    }
+
+    /// The light curves computed: one a trial step, plus two a free
+    /// parameter for each Jacobian made by differencing them.
     #[must_use]
     pub const fn evaluations(&self) -> usize {
         self.evaluations

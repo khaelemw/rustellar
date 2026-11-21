@@ -108,7 +108,7 @@ mod uniform;
 #[cfg(test)]
 mod tests;
 
-pub use analytic::flux;
+pub use analytic::{blocked_light, flux};
 pub use error::{LengthMismatch, LimbDarkeningError, ParamError};
 pub use exposure::Exposure;
 pub use model::TransitModel;

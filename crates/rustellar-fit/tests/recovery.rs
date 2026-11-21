@@ -98,7 +98,8 @@ fn hot_jupiter_every_parameter_free() {
         assert!(result.chi_squared() < 1e-15);
         assert_eq!(result.free(), Parameter::ALL);
         assert_eq!(result.points(), 5040);
-        assert!(result.evaluations() > 16 * result.iterations());
+        assert_eq!(result.jacobians(), result.iterations() + 1);
+        assert!(result.evaluations() <= 4 * result.iterations() + 4);
         // Reported at the transit nearest the data's middle (3.5 days).
         assert!((result.value(Parameter::MidTime) - 4.3).abs() < 1e-9);
     }

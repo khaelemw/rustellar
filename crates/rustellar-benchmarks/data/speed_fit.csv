@@ -1,0 +1,31 @@
+case,package,seconds
+hot_jupiter_noiseless lm 2-point,batman 2.5.1,0.014240818181819619
+hot_jupiter_noiseless trf 2-point,batman 2.5.1,0.019499279999990904
+hot_jupiter_noiseless trf 3-point,batman 2.5.1,0.02751258333334287
+hot_jupiter_noiseless tight,batman 2.5.1,0.03450822499996775
+hot_jupiter_noiseless PyTransit,PyTransit 2.6.18,0.013603100000182167
+hot_jupiter lm 2-point,batman 2.5.1,0.012157472727267304
+hot_jupiter trf 2-point,batman 2.5.1,0.01142742500002214
+hot_jupiter trf 3-point,batman 2.5.1,0.018982236363626726
+hot_jupiter tight,batman 2.5.1,0.03077754999996311
+hot_jupiter PyTransit,PyTransit 2.6.18,0.009592422222213928
+bjd_times lm 2-point,batman 2.5.1,0.003020725000007068
+bjd_times trf 2-point,batman 2.5.1,0.019985429999996994
+bjd_times trf 3-point,batman 2.5.1,0.005862075675677998
+bjd_times tight,batman 2.5.1,0.01018008823530181
+bjd_times PyTransit,PyTransit 2.6.18,0.002692945283016806
+small_planet lm 2-point,batman 2.5.1,0.006904574193545306
+small_planet trf 2-point,batman 2.5.1,0.01723301666667491
+small_planet trf 3-point,batman 2.5.1,0.027084700000007917
+small_planet tight,batman 2.5.1,0.05581163333332976
+small_planet PyTransit,PyTransit 2.6.18,0.008349594444452022
+grazing lm 2-point,batman 2.5.1,0.375715499999842
+grazing trf 2-point,batman 2.5.1,0.016938487499999155
+grazing trf 3-point,batman 2.5.1,0.02331331428571762
+grazing tight,batman 2.5.1,0.03884749999997439
+grazing PyTransit,PyTransit 2.6.18,0.008466470833335885
+long_cadence lm 2-point,batman 2.5.1,0.20219040000029054
+long_cadence trf 2-point,batman 2.5.1,0.18612830000029135
+long_cadence trf 3-point,batman 2.5.1,0.28628619999972216
+long_cadence tight,batman 2.5.1,0.3034264000002622
+long_cadence PyTransit,PyTransit 2.6.18,0.01894659999970827

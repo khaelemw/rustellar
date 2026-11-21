@@ -5,29 +5,44 @@ use rustellar_model::{
     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitModel, TransitParams,
 };
 
+use crate::jacobian::jacobian;
 use crate::lm::Residuals;
 use crate::{Parameter, TransitFit};
+
+/// A differencing step's size against its parameter's scale: `eps^(1/3)`,
+/// which balances truncation against rounding for central differences.
+pub(crate) const STEP: f64 = 6.055_454_452_393_343e-6;
 
 /// The residuals `(baseline * model - flux) / err` of a set-up, over its
 /// free parameters; the fixed ones keep their starting values.
 pub(crate) struct Problem<'a> {
     model: TransitModel,
+    /// The times in days, for the Jacobian.
+    pub(crate) times: Vec<f64>,
+    /// Each point's sample offsets in days: `[0]` for instants.
+    pub(crate) offsets: Vec<f64>,
     flux: &'a [f64],
-    weight: Vec<f64>,
+    pub(crate) weight: Vec<f64>,
     /// Every parameter's value, the free ones overwritten on each call.
     values: [f64; 8],
-    free: Vec<usize>,
+    pub(crate) free: Vec<usize>,
 }
 
 impl<'a> Problem<'a> {
     pub(crate) fn new(fit: &TransitFit<'a>, values: [f64; 8]) -> Self {
         let times = fit.lc.time().to_vec();
-        let model = match fit.exposure {
-            Some(exposure) => TransitModel::with_exposure(times, exposure),
-            None => TransitModel::new(times),
+        let days = times.iter().map(|t| t.as_days()).collect();
+        let (model, offsets) = match fit.exposure {
+            Some(exposure) => (
+                TransitModel::with_exposure(times, exposure),
+                exposure.offsets().map(TimeDelta::as_days).collect(),
+            ),
+            None => (TransitModel::new(times), vec![0.0]),
         };
         Self {
             model,
+            times: days,
+            offsets,
             flux: fit.lc.flux(),
             weight: fit.lc.flux_err().iter().map(|e| e.recip()).collect(),
             values,
@@ -70,6 +85,10 @@ impl Residuals for Problem<'_> {
             *o = baseline.mul_add(*o, -y) * w;
         }
         true
+    }
+
+    fn jacobian(&mut self, x: &[f64], jac: &mut [f64]) -> bool {
+        jacobian(self, &self.values_at(x), jac)
     }
 
     fn project(&self, x: &mut [f64]) {

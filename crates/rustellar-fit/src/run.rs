@@ -1,13 +1,8 @@
 //! Running a set-up's fit.
 
 use crate::lm::{self, Settings};
-use crate::problem::{Problem, values_of};
+use crate::problem::{Problem, STEP, values_of};
 use crate::{FitError, FitResult, Parameter, TransitFit};
-
-/// The differencing step's size against each parameter's scale:
-/// `eps^(1/3)`, which balances truncation against rounding for central
-/// differences.
-const STEP: f64 = 6.055_454_452_393_343e-6;
 
 impl TransitFit<'_> {
     /// Fits the transit: Levenberg-Marquardt from the starting parameters

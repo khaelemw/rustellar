@@ -4,7 +4,9 @@
 use std::{f64::consts::PI, num::NonZeroUsize};
 
 use rstest::rstest;
-use rustellar_model::{LimbDarkening, RadiusRatio, flux, flux_ring_sum, flux_uniform};
+use rustellar_model::{
+    LimbDarkening, RadiusRatio, blocked_light, flux, flux_ring_sum, flux_uniform,
+};
 
 // ==========================
 // Helper Functions
@@ -373,4 +375,43 @@ fn signed_zero_and_subnormal_separations() {
     assert!((flux(f64::MIN_POSITIVE, k(0.1), ld) - centred).abs() < 1e-15);
     assert!((flux(5e-324, k(0.1), ld) - centred).abs() < 1e-15);
     assert_eq!(flux(f64::NEG_INFINITY, k(0.1), ld), 1.0);
+}
+
+// The flux is the stated combination of the blocked light's three parts,
+// for every law, on and off every case line, out of transit and under a
+// planet covering the whole star.
+#[rstest]
+#[case(0.01)]
+#[case(0.1)]
+#[case(0.5)]
+#[case(1.0)]
+#[case(2.5)]
+fn flux_is_linear_in_the_blocked_parts(#[case] radius_ratio: f64) {
+    for z in separations(radius_ratio) {
+        let parts = blocked_light(z, k(radius_ratio));
+        assert_eq!(parts, blocked_light(-z, k(radius_ratio)));
+        let [b0, b1, b2] = parts;
+        for ld in laws() {
+            let (u1, u2) = ld.quadratic_coefficients();
+            let c2 = u1 + 2.0 * u2;
+            let combined =
+                1.0 - ((1.0 - c2) * b0 + c2 * b1 + u2 * b2) / (1.0 - u1 / 3.0 - u2 / 6.0);
+            let direct = flux(z, k(radius_ratio), ld);
+            assert!(
+                (combined.clamp(0.0, 1.0) - direct).abs() < 1e-15,
+                "z {z}: {combined} {direct}"
+            );
+        }
+    }
+    assert_eq!(blocked_light(1.0 + radius_ratio, k(radius_ratio)), [0.0; 3]);
+    assert!(
+        blocked_light(f64::NAN, k(radius_ratio))
+            .iter()
+            .all(|b| b.is_nan())
+    );
+}
+
+#[test]
+fn whole_star_covered() {
+    assert_eq!(blocked_light(0.5, k(2.0)), [1.0, 2.0 / 3.0, 0.5]);
 }
