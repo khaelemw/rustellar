@@ -441,6 +441,10 @@ dependencies = [
 [[package]]
 name = "rustellar-mcmc"
 version = "0.0.0"
+dependencies = [
+ "rustellar-fit",
+ "rustellar-model",
+]
 
 [[package]]
 name = "rustellar-model"

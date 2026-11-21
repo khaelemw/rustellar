@@ -5,3 +5,4 @@ mod moves;
 mod normal;
 mod rng;
 mod slice;
+mod transit;

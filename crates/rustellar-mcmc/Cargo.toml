@@ -12,6 +12,8 @@ categories = ["science", "algorithms", "mathematics"]
 exclude = ["/tests/"]
 
 [dependencies]
+rustellar-fit.workspace = true
+rustellar-model.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

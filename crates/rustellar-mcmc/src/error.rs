@@ -51,6 +51,15 @@ pub enum McmcError {
         /// The walker, counting from 0.
         walker: usize,
     },
+    /// A prior's setting is out of range, or it is on a coordinate not
+    /// sampled.
+    InvalidPrior {
+        /// Which prior or coordinate, such as `"normal"` or `"q1"`.
+        name: &'static str,
+    },
+    /// A fit has no covariance to start walkers from (it could not be
+    /// inverted), or one over other parameters than the posterior's.
+    NoCovariance,
 }
 
 impl fmt::Display for McmcError {
@@ -65,6 +74,8 @@ impl fmt::Display for McmcError {
             Self::NonFinite { walker } => write!(f, "walker {walker} must be finite"),
             Self::Degenerate => write!(f, "the walkers must not lie in a subspace"),
             Self::InvalidMove { name } => write!(f, "the move's {name} is out of range"),
+            Self::InvalidPrior { name } => write!(f, "the {name} prior is out of range"),
+            Self::NoCovariance => write!(f, "the fit has no covariance over these parameters"),
             Self::OutsideSupport { walker } => {
                 write!(
                     f,

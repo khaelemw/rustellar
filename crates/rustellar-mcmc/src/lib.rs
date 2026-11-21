@@ -20,6 +20,9 @@
 //! - [`Move`]: the stretch and walk moves, differential evolution, the
 //!   snooker move and the ensemble slice sampler (along differences of
 //!   walkers or Gaussian directions, [`Direction`]), or any mixture.
+//! - [`transit`]: the posterior of a transit fit's parameters, with
+//!   priors, Kipping's `q1` and `q2`, `sqrt(e) cos w` and `sqrt(e) sin w`,
+//!   a stellar density prior and walkers started from the fit.
 //! - [`diagnostics`]: the integrated autocorrelation time (as emcee), and
 //!   the rank-normalised split-R-hat and bulk and tail effective sample
 //!   sizes (as ArviZ), for any chains or per parameter of a [`Chain`].
@@ -58,6 +61,7 @@ mod probability;
 mod rng;
 mod run;
 mod slice;
+pub mod transit;
 
 #[cfg(test)]
 mod tests;

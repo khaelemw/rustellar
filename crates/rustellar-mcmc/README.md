@@ -53,6 +53,17 @@ faster per independent sample than the Python samplers.
   even scalings and shifts). Gaussians in one, three (standard deviations
   from 1e-3 to 1e3, correlated) and ten dimensions are recovered by each:
   means and covariances within a few percent of their spread.
+- `transit::TransitPosterior`: the posterior of a `rustellar-fit` set-up's
+  free parameters, the Gaussian likelihood of the flux under the transit
+  model (with the set-up's exposure) times the priors. The limb darkening
+  is sampled as Kipping's (2013) `q1` and `q2` and the eccentricity as
+  `sqrt(e) cos w` and `sqrt(e) sin w` (Eastman, Gaudi & Agol 2013) when
+  both of a pair are free; each coordinate is uniform over its range
+  unless given a uniform, normal or log-uniform `Prior`; a normal prior on
+  the star's density from `a / R*` and the period (Seager &
+  Mallen-Ornelas 2003). `walkers` draws the starting points from the
+  fit's best parameters and covariance. Where the posterior is near
+  Gaussian its spreads are the fit's errors to within a few percent.
 - `Chain`: every walker's position and log-probability after each step,
   acceptance fractions, means, covariance, traces, and the last positions
   to start another run from.
@@ -108,7 +119,21 @@ targets differential evolution needs the fewest log-probabilities per
 independent sample; the slice moves take the fewest steps but several
 log-probabilities each. The wall times measure the samplers' own
 overhead on cheap targets; for transits, where the model dominates, see
-the posterior's comparison.
+below.
+
+## The transit posterior against emcee with batman
+
+One hot Jupiter's transit (500 points, 0.0006 d apart, white noise of
+1e-3; `k` 0.1, `a / R*` 10, `b` 0.3), with t0, k, a/R*, b, q1, q2 and the
+baseline free and uniform priors. emcee 3.1.6 with batman 2.5.1: the
+stretch move, 40 walkers, 60,000 steps, 2.4 million log-probabilities in
+137 s; its autocorrelation times run from 170 steps (t0) to 620 (b).
+This crate: differential evolution, 40 walkers from the fit's covariance,
+15,000 steps, 600,000 log-probabilities in 7.5 s on one thread. Every
+2.5th, 16th, 50th, 84th and 97.5th percentile of every coordinate and of
+the star's density agrees with emcee's to within 0.04 of the posterior's
+standard deviation in the middle and 0.08 in the tails, what the two
+chains' Monte Carlo errors allow (`tests/transit.rs`).
 
 ## Quick start
 
@@ -127,12 +152,15 @@ assert_eq!(chain.steps(), 1000);
 - Blackman, D. & Vigna, S. 2021, ACM TOMS, 47, 36
 - ter Braak, C. J. F. 2006, Statistics and Computing, 16, 239
 - ter Braak, C. J. F. & Vrugt, J. A. 2008, Statistics and Computing, 18, 435
+- Eastman, J., Gaudi, B. S. & Agol, E. 2013, PASP, 125, 83
 - Foreman-Mackey, D., Hogg, D. W., Lang, D. & Goodman, J. 2013, PASP, 125, 306
 - Geyer, C. J. 1992, Statistical Science, 7, 473
 - Goodman, J. & Weare, J. 2010, CAMCoS, 5, 65
 - Karamanis, M. & Beutler, F. 2021, Statistics and Computing, 31, 61
+- Kipping, D. M. 2013, MNRAS, 435, 2152
 - Neal, R. M. 2003, Annals of Statistics, 31, 705
 - Nelson, B., Ford, E. B. & Payne, M. J. 2014, ApJS, 210, 11
+- Seager, S. & Mallen-Ornelas, G. 2003, ApJ, 585, 1038
 - Sokal, A. 1997, in Functional Integration, NATO ASI Series B, 361, 131
 - Vehtari, A., Gelman, A., Simpson, D., Carpenter, B. & Bürkner, P.-C. 2021, Bayesian Analysis, 16, 667
 - Wichura, M. J. 1988, Applied Statistics, 37, 477
