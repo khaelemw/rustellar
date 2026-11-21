@@ -17,3 +17,10 @@ rustellar-core.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
+
+[dev-dependencies]
+criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "periodogram"
+harness = false

@@ -1,4 +1,8 @@
-use crate::sums::{Sum, phase};
+use crate::sums::{Sum, kernel, split};
+
+fn phase(f: f64, t: f64) -> ((f64, f64), (f64, f64)) {
+    crate::sums::phase(f, split(f), t, split(t))
+}
 
 #[test]
 fn sum_carries_rounding() {
@@ -65,4 +69,48 @@ fn phase_exact_at_large_times_and_quarter_cycles() {
     assert_eq!((cb, sb), (0.0, -1.0));
     assert_eq!(phase(0.5, 4.0), ((1.0, 0.0), (0.0, 0.0)));
     assert_eq!(phase(0.25, -3.0), ((0.0, -0.0), (1.0, 0.0)));
+}
+
+#[test]
+fn kernel_within_a_rounding() {
+    // sin x and cos x - 1 at 40 digits, rounded once.
+    for (x, sine, versine) in [
+        (0.5, 0.479_425_538_604_203, -0.122_417_438_109_627_28),
+        (
+            -std::f64::consts::FRAC_PI_4,
+            -0.707_106_781_186_547_5,
+            -0.292_893_218_813_452_4,
+        ),
+        (1e-8, 1e-8, -5e-17),
+        (
+            0.123_456_789,
+            0.123_143_415_182_310_87,
+            -0.007_611_114_886_287_63,
+        ),
+        (-0.3, -0.295_520_206_661_339_55, -0.044_663_510_874_393_98),
+    ] {
+        let (s, v) = kernel(x);
+        assert!((s - sine).abs() <= f64::EPSILON * sine.abs(), "{x}: {s}");
+        assert!(
+            (v - versine).abs() <= f64::EPSILON * versine.abs(),
+            "{x}: {v}"
+        );
+    }
+    // Against the standard library's across the range.
+    for k in -1000..=1000 {
+        let x = std::f64::consts::FRAC_PI_4 * f64::from(k) / 1000.0;
+        let (s, _) = kernel(x);
+        assert!(
+            (s - x.sin()).abs() <= 2.0 * f64::EPSILON * x.sin().abs(),
+            "{x}"
+        );
+    }
+}
+
+#[test]
+fn phase_beyond_two_to_the_fifty_two() {
+    // f t = 2^53 + 2: whole, so no phase at all.
+    let ((cb, cx), (sb, sx)) = phase(2.0, 4_503_599_627_370_497.0);
+    assert_eq!((cb, sb), (1.0, 0.0));
+    assert_eq!((cx, sx), (0.0, 0.0));
 }

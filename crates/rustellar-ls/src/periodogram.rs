@@ -6,7 +6,7 @@ use std::thread;
 
 use rustellar_core::LightCurve;
 
-use crate::sums::{Sum, phase};
+use crate::sums::{Sum, phase, split};
 use crate::{Frequencies, LsError};
 
 /// What the sinusoid is fitted with.
@@ -87,6 +87,8 @@ pub enum Normalization {
 pub struct LombScargle {
     /// Times less `centre`, in days.
     time: Vec<f64>,
+    /// Each time's halves, for exact products.
+    halves: Vec<(f64, f64)>,
     /// The middle of the span, in days.
     centre: f64,
     /// The flux the sinusoid is fitted to: less its weighted mean unless
@@ -148,8 +150,10 @@ impl LombScargle {
         if chi2_ref <= 0.0 {
             return Err(LsError::NoVariation);
         }
+        let time: Vec<f64> = time.iter().map(|t| t.as_days() - centre).collect();
         Ok(Self {
-            time: time.iter().map(|t| t.as_days() - centre).collect(),
+            halves: time.iter().map(|&t| split(t)).collect(),
+            time,
             centre,
             flux,
             weight,
@@ -204,12 +208,16 @@ impl LombScargle {
         let mut power = vec![0.0; n];
         let threads = self.threads.get().min(n);
         let chunk = n.div_ceil(threads);
+        // Only these divide by the chi-squared left.
+        let residual = matches!(normalization, Normalization::Model | Normalization::Log);
+        let wide = has_avx2();
         thread::scope(|scope| {
             for (k, out) in power.chunks_mut(chunk).enumerate() {
                 scope.spawn(move || {
                     let mut buffer = Buffer::new(self.time.len());
                     for (j, p) in out.iter_mut().enumerate() {
-                        let fit = self.fit(frequencies.get(k * chunk + j), &mut buffer);
+                        let fit =
+                            self.fit(frequencies.get(k * chunk + j), residual, wide, &mut buffer);
                         *p = self.normalized(fit, normalization);
                     }
                 });
@@ -222,25 +230,54 @@ impl LombScargle {
         }
     }
 
-    /// The fit at `f`: the reduction in chi-squared and the chi-squared
-    /// left, in scaled weights.
-    fn fit(&self, f: f64, buffer: &mut Buffer) -> Fit {
+    /// The fit at `f`: the reduction in chi-squared and, if `residual`, the
+    /// chi-squared left (else 0), in scaled weights; with AVX2's vectors
+    /// where `wide` (the same arithmetic, so the same bits, either way).
+    pub(crate) fn fit(&self, f: f64, residual: bool, wide: bool, buffer: &mut Buffer) -> Fit {
+        #[cfg(target_arch = "x86_64")]
+        if wide {
+            // SAFETY: `wide` only where the processor has AVX2.
+            return unsafe { self.fit_avx2(f, residual, buffer) };
+        }
+        let _ = wide;
+        self.fit_any(f, residual, buffer)
+    }
+
+    /// [`fit`](Self::fit) compiled for AVX2.
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx2")]
+    unsafe fn fit_avx2(&self, f: f64, residual: bool, buffer: &mut Buffer) -> Fit {
+        self.fit_any(f, residual, buffer)
+    }
+
+    /// [`fit`](Self::fit) for any processor.
+    #[inline(always)]
+    fn fit_any(&self, f: f64, residual: bool, buffer: &mut Buffer) -> Fit {
         // Each term as a whole base and a small part (exact near 0 and 1).
-        let mut means = [Sum::default(); 5];
-        for (i, (&t, &wi)) in self.time.iter().zip(&self.weight).enumerate() {
-            let ((cb, cx), (sb, sx)) = phase(f, t);
-            buffer.c[i] = (cb, cx);
-            buffer.s[i] = (sb, sx);
-            means[0].add(wi);
-            means[1].add(wi * cb);
-            means[2].add(wi * cx);
-            means[3].add(wi * sb);
-            means[4].add(wi * sx);
+        // The means need no compensation: one off by a few roundings only
+        // adds its square to the centred sums.
+        let f_halves = split(f);
+        for (((c, s), &t), &th) in buffer
+            .c
+            .iter_mut()
+            .zip(buffer.s.iter_mut())
+            .zip(&self.time)
+            .zip(&self.halves)
+        {
+            (*c, *s) = phase(f, f_halves, t, th);
+        }
+        let mut means = [0.0; 5];
+        for ((c, s), &wi) in buffer.c.iter().zip(&buffer.s).zip(&self.weight) {
+            means[0] += wi;
+            means[1] += wi * c.0;
+            means[2] += wi * c.1;
+            means[3] += wi * s.0;
+            means[4] += wi * s.1;
         }
         // With a floating mean the terms less their weighted means, base
         // from base and part from part (so terms the same at every point
         // cancel exactly); without one the terms themselves.
-        let [w, cb, cx, sb, sx] = means.map(Sum::value);
+        let [w, cb, cx, sb, sx] = means;
         let (cb, cx, sb, sx) = if self.mean == Mean::Floating {
             (cb / w, cx / w, sb / w, sx / w)
         } else {
@@ -265,13 +302,20 @@ impl LombScargle {
         }
         let [cc, cs, ss, yc, ys] = sums.map(Sum::value);
         #[expect(clippy::cast_precision_loss, reason = "a point count")]
-        let n = self.time.len() as f64;
-        let (beta, gamma) = solve(cc, cs, ss, yc, ys, n);
-        let reduction = beta.mul_add(yc, gamma * ys).max(0.0);
+        let (beta, gamma) = solve(cc, cs, ss, yc, ys, self.time.len() as f64);
+        let reduction = (beta * yc + gamma * ys).max(0.0);
         let mut chi2 = Sum::default();
-        for i in 0..self.time.len() {
-            let r = self.flux[i] - beta.mul_add(buffer.c[i].0, gamma * buffer.s[i].0);
-            chi2.add(self.weight[i] * r * r);
+        if residual {
+            for (((c, s), &wi), &y) in buffer
+                .c
+                .iter()
+                .zip(&buffer.s)
+                .zip(&self.weight)
+                .zip(&self.flux)
+            {
+                let r = y - (beta * c.0 + gamma * s.0);
+                chi2.add(wi * r * r);
+            }
         }
         Fit {
             reduction,
@@ -294,20 +338,28 @@ impl LombScargle {
 /// each the more accurate where the other is the difference of two close
 /// numbers.
 #[derive(Debug, Clone, Copy)]
-struct Fit {
-    reduction: f64,
-    chi2: f64,
+pub(crate) struct Fit {
+    pub(crate) reduction: f64,
+    pub(crate) chi2: f64,
+}
+
+/// Whether the processor has AVX2.
+pub(crate) fn has_avx2() -> bool {
+    #[cfg(target_arch = "x86_64")]
+    return std::arch::is_x86_feature_detected!("avx2");
+    #[cfg(not(target_arch = "x86_64"))]
+    false
 }
 
 /// Each point's two terms at one frequency: base and part, then the term
-/// (centred with a floating mean) in the first.
-struct Buffer {
+/// (centred with a floating mean) in the base.
+pub(crate) struct Buffer {
     c: Vec<(f64, f64)>,
     s: Vec<(f64, f64)>,
 }
 
 impl Buffer {
-    fn new(n: usize) -> Self {
+    pub(crate) fn new(n: usize) -> Self {
         Self {
             c: vec![(0.0, 0.0); n],
             s: vec![(0.0, 0.0); n],
