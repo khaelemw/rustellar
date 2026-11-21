@@ -2,6 +2,7 @@ use std::f64::consts::PI;
 
 use rustellar_core::{Epoch, TimeDelta};
 
+use super::orbit::{Eccentric, crossings};
 use super::{Contacts, ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis};
 use crate::{
     Exposure,
@@ -9,7 +10,8 @@ use crate::{
     flux,
 };
 
-/// Everything needed to model one planet's transit on a circular orbit.
+/// Everything needed to model one planet's transit: on a circular orbit, or
+/// an eccentric one with [`with_eccentricity`](Self::with_eccentricity).
 ///
 /// Each value is checked when its own type is made; [`new`](Self::new) adds the
 /// checks that need more than one value. Once built, a `TransitParams` is always
@@ -42,6 +44,8 @@ pub struct TransitParams {
     a_rs: ScaledSemiMajorAxis,
     b: ImpactParameter,
     ld: LimbDarkening,
+    /// `None` for a circular orbit.
+    orbit: Option<Eccentric>,
 }
 
 impl TransitParams {
@@ -101,7 +105,142 @@ impl TransitParams {
             a_rs,
             b,
             ld,
+            orbit: None,
         })
+    }
+
+    /// The same transit on an eccentric orbit: eccentricity `e` and argument
+    /// of periastron `omega_deg` (degrees, as batman's `w`), with `t0` the
+    /// time of mid-transit (inferior conjunction) and `b` the impact
+    /// parameter there (Winn 2010), so `cos i = (b / a_rs)
+    /// (1 + e sin ω) / (1 - e^2)`. An eccentricity of 0 is the circular
+    /// orbit.
+    ///
+    /// The transit's times and shape follow Kepler's equation; its
+    /// contacts are found numerically, as the transit is no longer
+    /// symmetric about mid-transit.
+    ///
+    /// # Errors
+    ///
+    /// - [`ParamError::NonFinite`] if `e` or `omega_deg` is NaN or infinite.
+    /// - [`ParamError::EccentricityOutOfRange`] unless `0 <= e < 1`.
+    /// - [`ParamError::PeriastronTooClose`] unless `a_rs (1 - e) > 1`.
+    /// - [`ParamError::ImpactParameterTooLarge`] if no inclination gives
+    ///   `b` (`cos i` at least 1).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{Epoch, TimeDelta};
+    /// use rustellar_model::{
+    ///     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// };
+    ///
+    /// let circular = TransitParams::new(
+    ///     Epoch::from_days(0.0)?,
+    ///     TimeDelta::from_days(3.0)?,
+    ///     RadiusRatio::new(0.1)?,
+    ///     ScaledSemiMajorAxis::new(10.0)?,
+    ///     ImpactParameter::new(0.3)?,
+    ///     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// )?;
+    /// // Mid-transit at periastron (ω = 90°): the planet is fastest, so
+    /// // the transit is shorter, by (1 - e) / sqrt(1 - e^2) roughly.
+    /// let eccentric = circular.with_eccentricity(0.3, 90.0)?;
+    /// let ratio = eccentric.t14().unwrap() / circular.t14().unwrap();
+    /// assert!((ratio - 0.7 / 0.91_f64.sqrt()).abs() < 0.01);
+    /// assert_eq!(eccentric.separation(Epoch::from_days(0.0)?), 0.3);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn with_eccentricity(self, e: f64, omega_deg: f64) -> Result<Self, ParamError> {
+        if !e.is_finite() {
+            return Err(ParamError::NonFinite {
+                name: "eccentricity",
+            });
+        }
+        if !omega_deg.is_finite() {
+            return Err(ParamError::NonFinite { name: "omega" });
+        }
+        if !(0.0..1.0).contains(&e) {
+            return Err(ParamError::EccentricityOutOfRange);
+        }
+        if e == 0.0 {
+            return Ok(Self {
+                orbit: None,
+                ..self
+            });
+        }
+        let a = self.a_rs.get();
+        if a * (1.0 - e) <= 1.0 {
+            return Err(ParamError::PeriastronTooClose);
+        }
+        let mut orbit = Eccentric::new(e, omega_deg, a, self.b.get())
+            .ok_or(ParamError::ImpactParameterTooLarge)?;
+        let period = self.period.as_days();
+        // Clear of the star a little beyond the outer contacts, a margin far
+        // wider than their rounding.
+        orbit.window = crossings(&orbit, a, period, 1.0 + self.k.get()).map(|(t1, t4)| {
+            let margin = 1e-9f64.mul_add(period, 1e-6 * (t4 - t1));
+            (t1 - margin, t4 + margin)
+        });
+        Ok(Self {
+            orbit: Some(orbit),
+            ..self
+        })
+    }
+
+    /// The eccentricity: 0 for a circular orbit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_days(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// assert_eq!(params.eccentricity(), 0.0);
+    /// assert_eq!(params.with_eccentricity(0.2, 30.0)?.eccentricity(), 0.2);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn eccentricity(self) -> f64 {
+        self.orbit.map_or(0.0, |o| o.e)
+    }
+
+    /// The argument of periastron in degrees: 90 for a circular orbit, the
+    /// convention under which a circular transit is at periastron.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rustellar_core::{Epoch, TimeDelta};
+    /// # use rustellar_model::{
+    /// #     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// # };
+    /// # let params = TransitParams::new(
+    /// #     Epoch::from_days(0.0)?,
+    /// #     TimeDelta::from_days(3.0)?,
+    /// #     RadiusRatio::new(0.1)?,
+    /// #     ScaledSemiMajorAxis::new(10.0)?,
+    /// #     ImpactParameter::new(0.3)?,
+    /// #     LimbDarkening::quadratic(0.3, 0.25)?,
+    /// # )?;
+    /// assert_eq!(params.periastron_deg(), 90.0);
+    /// let eccentric = params.with_eccentricity(0.2, 30.0)?;
+    /// assert!((eccentric.periastron_deg() - 30.0).abs() < 1e-13);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn periastron_deg(self) -> f64 {
+        self.orbit.map_or(90.0, |o| o.omega.to_degrees())
     }
 
     /// Builds transit parameters from the orbital inclination instead of `b`.
@@ -315,7 +454,10 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn inclination_deg(self) -> f64 {
-        (self.b.get() / self.a_rs.get()).acos().to_degrees()
+        match self.orbit {
+            Some(orbit) => orbit.cos_i.acos().to_degrees(),
+            None => (self.b.get() / self.a_rs.get()).acos().to_degrees(),
+        }
     }
 
     /// Limb-darkening law of the star.
@@ -411,6 +553,9 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn separation(self, t: Epoch) -> f64 {
+        if let Some(orbit) = self.orbit {
+            return orbit.sky(self.a_rs.get(), self.phase_angle(t)).0;
+        }
         let (sin_phi, cos_phi) = sin_cos(self.phase_angle(t));
         let a = self.a_rs.get();
         let b = self.b.get();
@@ -443,7 +588,10 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn in_front(self, t: Epoch) -> bool {
-        self.phase_angle(t).cos() > 0.0
+        match self.orbit {
+            Some(orbit) => orbit.sky(self.a_rs.get(), self.phase_angle(t)).1,
+            None => self.phase_angle(t).cos() > 0.0,
+        }
     }
 
     /// Total transit duration, from first to fourth contact.
@@ -475,6 +623,9 @@ impl TransitParams {
     #[must_use]
     pub fn t14(self) -> Option<TimeDelta> {
         let edge = 1.0 + self.k.get();
+        if self.orbit.is_some() {
+            return self.eccentric_contacts(edge).map(|(a, b)| b - a);
+        }
 
         if self.b.get() >= edge {
             return None;
@@ -512,6 +663,12 @@ impl TransitParams {
     #[must_use]
     pub fn t23(self) -> Option<TimeDelta> {
         let edge = 1.0 - self.k.get();
+        if self.orbit.is_some() {
+            if edge <= 0.0 {
+                return None;
+            }
+            return self.eccentric_contacts(edge).map(|(a, b)| b - a);
+        }
 
         if self.b.get() >= edge {
             return None;
@@ -523,6 +680,17 @@ impl TransitParams {
     // Time between the two points where the separation equals `edge`
     // (Winn 2010, eqs. 14 and 15). Callers have checked `b < edge`, so the
     // value under the square root is positive.
+    /// The times from mid-transit where an eccentric orbit's separation
+    /// crosses `edge`.
+    fn eccentric_contacts(self, edge: f64) -> Option<(TimeDelta, TimeDelta)> {
+        let orbit = self.orbit?;
+        let (before, after) = crossings(&orbit, self.a_rs.get(), self.period.as_days(), edge)?;
+        Some((
+            TimeDelta::from_days(before).ok()?,
+            TimeDelta::from_days(after).ok()?,
+        ))
+    }
+
     fn contact_duration(self, edge: f64) -> Option<TimeDelta> {
         let a = self.a_rs.get();
         let b = self.b.get();
@@ -562,6 +730,18 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn contacts(self) -> Option<Contacts> {
+        if self.orbit.is_some() {
+            let (t1, t4) = self.eccentric_contacts(1.0 + self.k.get())?;
+            let inner = (self.k.get() < 1.0)
+                .then(|| self.eccentric_contacts(1.0 - self.k.get()))
+                .flatten();
+            return Some(Contacts {
+                t1,
+                t2: inner.map(|(t2, _)| t2),
+                t3: inner.map(|(_, t3)| t3),
+                t4,
+            });
+        }
         let half_t14 = self.t14()? * 0.5;
         let half_t23 = self.t23().map(|t23| t23 * 0.5);
 
@@ -656,6 +836,9 @@ impl TransitParams {
     /// ```
     #[must_use]
     pub fn flux_at(self, t: Epoch) -> f64 {
+        if let Some(orbit) = self.orbit {
+            return self.eccentric_flux(orbit, t);
+        }
         let (sin_phi, cos_phi) = sin_cos(self.phase_angle(t));
         self.flux_at_phase(sin_phi, cos_phi)
     }
@@ -809,6 +992,16 @@ impl TransitParams {
     /// the whole exposure. The instants are taken in pairs, `±θ` about the
     /// time stamp, so the mean stays symmetric about mid-transit.
     pub(crate) fn binned_flux_with(self, t: Epoch, averaging: &Averaging) -> f64 {
+        if let Some(orbit) = self.orbit {
+            // Each instant on its own: the angle-sum rule needs a steady
+            // turn.
+            let sum: f64 = averaging
+                .exposure
+                .offsets()
+                .map(|o| self.eccentric_flux(orbit, t + o))
+                .sum();
+            return sum / averaging.samples as f64;
+        }
         // Every instant of an exposure this far from mid-transit is out of
         // transit, where the flux is exactly 1, and so is their mean.
         let phase = self.phase_angle(t);
@@ -853,6 +1046,7 @@ impl TransitParams {
         // Beyond half the transit's angle, plus half the exposure's, every
         // instant is out of transit.
         Averaging {
+            exposure,
             samples,
             step: sin_cos(step),
             first: sin_cos(first),
@@ -882,7 +1076,25 @@ impl TransitParams {
     /// `clear` (from [`clear`](Self::clear)), where the flux is exactly 1
     /// either way.
     #[inline]
+    /// An eccentric orbit's flux at `t`: exactly 1 outside its window
+    /// about mid-transit, without solving Kepler's equation there.
+    fn eccentric_flux(self, orbit: Eccentric, t: Epoch) -> f64 {
+        let Some((before, after)) = orbit.window else {
+            return 1.0;
+        };
+        let period = self.period.as_days();
+        let dt = (((t - self.t0) / self.period + 0.5).rem_euclid(1.0) - 0.5) * period;
+        if dt < before || dt > after {
+            return 1.0;
+        }
+        let (z, front) = orbit.sky(self.a_rs.get(), self.phase_angle(t));
+        if front { flux(z, self.k, self.ld) } else { 1.0 }
+    }
+
     pub(crate) fn flux_beyond(self, t: Epoch, clear: f64) -> f64 {
+        if let Some(orbit) = self.orbit {
+            return self.eccentric_flux(orbit, t);
+        }
         let phase = self.phase_angle(t);
         if phase.abs() >= clear {
             return 1.0;
@@ -895,6 +1107,8 @@ impl TransitParams {
 /// What averaging over one exposure needs at one set of parameters.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Averaging {
+    /// The exposure, for an eccentric orbit's instants.
+    pub(crate) exposure: Exposure,
     pub(crate) samples: usize,
     /// The sine and cosine of the angle between instants, and of the
     /// nearest instant's angle from the time stamp.

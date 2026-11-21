@@ -1,7 +1,7 @@
 # rustellar-model
 
 Transit light curves in pure Rust: how a star dims as a planet on a circular
-orbit passes in front of it. The model is the analytic one of Mandel & Agol
+or eccentric orbit passes in front of it. The model is the analytic one of Mandel & Agol
 (2002) for uniform, linear and quadratic limb darkening, with exposure
 averaging for long-cadence data (Kipping 2010).
 
@@ -95,8 +95,13 @@ the elliptic integrals. exoplanet-core agrees to 1.4e-15 for k < 1, and its
 own error grows as k^3 above that, to 2.6e-10 at k = 100.
 
 Light curves match batman's orbit geometry to 7e-11 in separation over 1,984
-transits. Exposure averages match PyTransit sample for sample. Every one of
-these comparisons runs in the test suite.
+transits. Exposure averages match PyTransit sample for sample.
+
+Eccentric orbits (`with_eccentricity`, Kepler's equation by Halley's method)
+are checked on six orbits from e = 0.05 to 0.9 against 40-digit mpmath: sky
+separations within 6 rounding steps of a/R*, contact times within 1e-11 days,
+and the flux within 2.5e-8 of batman 2.5.1's, which is batman's own
+tolerance. Every one of these comparisons runs in the test suite.
 
 ## Speed
 
@@ -149,8 +154,10 @@ needs about half as many samples as batman's rule.
 
 ## Limits
 
-Circular orbits only, no light from the planet, and a radius ratio of at most
-10,000.
+No light from the planet, and a radius ratio of at most 10,000. On an
+eccentric orbit, `b` is the impact parameter at mid-transit, `t0` the time of
+inferior conjunction, and the periastron must stay outside the star
+(`e < 1 - 1/a`).
 
 ## References
 

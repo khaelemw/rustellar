@@ -4,5 +4,6 @@ mod elliptic;
 mod lens;
 mod limb_darkening;
 mod moments;
+mod orbit;
 mod transit;
 mod uniform;

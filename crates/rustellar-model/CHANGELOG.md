@@ -27,7 +27,10 @@ All notable changes to this crate are recorded here. The format follows
 - `Exposure`: averaging over each measurement's exposure by the midpoint rule.
 - `TransitModel`: fixed times and an optional exposure, evaluated for many
   parameter sets without allocating.
-- `ParamError`, `LimbDarkeningError` and `LengthMismatch`.
+- Eccentric orbits: `TransitParams::with_eccentricity`, `eccentricity` and
+  `periastron_deg`; every geometry, timing and flux method follows the orbit.
+- `ParamError`, `LimbDarkeningError` and `LengthMismatch`;
+  `ParamError::EccentricityOutOfRange` and `PeriastronTooClose`.
 
 ### Changed
 

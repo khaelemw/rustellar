@@ -40,6 +40,11 @@ pub enum ParamError {
     InclinationOutOfRange,
     /// An exposure's duration is zero or negative.
     ExposureNotPositive,
+    /// The eccentricity is negative, or 1 or more (not a closed orbit).
+    EccentricityOutOfRange,
+    /// The orbit's closest approach, `a_rs (1 - e)`, is at or inside the
+    /// star.
+    PeriastronTooClose,
 }
 
 impl fmt::Display for ParamError {
@@ -55,6 +60,15 @@ impl fmt::Display for ParamError {
                 write!(f, "scaled semi-major axis a_rs must be greater than 1")
             }
             Self::PeriodNotPositive => write!(f, "period must be greater than zero"),
+            Self::EccentricityOutOfRange => {
+                write!(f, "eccentricity must be at least 0 and less than 1")
+            }
+            Self::PeriastronTooClose => {
+                write!(
+                    f,
+                    "the orbit's closest approach a_rs (1 - e) must be greater than 1"
+                )
+            }
             Self::ImpactParameterTooLarge => {
                 write!(f, "impact parameter b must be less than a_rs")
             }
