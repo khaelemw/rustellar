@@ -57,6 +57,7 @@ mod error;
 mod fft;
 mod moves;
 mod normal;
+mod pool;
 mod probability;
 mod rng;
 mod run;

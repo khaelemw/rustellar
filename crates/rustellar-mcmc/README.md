@@ -41,7 +41,9 @@ faster per independent sample than the Python samplers.
   and moved half by half, as emcee does, with any mixture of moves by
   weight. A half's random numbers are all drawn before its
   log-probabilities, so a seed gives the same chain on any number of
-  threads.
+  threads. The threads are started once per run and take each half's
+  log-probabilities (or slice updates) one at a time, so a slow one does
+  not hold the rest back.
 - `Move`: Goodman & Weare's stretch move (the default, scale 2) and walk
   move, differential evolution (ter Braak 2006, with Nelson et al.'s
   spread of the scale), ter Braak & Vrugt's snooker move, and the
@@ -134,6 +136,21 @@ This crate: differential evolution, 40 walkers from the fit's covariance,
 the star's density agrees with emcee's to within 0.04 of the posterior's
 standard deviation in the middle and 0.08 in the tails, what the two
 chains' Monte Carlo errors allow (`tests/transit.rs`).
+
+## Threads
+
+A transit posterior (t0, k, a/R*, b, q1, q2 and the baseline; 40
+walkers, the stretch move, 1000 steps; `tests/study.rs`) on a 16-thread
+machine. The chains are the same to the bit on every count.
+
+| Points | 1 thread | 2 | 4 | 8 | 16 |
+|---|---|---|---|---|---|
+| 500 | 0.55 s | 1.8 times faster | 2.9 | 2.9 | 1.4 |
+| 5000 | 6.4 s | 1.9 | 3.6 | 5.6 | 5.8 |
+
+Each half-step shares 20 log-probabilities out, so with cheap ones the
+threads soon wait more than they work; a few threads pay on short light
+curves, more on long ones.
 
 ## Quick start
 

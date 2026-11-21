@@ -3,8 +3,8 @@
 use std::thread;
 
 use crate::moves::{Proposal, index, slice_direction};
+use crate::pool::{Exec, Pool, Serial, SliceJob};
 use crate::rng::Rng;
-use crate::slice::{self, SliceUpdate};
 use crate::{Chain, Ensemble, LogProbability, McmcError, Move};
 
 impl Ensemble {
@@ -13,10 +13,12 @@ impl Ensemble {
     /// Each step splits the walkers in two halves at random, then moves the
     /// first half using the second half's positions and the second half
     /// using the first's (Foreman-Mackey et al. 2013), which keeps the
-    /// target's distribution as each half's moves do. Every random number of a half is drawn
-    /// before any log-probability is worked out, so the chain is the same
-    /// for a seed on any number of threads. A NaN log-probability counts
-    /// as minus infinity: never moved to.
+    /// target's distribution as each half's moves do. Every random number
+    /// of a half is drawn before any log-probability is worked out, so the
+    /// chain is the same for a seed on any number of threads. The threads
+    /// are started once per run and share each half's log-probabilities
+    /// (or slice updates) item by item. A NaN log-probability counts as
+    /// minus infinity: never moved to.
     ///
     /// # Errors
     ///
@@ -32,13 +34,29 @@ impl Ensemble {
         steps: usize,
     ) -> Result<Chain, McmcError> {
         let threads = self.threads().get();
-        let walkers = self.walkers();
         for &(mv, _) in self.moves() {
             let needed = mv.checked()?.walkers_needed();
-            if walkers < needed {
+            if self.walkers() < needed {
                 return Err(McmcError::TooFewWalkers { needed });
             }
         }
+        if threads == 1 {
+            return self.steps(&Serial(target), steps);
+        }
+        let pool = Pool::new(target, threads);
+        thread::scope(|scope| {
+            for _ in 1..threads {
+                scope.spawn(|| pool.worker());
+            }
+            let chain = self.steps(&pool, steps);
+            pool.stop();
+            chain
+        })
+    }
+
+    /// The run, its parallel work done by `exec`.
+    fn steps<E: Exec>(&self, exec: &E, steps: usize) -> Result<Chain, McmcError> {
+        let walkers = self.walkers();
         // Each slice move's width, tuned over its first steps.
         let mut widths: Vec<f64> = self
             .moves()
@@ -50,7 +68,7 @@ impl Ensemble {
             .collect();
         let d = self.dimensions();
         let mut x: Vec<Vec<f64>> = self.start().to_vec();
-        let mut lp = evaluate(target, &x, threads);
+        let mut lp = exec.evaluate(x.clone());
         if let Some(walker) = lp.iter().position(|v| !v.is_finite()) {
             return Err(McmcError::OutsideSupport { walker });
         }
@@ -83,27 +101,26 @@ impl Ensemble {
                     // The directions and each walker's own random numbers,
                     // drawn before any log-probability.
                     let others: Vec<&[f64]> = other.iter().map(|&j| x[j].as_slice()).collect();
-                    let jobs: Vec<(usize, Vec<f64>, Rng)> = active
+                    let jobs: Vec<SliceJob> = active
                         .iter()
-                        .map(|&k| {
-                            let along = slice_direction(direction, mu, &others, &mut rng);
-                            (k, along, Rng::new(rng.next_u64()))
+                        .map(|&k| SliceJob {
+                            x: x[k].clone(),
+                            lp: lp[k],
+                            direction: slice_direction(direction, mu, &others, &mut rng),
+                            rng: Rng::new(rng.next_u64()),
                         })
                         .collect();
-                    let updates: Vec<SliceUpdate> =
-                        parallel_map(&jobs, threads, |(k, direction, r)| {
-                            slice::update(target, &x[*k], lp[*k], direction, &mut r.clone())
-                        });
+                    let updates = exec.slices(jobs);
                     let (mut expansions, mut contractions) = (0, 0);
-                    for ((k, _, _), u) in jobs.iter().zip(updates) {
+                    for (&k, u) in active.iter().zip(updates) {
                         chain.evaluations += u.evaluations;
                         expansions += u.expansions;
                         contractions += u.contractions;
-                        if u.to != x[*k] {
-                            chain.accepted[*k] += 1;
+                        if u.to != x[k] {
+                            chain.accepted[k] += 1;
                         }
-                        x[*k] = u.to;
-                        lp[*k] = u.log_probability;
+                        x[k] = u.to;
+                        lp[k] = u.log_probability;
                     }
                     if step < tune {
                         widths[which] = mu * tuning_factor(expansions, contractions);
@@ -119,8 +136,8 @@ impl Ensemble {
                 };
                 let thresholds: Vec<f64> = active.iter().map(|_| rng.unit().ln()).collect();
                 let to: Vec<Vec<f64>> = proposals.iter().map(|p| p.to.clone()).collect();
-                let new = evaluate(target, &to, threads);
                 chain.evaluations += to.len();
+                let new = exec.evaluate(to);
                 for (((&k, p), lp_new), threshold) in
                     active.iter().zip(proposals).zip(new).zip(thresholds)
                 {
@@ -151,40 +168,4 @@ pub(crate) fn tuning_factor(expansions: usize, contractions: usize) -> f64 {
         return 1.0;
     }
     (2.0 * expansions as f64 / total as f64).clamp(0.5, 2.0)
-}
-
-/// `target` at each point, NaN as minus infinity, over `threads` threads.
-fn evaluate<T: LogProbability + Sync + ?Sized>(
-    target: &T,
-    points: &[Vec<f64>],
-    threads: usize,
-) -> Vec<f64> {
-    parallel_map(points, threads, |x| {
-        let v = target.log_probability(x);
-        if v.is_nan() { f64::NEG_INFINITY } else { v }
-    })
-}
-
-/// `f` of each item, over `threads` threads in contiguous shares, in order.
-fn parallel_map<I: Sync, O: Send>(
-    items: &[I],
-    threads: usize,
-    f: impl Fn(&I) -> O + Sync,
-) -> Vec<O> {
-    if threads <= 1 || items.len() <= 1 {
-        return items.iter().map(f).collect();
-    }
-    let share = items.len().div_ceil(threads);
-    let mut out: Vec<Option<O>> = items.iter().map(|_| None).collect();
-    let f = &f;
-    thread::scope(|scope| {
-        for (part, chunk) in out.chunks_mut(share).zip(items.chunks(share)) {
-            scope.spawn(move || {
-                for (o, item) in part.iter_mut().zip(chunk) {
-                    *o = Some(f(item));
-                }
-            });
-        }
-    });
-    out.into_iter().flatten().collect()
 }

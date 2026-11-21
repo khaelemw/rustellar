@@ -1,6 +1,7 @@
 //! Transit posteriors: the likelihood of a light curve under the transit
 //! model, the parameters of a fit's set-up sampled with priors.
 
+use std::cell::RefCell;
 use std::f64::consts::PI;
 
 use rustellar_fit::{
@@ -11,6 +12,10 @@ use rustellar_model::TransitModel;
 
 use crate::rng::Rng;
 use crate::{LogProbability, McmcError};
+
+thread_local! {
+    static BUFFER: RefCell<Vec<f64>> = const { RefCell::new(Vec::new()) };
+}
 
 /// Newton's constant, m^3 kg^-1 s^-2 (CODATA 2018), as `rustellar-fit`.
 const G: f64 = 6.674_30e-11;
@@ -490,18 +495,21 @@ impl LogProbability for TransitPosterior<'_> {
             return lp;
         }
         let baseline = v[slot(Parameter::Baseline)];
-        let mut model = vec![0.0; self.flux.len()];
-        // The lengths match by construction.
-        let _ = self.model.light_curve_into(params, &mut model);
-        let chi2: f64 = model
-            .iter()
-            .zip(self.flux)
-            .zip(&self.weight)
-            .map(|((&m, &y), &w)| {
-                let r = baseline.mul_add(m, -y) * w;
-                r * r
-            })
-            .sum();
+        // Each thread's buffer for the model, kept between calls.
+        let chi2 = BUFFER.with_borrow_mut(|model| {
+            model.resize(self.flux.len(), 0.0);
+            // The lengths match by construction.
+            let _ = self.model.light_curve_into(params, model);
+            model
+                .iter()
+                .zip(self.flux)
+                .zip(&self.weight)
+                .map(|((&m, &y), &w)| {
+                    let r = baseline.mul_add(m, -y) * w;
+                    r * r
+                })
+                .sum::<f64>()
+        });
         (-0.5f64).mul_add(chi2, lp)
     }
 }

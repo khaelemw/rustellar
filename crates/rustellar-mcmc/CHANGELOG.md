@@ -20,5 +20,6 @@ All notable changes to this crate are recorded here. The format follows
 - `transit`: `TransitPosterior`, `Coordinate`, `Prior`; walkers from a
   fit; a stellar density prior. `McmcError::InvalidPrior` and
   `NoCovariance`.
+- A pool of threads started once per run, the work taken item by item.
 - `diagnostics`: `integrated_time`, `rhat`, `ess_bulk`, `ess_tail`;
   `Chain::traces`, `autocorrelation_times`, `rhat`, `ess_bulk`, `ess_tail`.

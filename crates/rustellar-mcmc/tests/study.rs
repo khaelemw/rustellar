@@ -94,3 +94,54 @@ fn moves_autocorrelation_times() {
         }
     }
 }
+
+#[test]
+#[ignore = "heavy: a study of the threads"]
+fn threads_on_a_transit() {
+    use std::num::NonZeroUsize;
+
+    use rustellar_fit::{
+        Epoch, ImpactParameter, LightCurve, LimbDarkening, Parameter, RadiusRatio,
+        ScaledSemiMajorAxis, TimeDelta, TransitFit, TransitParams,
+    };
+    use rustellar_mcmc::transit::TransitPosterior;
+
+    let truth = TransitParams::new(
+        Epoch::from_days(0.0).unwrap(),
+        TimeDelta::from_days(3.0).unwrap(),
+        RadiusRatio::new(0.1).unwrap(),
+        ScaledSemiMajorAxis::new(10.0).unwrap(),
+        ImpactParameter::new(0.3).unwrap(),
+        LimbDarkening::quadratic(0.4, 0.25).unwrap(),
+    )
+    .unwrap();
+    println!("points,threads,seconds per 1000 steps,speed-up");
+    for n in [500u32, 5000] {
+        let time: Vec<f64> = (0..n)
+            .map(|i| 0.3 * (f64::from(i) / f64::from(n) - 0.5))
+            .collect();
+        let flux = time
+            .iter()
+            .map(|&t| truth.flux_at(Epoch::from_days(t).unwrap()))
+            .collect();
+        let lc = LightCurve::from_days(time, flux, vec![1e-3; n as usize]).unwrap();
+        let setup = TransitFit::new(&lc, truth).with_fixed(Parameter::Period);
+        let result = setup.run().unwrap();
+        let posterior = TransitPosterior::new(&setup).unwrap();
+        let start = posterior.walkers(&result, 40, 1).unwrap();
+        let mut one = 0.0;
+        for threads in [1, 2, 4, 8, 16] {
+            let ensemble = Ensemble::new(start.clone())
+                .unwrap()
+                .with_threads(NonZeroUsize::new(threads).unwrap());
+            let steps = 1000;
+            let t = Instant::now();
+            let _ = ensemble.run(&posterior, steps).unwrap();
+            let secs = t.elapsed().as_secs_f64();
+            if threads == 1 {
+                one = secs;
+            }
+            println!("{n},{threads},{secs:.3},{:.2}", one / secs);
+        }
+    }
+}
