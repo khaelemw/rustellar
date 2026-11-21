@@ -134,26 +134,41 @@ to settle, and the table is right on 1 of them. For one depth and one
 baseline the lowest chi-squared is the highest signal to noise, so
 choosing by either gives the same row.
 
-## Odd and even depths against exovetter
+## Against LEO-Vetter and exovetter
 
-On the same 200 light curves of a planet (27 days at 2 minutes, a 3e-3
-box transit every 3 days, white noise of 1e-3) and one eclipsing binary
-whose alternate depths differ by 10% (about 3.8 standard errors), the odd
-and even significance of `evidence` and of exovetter 0.0.16's
-`calc_odd_even`:
+On the same 620 simulated light curves (27 days at 2 minutes, a 3-day
+period, a 0.1-day box transit, noise of 1e-3 a point), this crate,
+LEO-Vetter 1.2.0 and exovetter 0.0.16. The planets have a 3e-3 transit;
+one set of binaries has eclipses of 3e-3 and 2.7e-3 in turn (3.8 standard
+errors apart), another a 1e-3 secondary eclipse at half the period and
+ellipsoidal variation of 2e-4; one set of planets has red noise as large
+as the white; one has gaps. The test (`tests/references.rs`) makes the
+very same curves and checks every number below.
 
-| | rustellar-vet | exovetter 0.0.16 |
-|---|---|---|
-| Planets: mean absolute significance (a standard normal: 0.80) | 0.79 | 0.052 |
-| Planets: spread of the significance (should be 1) | 1.03 | 0.04 |
-| Binary | -3.75 | 0.21 |
+| | rustellar-vet | LEO-Vetter 1.2.0 | exovetter 0.0.16 |
+|---|---|---|---|
+| Odd-even, 200 planets: mean absolute significance (0.80) | 0.80 | 0.80 | 0.056 |
+| Odd-even, 200 planets: spread of the significance (1) | 1.03 | 1.02 | |
+| Odd-even, 100 binaries: mean significance | -3.81 | -3.66 | 0.21 (unsigned) |
+| Secondary, 100 binaries: found at half the period | 100 | 100 | 100 |
+| Secondary: mean significance (31 in white noise) | 30.4 | 14.0 | -7,469 |
+| Ellipsoidal amplitude, 100 binaries (2e-4) | 1.99e-4 | 2.83e-4 | 2.77e-4 |
+| Ellipsoidal above 3 sigma, 200 planets (1.1%: 2.2) | 2 | 8 | 4 |
+| Depth scatter over its stated error, white noise (1) | 1.00 | 1.03 | |
+| Depth scatter over its stated error, red noise (1) | 1.03 | 1.05 | |
+| Transits with data, 20 curves with gaps | equal | equal | |
 
-exovetter takes the scatter of single points as each depth's error rather
-than the error of the depth, so its significance is too small by about
-the square root of the points in a transit, and the binary does not
-stand out. rustellar-vet's depths are fitted with their standard errors
-and the shared baseline's correlation, so its significance is a standard
-normal for a planet.
+LEO-Vetter's odd-even test and depth errors are as well calibrated as this
+crate's. Its secondary significance counts the binary's ellipsoidal
+variation as red noise, so it is half the white-noise value. Both packages'
+sinusoid fits (SWEET) leave out only the primary eclipse, so the
+secondary pulls their ellipsoidal amplitude 40% high; this crate leaves
+out both eclipses. exovetter's odd-even error is the scatter of single
+points rather than the error of the depth, so its significance is too
+small by about the square root of the points in a transit, and its
+ModShift significances are not in standard errors (it convolves each
+bin's sum of flux, not its mean). The upper limits, the scan's spread and
+the one-depth test have no counterpart in either.
 
 ## Speed
 
