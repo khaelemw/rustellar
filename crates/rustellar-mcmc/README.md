@@ -137,6 +137,35 @@ the star's density agrees with emcee's to within 0.04 of the posterior's
 standard deviation in the middle and 0.08 in the tails, what the two
 chains' Monte Carlo errors allow (`tests/transit.rs`).
 
+## Time per independent sample
+
+The same posterior, 40 walkers, 30,000 steps with the first 5,000
+discarded; the time over the number of independent samples (40 x 25,000
+over the largest autocorrelation time). emcee 3.1.6 with batman 2.5.1
+and with PyTransit 2.6.18 (its quadratic model, within 3e-8 of
+batman's); this crate on 1 and 4 threads (`tests/study.rs`).
+
+| Sampler | Move | tau | Seconds | ms per independent sample |
+|---|---|---|---|---|
+| emcee + batman | stretch | 552 | 71.2 | 39.3 |
+| emcee + batman | DE | 239 | 66.2 | 15.8 |
+| emcee + PyTransit | stretch | 543 | 44.5 | 24.2 |
+| emcee + PyTransit | DE | 231 | 40.5 | 9.38 |
+| this crate, 1 thread | stretch | 520 | 16.4 | 8.53 |
+| this crate, 1 thread | DE | 241 | 15.0 | 3.61 |
+| this crate, 1 thread | slice | 140 | 93.1 | 13.1 |
+| this crate, 4 threads | stretch | 520 | 5.78 | 3.01 |
+| this crate, 4 threads | DE | 241 | 5.24 | 1.26 |
+| this crate, 4 threads | slice | 140 | 27.8 | 3.90 |
+
+The autocorrelation times match emcee's move for move, and each
+log-probability costs a third of PyTransit's and a fifth of batman's
+under emcee, so on one thread this crate needs 2.6 to 4.6 times less
+time per independent sample; on four, 7 to 13 times less. The slice
+move mixes best per step but takes 864 log-probabilities per independent
+sample against DE's 289, so on a cheap posterior like this one DE is the
+faster choice.
+
 ## Threads
 
 A transit posterior (t0, k, a/R*, b, q1, q2 and the baseline; 40
