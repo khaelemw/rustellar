@@ -120,6 +120,32 @@ pub fn run(repeats: usize, threads: NonZeroUsize, sets: &[Set], methods: usize) 
     out
 }
 
+/// How many copies of each light curve the many-curve table flattens.
+const COPIES: [usize; 3] = [64, 32, 8];
+
+/// Seconds a light curve, flattening copies of each of `sets` one after
+/// another on `threads` and with `Detrend::flatten_many`; once each, after
+/// one untimed call.
+#[must_use]
+pub fn many(threads: NonZeroUsize, sets: &[Set]) -> Vec<Timing> {
+    let mut out = vec![];
+    for (Set { curve, lc }, copies) in sets.iter().zip(COPIES) {
+        let detrend = curve.detrend().with_threads(threads);
+        let jobs: Vec<(&LightCurve, Option<&[bool]>)> = vec![(lc, None); copies];
+        #[expect(clippy::cast_precision_loss, reason = "a small count")]
+        let per_curve = |s: f64| s / copies as f64;
+        let looped = best(1, 1, || {
+            for &(lc, mask) in &jobs {
+                std::hint::black_box(detrend.flatten(lc, mask).expect("valid"));
+            }
+        });
+        out.push((format!("many {} loop", curve.name), per_curve(looped)));
+        let many = best(1, 1, || detrend.flatten_many(&jobs));
+        out.push((format!("many {} many", curve.name), per_curve(many)));
+    }
+    out
+}
+
 fn ours(timings: &[Timing], case: &str) -> String {
     timings
         .iter()
@@ -167,6 +193,28 @@ pub fn report(timings: &[Timing], references: &[Reference], threads: NonZeroUsiz
             "| {label} | {} | {} |",
             theirs(references, &case),
             ours(timings, &case)
+        )
+        .expect("a string");
+    }
+    write!(
+        out,
+        "\nThe biweight on many light curves, seconds a light curve on {threads} threads:\n\n\
+         | | Curves | One after another | `flatten_many` |\n|---|--:|--:|--:|\n"
+    )
+    .expect("a string");
+    for ((name, label), copies) in [
+        ("kepler", "Kepler quarter"),
+        ("tess", "TESS, 2 minutes"),
+        ("tess 20 s", "TESS, 20 seconds"),
+    ]
+    .into_iter()
+    .zip(COPIES)
+    {
+        writeln!(
+            out,
+            "| {label} | {copies} | {} | {} |",
+            ours(timings, &format!("many {name} loop")),
+            ours(timings, &format!("many {name} many")),
         )
         .expect("a string");
     }

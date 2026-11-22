@@ -208,7 +208,7 @@ pub const SUITES: [Suite; 28] = [
     speed(
         "detrend",
         "each detrending method against wotan, scipy and statsmodels",
-        0.5,
+        1.0,
     ),
     speed("bls", "searches against astropy's BoxLeastSquares", 3.0),
     speed("tls", "searches against transitleastsquares", 7.0),
@@ -380,7 +380,12 @@ fn speed_report(name: &str, threads: NonZeroUsize) -> String {
     let table = match name {
         "model" => model::report(&model::run(7), &references(model::reference())),
         "detrend" => detrend::report(
-            &detrend::run(7, threads, &detrend::light_curves(), 1),
+            &{
+                let sets = detrend::light_curves();
+                let mut timings = detrend::run(7, threads, &sets, 1);
+                timings.extend(detrend::many(threads, &sets));
+                timings
+            },
             &references(detrend::reference()),
             threads,
         ),
@@ -407,7 +412,11 @@ fn speed_report(name: &str, threads: NonZeroUsize) -> String {
             &references(mcmc::reference()),
         ),
         _ => tls::report(
-            &tls::run(&tls::cases(), threads),
+            &{
+                let mut timings = tls::run(&tls::cases(), threads);
+                timings.extend(tls::many(threads));
+                timings
+            },
             &references(tls::reference()),
             threads,
         ),

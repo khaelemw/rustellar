@@ -384,6 +384,41 @@ fn any_number_of_threads() {
 }
 
 #[test]
+fn many_curves_are_each_ones() {
+    // Seven curves of different lengths, some masked, one too short to
+    // keep any point: each result is that curve's own, in the order given,
+    // on any number of threads.
+    let mut random = Random(0x5eed_0611);
+    let curves: Vec<(LightCurve, Option<Vec<bool>>)> = [3000, 40, 5000, 900, 2, 7000, 1200]
+        .into_iter()
+        .map(|n| {
+            let (time, flux) = grid(&mut random, n);
+            let mask =
+                (n % 3 == 0).then(|| (0..time.len()).map(|_| random.below(9) == 0).collect());
+            (curve(&time, &flux), mask)
+        })
+        .collect();
+    let jobs: Vec<(&LightCurve, Option<&[bool]>)> =
+        curves.iter().map(|(lc, m)| (lc, m.as_deref())).collect();
+    for method in [Method::Median, ESTIMATORS[0], Method::Spline] {
+        let d = Detrend::default()
+            .with_method(method)
+            .with_window(days(0.5))
+            .with_edge_cutoff(days(0.1));
+        let each: Vec<_> = jobs.iter().map(|&(lc, m)| d.flatten(lc, m)).collect();
+        assert!(
+            each.iter().any(Result::is_err),
+            "a curve with no points left"
+        );
+        for threads in [1, 2, 3, 8, 16, 64] {
+            let d = d.with_threads(NonZeroUsize::new(threads).unwrap());
+            assert_eq!(d.flatten_many(&jobs), each, "{method:?}, {threads}");
+        }
+    }
+    assert!(Detrend::default().flatten_many(&[]).is_empty());
+}
+
+#[test]
 fn the_break_tolerance_settings() {
     let mut random = Random(0x5eed_0504);
     let (time, flux) = grid(&mut random, 500);

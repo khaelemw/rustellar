@@ -116,6 +116,14 @@ fn the_detrend_table() {
     assert!(out.contains("| Kepler quarter | 0.0104 | "), "{out}");
     assert!(out.contains("| TESS, 20 seconds | - | - | - |"), "{out}");
     assert!(out.contains("| Mean | 0.00990 | "), "{out}");
+    // Many curves: 64 Kepler quarters, one after another and at once.
+    let many = detrend::many(TWO, &sets[..1]);
+    let names: Vec<&str> = many.iter().map(|(c, _)| c.as_str()).collect();
+    assert_eq!(names, ["many kepler loop", "many kepler many"]);
+    let out = detrend::report(&many, &refs, TWO);
+    assert!(out.contains("seconds a light curve on 2 threads:"), "{out}");
+    assert!(out.contains("| Kepler quarter | 64 | "), "{out}");
+    assert!(out.contains("| TESS, 20 seconds | 8 | - | - |"), "{out}");
 }
 
 #[test]
@@ -175,6 +183,21 @@ fn the_tls_table() {
     );
     assert!(
         out.contains("`Method::Fold`, transitleastsquares' own way: "),
+        "{out}"
+    );
+    // The many-curve table (`tls::many` takes minutes, so its times are
+    // given here).
+    let many = [
+        ("many 30 min loop cpu".to_owned(), 0.75),
+        ("many 30 min many gpu".to_owned(), 0.125),
+    ];
+    let out = tls::report(&many, &refs, TWO);
+    assert!(
+        out.contains("| 16 curves, 1 sector at 30 min | 0.750 | - | - | 0.125 |"),
+        "{out}"
+    );
+    assert!(
+        out.contains("| 16 curves, 1 sector at 2 min | - | - | - | - |"),
         "{out}"
     );
 }

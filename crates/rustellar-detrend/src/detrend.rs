@@ -1,7 +1,11 @@
 //! The public interface: [`Detrend`]'s settings, [`Detrend::trend`] and
 //! [`Detrend::flatten`].
 
-use std::{num::NonZeroUsize, thread};
+use std::{
+    num::NonZeroUsize,
+    sync::atomic::{AtomicUsize, Ordering},
+    thread,
+};
 
 use rustellar_core::{LightCurve, TimeDelta};
 
@@ -16,6 +20,11 @@ use crate::{
 
 /// Fewer points than this per thread are not worth a thread's start.
 const POINTS_PER_THREAD: usize = 1024;
+
+/// The threads each of [`Detrend::flatten_many`]'s curves gets: two each
+/// was the fastest split, or near it, from 1,240 points to 108,878 on 16
+/// threads (one each slows the largest, which then contend for memory).
+const THREADS_PER_CURVE: usize = 2;
 
 /// The window [`Detrend::with_window_for_transit`] sets, in transit
 /// durations: 2.5, the middle of the range a blind search did best after,
@@ -512,6 +521,82 @@ impl Detrend {
             indices,
             trend,
         })
+    }
+
+    /// Many light curves flattened with these settings, each with its own
+    /// mask: the results in the order given, each exactly what
+    /// [`flatten`](Self::flatten) gives for that curve.
+    ///
+    /// The [`threads`](Self::threads) are shared out: half as many curves
+    /// are flattened at once as there are threads, each on two. Small light
+    /// curves gain the most, as one curve shares out poorly among many
+    /// threads: on 16 threads, Kepler quarters take a third of the time of
+    /// a loop of [`flatten`](Self::flatten), and 2-minute TESS sectors four
+    /// fifths (see the README).
+    ///
+    /// # Errors
+    ///
+    /// Each curve's own, as [`flatten`](Self::flatten)'s.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_core::{LightCurve, TimeDelta};
+    /// use rustellar_detrend::Detrend;
+    ///
+    /// // Two days at 30 minutes, each curve with its own slow drift.
+    /// let curve = |slope: f64| {
+    ///     let time: Vec<f64> = (0..96).map(|i| f64::from(i) / 48.0).collect();
+    ///     let flux = time.iter().map(|t| 1.0 + slope * t).collect();
+    ///     LightCurve::from_days(time, flux, vec![1e-3; 96])
+    /// };
+    /// let (a, b) = (curve(0.01)?, curve(-0.02)?);
+    /// let mask = vec![false; 96];
+    /// let detrend = Detrend::default().with_window(TimeDelta::from_days(0.5)?);
+    /// let flat = detrend.flatten_many(&[(&a, None), (&b, Some(&mask))]);
+    /// assert_eq!(flat[0], detrend.flatten(&a, None));
+    /// assert_eq!(flat[1], detrend.flatten(&b, Some(&mask)));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn flatten_many(
+        &self,
+        curves: &[(&LightCurve, Option<&[bool]>)],
+    ) -> Vec<Result<Flattened, DetrendError>> {
+        let threads = self.threads.get();
+        let at_once = (threads / THREADS_PER_CURVE).clamp(1, curves.len().max(1));
+        let each =
+            self.with_threads(NonZeroUsize::new((threads / at_once).max(1)).expect("at least one"));
+        let next = AtomicUsize::new(0);
+        let done: Vec<Vec<(usize, Result<Flattened, DetrendError>)>> = thread::scope(|scope| {
+            let workers: Vec<_> = (0..at_once)
+                .map(|_| {
+                    scope.spawn(|| {
+                        let mut mine = vec![];
+                        loop {
+                            let i = next.fetch_add(1, Ordering::Relaxed);
+                            let Some(&(lc, mask)) = curves.get(i) else {
+                                break mine;
+                            };
+                            mine.push((i, each.flatten(lc, mask)));
+                        }
+                    })
+                })
+                .collect();
+            workers
+                .into_iter()
+                .map(|w| w.join().expect("a detrending thread panicked"))
+                .collect()
+        });
+        let mut results: Vec<Option<Result<Flattened, DetrendError>>> =
+            (0..curves.len()).map(|_| None).collect();
+        for (i, result) in done.into_iter().flatten() {
+            results[i] = Some(result);
+        }
+        results
+            .into_iter()
+            .map(|r| r.expect("every curve flattened"))
+            .collect()
     }
 
     /// The settings checked, as the windows' options and the estimator.

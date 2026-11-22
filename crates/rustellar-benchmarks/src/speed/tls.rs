@@ -117,7 +117,8 @@ const MANY: [(&str, &str); 2] = [
 /// Seconds a light curve, searching every curve of each many-curve case
 /// one after another and with [`Tls::search_many`], on the CPU and (with
 /// `cuda`) the GPU; timed once each, after one search to load the GPU.
-fn many(threads: NonZeroUsize) -> Vec<Timing> {
+#[must_use]
+pub fn many(threads: NonZeroUsize) -> Vec<Timing> {
     #[cfg_attr(not(feature = "cuda"), expect(unused_mut, reason = "no GPU run"))]
     let mut devices = vec![("cpu", Device::Cpu)];
     #[cfg(feature = "cuda")]
@@ -188,7 +189,6 @@ pub fn run(cases: &[Case], threads: NonZeroUsize) -> Vec<Timing> {
             count(case.periods.as_slice().len()),
         ));
     }
-    out.extend(many(threads));
     out
 }
 

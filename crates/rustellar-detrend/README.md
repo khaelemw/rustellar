@@ -373,8 +373,26 @@ On the same sector:
 wotan's `huber_psi`); `Method::HuberJoint` estimates the scale together
 with the location, like wotan's `huber`.
 
-`cargo validate speed detrend` reruns the rustellar-detrend columns and
-prints them beside wotan's recorded times. `cargo bench -p
+`Detrend::flatten_many` flattens many light curves with the same
+settings, each with its own mask, and gives each curve exactly the result
+`Detrend::flatten` would. It flattens half as many curves at once as
+there are threads, two threads each, so small curves, which share out
+poorly among many threads, gain the most. The biweight, seconds per light
+curve on 16 threads:
+
+| | Curves | One after another | `flatten_many` |
+|---|--:|--:|--:|
+| Kepler quarter | 64 | 0.00135 | 0.000480 |
+| TESS, 2 minutes | 32 | 0.0121 | 0.00967 |
+| TESS, 20 seconds | 8 | 0.358 | 0.307 |
+
+There is no GPU version: the estimators are solved in double precision
+to be correctly rounded, and a consumer GPU's double precision (1/64 of
+its single precision on an RTX 3060 Ti, about 0.25 TFLOPS) is below what
+the eight cores of the CPU above reach.
+
+`cargo validate speed detrend` reruns these tables, printing the
+rustellar-detrend columns beside wotan's recorded times. `cargo bench -p
 rustellar-detrend` runs the Rust timings alone.
 
 ## References
