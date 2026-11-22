@@ -2,6 +2,7 @@ mod curves;
 mod limb;
 mod masking;
 mod methods;
+mod results;
 mod speed;
 mod stats;
 mod suites;

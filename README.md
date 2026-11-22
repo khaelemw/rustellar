@@ -87,7 +87,11 @@ cargo validate accuracy tls --quick  # a smoke check of one crate
 cargo validate speed fit mcmc        # speed tables, on a quiet machine
 cargo validate all --quick           # everything, in short
 cargo validate-gpu accuracy tls      # the searches on an NVIDIA GPU
+cargo validate speed --save --repeat 3
+cargo validate diff 0.1.0 0.2.0      # what changed between two releases
 ```
+
+Each release's results are saved in `crates/rustellar-benchmarks/results/`.
 
 The reference data the tests compare against is in each crate's
 `tests/reference` folder. The published packages stay small: they hold the

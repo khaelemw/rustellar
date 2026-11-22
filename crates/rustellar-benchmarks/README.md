@@ -44,6 +44,44 @@ on yours (see below) and replace the files.
 `compare` (below) is the older entry point to the same suites, by set
 name.
 
+## Results for each release
+
+Each release's results are kept in `results/<version>/` of this crate, one
+Markdown file per suite (`accuracy-many.md`, `speed-fit.md`, ...) and a
+card of the machine they ran on (`machine.md`: processor, threads,
+system, compiler, commit, version, GPU, and each command run):
+
+```sh
+cargo validate-gpu accuracy --save          # every accuracy suite, saved
+cargo validate speed --save --repeat 3      # every speed table, three runs each
+cargo validate report                       # this version's saved tables
+cargo validate diff 0.1.0 0.2.0             # what changed between two releases
+cargo validate diff 0.1.0 results/mine      # or against any saved folder
+```
+
+`--save` writes to this version's folder and `--to DIR` anywhere else;
+saving again adds to the folder and the card. With `--repeat N` each speed
+suite runs N times and saves each time's best, with each time's spread
+(the median's distance from the best) in `speed-<crate>.spread.csv`.
+Before any speed suite a fixed loop is timed nine times, and a warning
+printed when its times spread by more than 5%: something else is running.
+Each timing starts with one call to warm the caches.
+
+`diff` compares the two runs' tables cell by cell, at the same table, row
+and column. A time counts as changed beyond `--tolerance` (default 10%)
+or twice either run's spread, where that is larger; any other number or
+text counts at any change, as the accuracy suites are seeded and so
+repeat exactly on one machine. It prints each changed cell with its old
+and new value, and how much slower or faster a time is. The references'
+columns never change (they are read from `data/`), so a change there means
+a reference file was replaced.
+
+For a release: on a quiet machine, run every suite saved (`accuracy
+--save` with the GPU if there is one, then `speed --save --repeat 3`),
+`diff` against the last release, explain or fix every change, copy the
+new tables into the crates' READMEs and commit the folder with the
+release.
+
 ## rustellar-tls against transitleastsquares 1.32
 
 ```sh

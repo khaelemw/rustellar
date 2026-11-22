@@ -70,8 +70,10 @@ pub fn seconds(references: &[Reference], name: &str, case: &str) -> Option<f64> 
 }
 
 /// Seconds per call of `f`: the best of `repeats` repeats, each the mean of
-/// `number` calls, as Python's `min(timeit.repeat(...)) / number`.
+/// `number` calls, as Python's `min(timeit.repeat(...)) / number`, after
+/// one call to warm the caches.
 pub fn best<T>(repeats: usize, number: u32, mut f: impl FnMut() -> T) -> f64 {
+    black_box(f());
     (0..repeats)
         .map(|_| {
             let start = Instant::now();
@@ -99,6 +101,17 @@ pub fn short(seconds: Option<f64>) -> String {
         (s, " s")
     };
     format!("{}{unit}", two_figures(value))
+}
+
+/// `seconds` in milliseconds to two significant figures (`1.3 ms`,
+/// `380 ms`), for a table whose times span the millisecond and the
+/// second, so every cell is in one unit. A dash where there is no time.
+#[must_use]
+pub fn milliseconds(seconds: Option<f64>) -> String {
+    seconds.map_or_else(
+        || "-".to_owned(),
+        |s| format!("{} ms", two_figures(s * 1e3)),
+    )
 }
 
 /// A positive `value` to two significant figures, with at least one figure

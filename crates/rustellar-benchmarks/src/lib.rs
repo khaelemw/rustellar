@@ -19,6 +19,8 @@
 //!   1.32's candidates, at the true period and at its aliases.
 //! - [`speed`]: each crate timed against its Python references.
 //! - [`suites`]: every suite by name, run with one call.
+//! - [`results`]: saved runs, merged repeats and the difference between
+//!   two runs.
 //!
 //! Run `cargo run --release -p rustellar-benchmarks --bin rustellar-bench -- list`.
 
@@ -32,6 +34,7 @@ mod random;
 #[expect(dead_code, reason = "only the survey recipe")]
 #[path = "../../rustellar-bls/src/tests/recipe.rs"]
 mod recipe;
+pub mod results;
 pub mod speed;
 mod stats;
 pub mod suites;

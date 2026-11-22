@@ -16,7 +16,7 @@ use rustellar_fit::{
     TransitFit, TransitParams,
 };
 
-use super::{Reference, best, package, seconds, short};
+use super::{Reference, best, milliseconds, package, seconds};
 
 const CASES: &str = include_str!("../../../rustellar-fit/tests/reference/fit_cases.csv");
 const POINTS: &str = include_str!("../../../rustellar-fit/tests/reference/fit_points.csv");
@@ -155,10 +155,10 @@ pub fn report(timings: &[Timing], references: &[Reference]) -> String {
         .filter_map(|l| l.split(',').next().map(str::to_owned))
         .collect();
     for name in names {
-        let ours = short(timings.iter().find(|(c, _)| *c == name).map(|&(_, s)| s));
+        let ours = milliseconds(timings.iter().find(|(c, _)| *c == name).map(|&(_, s)| s));
         write!(out, "| {} | {ours} |", name.replace('_', " ")).expect("a string");
         for (package, method) in METHODS {
-            let theirs = short(seconds(references, package, &format!("{name} {method}")));
+            let theirs = milliseconds(seconds(references, package, &format!("{name} {method}")));
             write!(out, " {theirs} |").expect("a string");
         }
         out.push('\n');

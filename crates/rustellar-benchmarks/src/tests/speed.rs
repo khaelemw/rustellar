@@ -4,8 +4,8 @@
 use std::num::NonZeroUsize;
 
 use crate::speed::{
-    Reference, best, bls, detrend, fit, ls, mcmc, model, package, references, seconds, short,
-    significant, tls, two_figures, vet,
+    Reference, best, bls, detrend, fit, ls, mcmc, milliseconds, model, package, references,
+    seconds, short, significant, tls, two_figures, vet,
 };
 
 const TWO: NonZeroUsize = NonZeroUsize::new(2).unwrap();
@@ -62,6 +62,9 @@ fn the_figures() {
     assert_eq!(short(Some(6.4e-4)), "0.64 ms");
     assert_eq!(short(Some(0.25)), "0.25 s");
     assert_eq!(short(None), "-");
+    assert_eq!(milliseconds(Some(0.38)), "380 ms");
+    assert_eq!(milliseconds(Some(1.3e-3)), "1.3 ms");
+    assert_eq!(milliseconds(None), "-");
     assert_eq!(bls::thousands(166_108.0), "166,108");
     assert_eq!(bls::thousands(999.0), "999");
     assert_eq!(bls::thousands(1_000_000.0), "1,000,000");
@@ -71,7 +74,8 @@ fn the_figures() {
 fn the_best_of_the_repeats() {
     let mut calls = 0;
     let s = best(3, 4, || calls += 1);
-    assert_eq!(calls, 12);
+    // One call to warm up, then three repeats of four.
+    assert_eq!(calls, 13);
     assert!(s >= 0.0 && s.is_finite());
 }
 
