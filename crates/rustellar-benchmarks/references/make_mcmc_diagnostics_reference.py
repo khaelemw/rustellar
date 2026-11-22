@@ -2,8 +2,7 @@
 
 emcee 3.1.6 `integrated_time` and ArviZ 1.0 (arviz_stats) rank-normalised
 split-R-hat and bulk and tail ESS, on chains rebuilt in the Rust tests
-from the same SplitMix64 stream (only +, *, / and floor, so bit-identical),
-and scipy's `norm.ppf` for the inverse normal.
+from the same SplitMix64 stream (only +, *, / and floor, so bit-identical).
 
 Run from the repository root:
     python crates/rustellar-benchmarks/references/make_mcmc_diagnostics_reference.py
@@ -15,7 +14,6 @@ import numpy as np
 import emcee
 import arviz_stats
 from arviz_stats.base import array_stats
-from scipy.stats import norm
 
 OUT = "crates/rustellar-mcmc/tests/reference"
 MASK = (1 << 64) - 1
@@ -105,15 +103,6 @@ def main():
     with open(f"{OUT}/diagnostics.csv", "w", newline="\n") as fh:
         fh.write("\n".join(rows) + "\n")
 
-    ps = [1e-300, 1e-100, 1e-20, 1e-10, 1e-5, 0.001, 0.02, 0.075, 0.0749, 0.075001,
-          0.2, 0.37, 0.5, 0.5 + 1e-12, 0.63, 0.8, 0.924999, 0.925, 0.95, 0.999,
-          1 - 1e-10, 1 - 2**-53]
-    g = SplitMix(99)
-    ps += [g.unit() for _ in range(200)]
-    ps += [math.exp(-30.0 * g.unit()) for _ in range(100)]
-    lines = ["p,quantile"] + [f"{fmt(p)},{fmt(norm.ppf(p))}" for p in ps]
-    with open(f"{OUT}/normal_quantile.csv", "w", newline="\n") as fh:
-        fh.write("\n".join(lines) + "\n")
     print("versions", emcee.__version__, arviz_stats.__version__)
 
 
