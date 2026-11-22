@@ -4,7 +4,8 @@
 //! cargo run --release -p rustellar-benchmarks --bin compare -- [SET...] [--limit N] [--step N] [--threads N] [--cpu]
 //! ```
 //!
-//! SET is many, mixed, varying, short or sectors (rustellar-tls against
+//! SET is many, mixed, varying, short, sectors, long, ultrashort, deep,
+//! grazing, eccentric, fast, gaps, flagged or variable (rustellar-tls against
 //! transitleastsquares), or limb (rustellar-bls against rustellar-tls on
 //! limb-darkened transits), or window (how long a detrending window
 //! should be, on transits over spotted stars), or methods (the detrending
@@ -37,7 +38,8 @@ use rustellar_benchmarks::{methods, window};
 const HELP: &str =
     "compare [SET...] [--limit N] [--step N] [--threads N] [--cpu] [--export-methods FILE]
         [--search-flattened IN OUT]
-  SET: many, mixed, varying, short, sectors, limb, window, methods, masking, whitening or vet (default all),
+  SET: many, mixed, varying, short, sectors, long, ultrashort, deep, grazing,
+       eccentric, fast, gaps, flagged, variable, limb, window, methods, masking, whitening or vet (default all),
        speed or speed-CRATE: model, detrend, bls, tls, ls, fit, vet or mcmc (never by default)";
 
 fn main() -> ExitCode {

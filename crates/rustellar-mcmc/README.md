@@ -176,6 +176,49 @@ chains' Monte Carlo errors allow; the test holds them to 0.15 and 0.3,
 since each platform's maths library rounds differently and so draws a
 different chain from the same seed (`tests/transit.rs`).
 
+## Grazing and eccentric transits against zeus
+
+Two harder posteriors, 40 walkers from the fit, differential evolution
+with the snooker move a fifth of the time:
+
+- A grazing transit (`k` 0.1, `a / R*` 10, `b` 1.0, noise of 5e-4, `k`
+  uniform below 0.3): 200,000 steps, the first fifth discarded.
+- An eccentric orbit (`e` 0.3, `w` 60 degrees, noise of 1e-3, the
+  eccentricity free as sqrt(e) cos w and sqrt(e) sin w, the star's density
+  known to 10%): 100,000 steps.
+
+The references are zeus 2.5.4 with batman 2.5.1: four pooled chains of
+40,000 steps for the grazing transit and eight of 120,000 for the
+eccentric orbit. Each percentile is compared after taking away the
+reference's own uncertainty there (how far its separate chains strayed
+from the pooled one, `tests/reference/<case>_spread.csv`).
+
+emcee 3.1.6 is not the reference here. On the eccentric posterior, four
+chains of its differential-evolution moves (300,000 steps each) agreed
+with each other but all left out a tail: q2 above 0.4, and sqrt(e) sin w
+below zero. zeus and this crate both find that tail, from any start, and
+the two log-probabilities agree to 0.002 at shared points. emcee's
+stretch move mixes too slowly on either posterior.
+
+Over 30 seeds:
+
+| | 16th to 84th, median / worst | 2.5th and 97.5th, median / worst | Test holds to |
+|---|---|---|---|
+| Grazing | 0.003 / 0.081 | 0.010 / 0.03 | 0.15 / 0.3 |
+| Eccentric | 0.19 / 0.37 | 0.34 / 0.74 | 0.5 / 1.0 |
+
+All gaps are in the reference's sigma, beyond its spread.
+
+The grazing worsts above leave out 2 of the 30 seeds. In each, one walker
+spent the whole chain in the full-transit ridge (`a / R*` near 16, `b`
+near 0.76), which moves the 97.5th percentiles of `a / R*` and the density
+by up to 7 sigma. One of zeus's four chains did the same, so the grazing
+test holds the median of three seeds.
+
+On the eccentric orbit, t0's lower tail and sqrt(e) sin w mix slowly in
+both samplers: their autocorrelation times reach 10,000 to 27,000 steps
+in zeus.
+
 ## Time per independent sample
 
 The same posterior, 40 walkers, 30,000 steps with the first 5,000

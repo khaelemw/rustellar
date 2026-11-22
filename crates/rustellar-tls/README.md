@@ -96,6 +96,27 @@ a tie: 12 transits only this crate found and 5 only transitleastsquares
 did (p 0.14), all at SDE 4.5 to 6.9, where the transit and the tallest
 noise peak are about as high. `rustellar-benchmarks` reruns this.
 
+**In harder regimes.** The same comparison on 780 more transits around a
+star of the Sun's density, each set changing one thing:
+
+| Light curves | Found | Period (relative) | Mid-transit time (min) | Duration (relative) | Depth (relative) |
+|---|---|---|---|---|---|
+| 100, periods 9 to 13.5 d (two or three transits) | 66 / 61 | 5.2e-4 / 6.5e-4 | 8.1 / 14 | 0.064 / 0.075 | 0.076 / 0.063 |
+| 100, periods 0.25 to 1 d | 50 / 50 | 5.5e-4 / 7.7e-4 | 2.5 / 3.7 | 0.042 / 0.054 | 0.073 / 0.056 |
+| 100, radius ratios 0.1 to 0.2 | 100 / 100 | 1.2e-4 / 4.0e-4 | 2.2 / 5.7 | 0.12 / 0.073 | 0.0094 / 0.021 |
+| 100, grazing | 93 / 90 | 2.0e-4 / 3.8e-4 | 3.1 / 5.7 | 0.26 / 0.15 | 0.087 / 0.15 |
+| 100, eccentricities 0.1 to 0.7 | 82 / 82 | 3.0e-4 / 4.6e-4 | 5.7 / 8.2 | 0.044 / 0.074 | 0.058 / 0.072 |
+| 40, 6 d at 20 s | 28 / 28 | 1.2e-3 / 2.3e-3 | 5.0 / 6.1 | 0.089 / 0.098 | 0.094 / 0.10 |
+| 40, three blocks over 108 d | 29 / 30 | 5.1e-5 / 1.3e-4 | 3.6 / 8.0 | 0.034 / 0.26 | 0.046 / 0.047 |
+| 100, flagged points, outliers, NaNs | 19 / 18 | 3.2e-4 / 4.0e-4 | 4.1 / 5.6 | 0.037 / 0.038 | 0.023 / 0.030 |
+| 100, spotted stars, red noise, detrended | 65 / 66 | 2.9e-4 / 4.6e-4 | 5.2 / 7.7 | 0.080 / 0.062 | 0.20 / 0.21 |
+
+Period and mid-transit time are again this crate's in every set. The
+duration is not: on deep, grazing and detrended transits
+transitleastsquares' is closer (in 86, 75 and 46 of 100, 90 and 64), a
+gap still to close. Outliers of 5 to 20 errors in 1% of the points
+defeat both searches; clip them before searching.
+
 **Against a box search.** On `rustellar-bls`'s 1,000 limb-darkened
 transits and 1,000 light curves of noise alone, each search's detection
 threshold set at 1% false alarms:

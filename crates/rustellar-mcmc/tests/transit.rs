@@ -2,7 +2,8 @@
 // spreads match the fit's estimates where the posterior is near Gaussian; a
 // density prior narrows a / R*; every way of freeing the limb darkening and
 // eccentricity; the checks. Against emcee with batman on the same light
-// curve: the percentiles agree.
+// curve, and zeus with batman on a grazing transit and an eccentric orbit:
+// the percentiles agree.
 
 use rustellar_fit::{
     Epoch, ImpactParameter, LightCurve, LimbDarkening, Parameter, RadiusRatio, ScaledSemiMajorAxis,
@@ -309,71 +310,282 @@ fn percentile(sorted: &[f64], q: f64) -> f64 {
     }
 }
 
-#[test]
-fn matches_emcee_with_batman() {
-    // The light curve and emcee's percentiles from the reference tool.
-    let rows = |text: &str| -> Vec<Vec<String>> {
-        text.lines()
-            .skip(1)
-            .map(|l| l.split(',').map(str::to_owned).collect())
-            .collect()
-    };
-    let points = rows(include_str!("reference/transit_points.csv"));
-    let num = |s: &String| s.parse::<f64>().unwrap();
-    let column = |i: usize| points.iter().map(|r| num(&r[i])).collect::<Vec<f64>>();
+/// A posterior against a reference sampler's: the case's light curve from
+/// the reference tool, our chain (40 walkers from the fit, `seed`) and the
+/// worst gaps of the percentiles in the reference's sigma (16th to 84th,
+/// 2.5th and 97.5th), less the reference's own uncertainty there where it
+/// gives one.
+struct Case {
+    points: &'static str,
+    reference: &'static str,
+    /// How far the reference's own chains strayed from its pooled
+    /// percentiles, in its sigma.
+    spread: Option<&'static str>,
+    truth: TransitParams,
+    names: &'static [&'static str],
+    steps: usize,
+    discard: usize,
+    /// Differential evolution alone, or with the snooker move a fifth of
+    /// the time (which keeps walkers from sticking in a narrow ridge).
+    snooker: bool,
+}
+
+fn rows(text: &str) -> Vec<Vec<f64>> {
+    text.lines()
+        .skip(1)
+        .map(|l| l.split(',').filter_map(|v| v.parse().ok()).collect())
+        .collect()
+}
+
+fn against_reference(
+    case: &Case,
+    free: impl Fn(TransitFit<'_>) -> TransitFit<'_>,
+    priors: impl Fn(TransitPosterior<'_>) -> TransitPosterior<'_>,
+    seed: u64,
+    threads: usize,
+) -> (f64, f64) {
+    let points = rows(case.points);
+    let column = |i: usize| points.iter().map(|r| r[i]).collect::<Vec<f64>>();
     let lc = LightCurve::from_days(column(0), column(1), column(2)).unwrap();
-    let setup = TransitFit::new(&lc, truth()).with_fixed(Parameter::Period);
+    let setup = free(TransitFit::new(&lc, case.truth).with_fixed(Parameter::Period));
     let result = setup.run().unwrap();
-    let posterior = TransitPosterior::new(&setup).unwrap();
-    let start = posterior.walkers(&result, 40, 11).unwrap();
-    let chain = Ensemble::new(start)
+    let posterior = priors(TransitPosterior::new(&setup).unwrap());
+    let names: Vec<&str> = posterior.coordinates().iter().map(|c| c.name()).collect();
+    assert_eq!(names, case.names[..case.names.len() - 1]);
+    let start = posterior.walkers(&result, 40, seed).unwrap();
+    let ensemble = Ensemble::new(start)
         .unwrap()
-        .with_seed(12)
-        .with_move(Move::differential_evolution(None, 1e-5).unwrap())
-        .run(&posterior, 30_000)
-        .unwrap();
-    let discard = 5000;
-    let mut columns: Vec<Vec<f64>> = vec![Vec::new(); 8];
-    for x in chain.samples(discard) {
+        .with_seed(seed + 1)
+        .with_threads(std::num::NonZeroUsize::new(threads).unwrap())
+        .with_move(Move::differential_evolution(None, 1e-5).unwrap());
+    let ensemble = if case.snooker {
+        ensemble
+            .with_moves(vec![
+                (Move::differential_evolution(None, 1e-5).unwrap(), 0.8),
+                (Move::snooker(1.7).unwrap(), 0.2),
+            ])
+            .unwrap()
+    } else {
+        ensemble
+    };
+    let chain = ensemble.run(&posterior, case.steps).unwrap();
+    let d = names.len();
+    let mut columns: Vec<Vec<f64>> = vec![Vec::new(); d + 1];
+    for x in chain.samples(case.discard) {
         for (c, v) in columns.iter_mut().zip(x) {
             c.push(*v);
         }
-        columns[7].push(posterior.stellar_density(x).unwrap());
+        columns[d].push(posterior.stellar_density(x).unwrap());
     }
-    let reference = rows(include_str!("reference/transit_posterior.csv"));
-    let names = ["t0", "k", "a_rs", "b", "q1", "q2", "baseline", "density"];
-    let (mut worst_centre, mut worst_tail) = (0.0f64, 0.0f64);
-    for ((row, name), mut ours) in reference.iter().zip(names).zip(columns) {
-        assert_eq!(row[0], name);
+    let reference = rows(case.reference);
+    let names_in_file: Vec<&str> = case
+        .reference
+        .lines()
+        .skip(1)
+        .map(|l| l.split(',').next().unwrap())
+        .collect();
+    assert_eq!(names_in_file, case.names);
+    let spread = case
+        .spread
+        .map_or_else(|| vec![vec![0.0; 5]; reference.len()], rows);
+    assert_eq!(spread.len(), reference.len());
+    let (mut centre, mut tail) = (0.0f64, 0.0f64);
+    for (i, (theirs, mut ours)) in reference.iter().zip(columns).enumerate() {
         ours.sort_by(f64::total_cmp);
-        let theirs: Vec<f64> = row[1..].iter().map(num).collect();
         let sigma = (theirs[3] - theirs[1]) / 2.0;
-        for (j, (q, gap)) in [
-            (2.5, 0.3),
-            (16.0, 0.15),
-            (50.0, 0.15),
-            (84.0, 0.15),
-            (97.5, 0.3),
-        ]
-        .into_iter()
-        .enumerate()
-        {
-            let mine = percentile(&ours, q);
-            let gap_sigma = ((mine - theirs[j]) / sigma).abs();
-            if j == 0 || j == 4 {
-                worst_tail = worst_tail.max(gap_sigma);
-            } else {
-                worst_centre = worst_centre.max(gap_sigma);
+        for (j, q) in [2.5, 16.0, 50.0, 84.0, 97.5].into_iter().enumerate() {
+            let gap = (((percentile(&ours, q) - theirs[j]) / sigma).abs() - spread[i][j]).max(0.0);
+            if gap > 0.3 {
+                eprintln!(
+                    "  {} p{q}: {} against {} ({gap:.2} sigma beyond the reference's spread)",
+                    case.names[i],
+                    percentile(&ours, q),
+                    theirs[j]
+                );
             }
-            assert!(
-                (mine - theirs[j]).abs() < gap * sigma,
-                "{name} p{q}: {mine} vs {} ({:.3} sigma)",
-                theirs[j],
-                (mine - theirs[j]) / sigma
-            );
+            if j == 0 || j == 4 {
+                tail = tail.max(gap);
+            } else {
+                centre = centre.max(gap);
+            }
         }
     }
-    eprintln!("worst gaps in sigma: 16-84th {worst_centre:.3}, 2.5th and 97.5th {worst_tail:.3}");
+    (centre, tail)
+}
+
+const HOT: [&str; 8] = ["t0", "k", "a_rs", "b", "q1", "q2", "baseline", "density"];
+
+fn hot() -> Case {
+    Case {
+        points: include_str!("reference/transit_points.csv"),
+        reference: include_str!("reference/transit_posterior.csv"),
+        spread: None,
+        truth: truth(),
+        names: &HOT,
+        steps: 30_000,
+        discard: 5000,
+        snooker: false,
+    }
+}
+
+fn grazing() -> Case {
+    Case {
+        points: include_str!("reference/grazing_points.csv"),
+        reference: include_str!("reference/grazing_posterior.csv"),
+        spread: Some(include_str!("reference/grazing_spread.csv")),
+        truth: TransitParams::new(
+            Epoch::from_days(0.0).unwrap(),
+            TimeDelta::from_days(3.0).unwrap(),
+            RadiusRatio::new(0.1).unwrap(),
+            ScaledSemiMajorAxis::new(10.0).unwrap(),
+            ImpactParameter::new(1.0).unwrap(),
+            LimbDarkening::quadratic(0.4, 0.25).unwrap(),
+        )
+        .unwrap(),
+        names: &HOT,
+        steps: GRAZING_STEPS,
+        discard: GRAZING_STEPS / 5,
+        snooker: true,
+    }
+}
+
+const ECCENTRIC: [&str; 10] = [
+    "t0",
+    "k",
+    "a_rs",
+    "b",
+    "q1",
+    "q2",
+    "sqrt_e_cos_w",
+    "sqrt_e_sin_w",
+    "baseline",
+    "density",
+];
+
+fn eccentric() -> Case {
+    Case {
+        points: include_str!("reference/eccentric_points.csv"),
+        reference: include_str!("reference/eccentric_posterior.csv"),
+        spread: Some(include_str!("reference/eccentric_spread.csv")),
+        truth: truth().with_eccentricity(0.3, 60.0).unwrap(),
+        names: &ECCENTRIC,
+        steps: ECCENTRIC_STEPS,
+        discard: ECCENTRIC_STEPS / 5,
+        snooker: true,
+    }
+}
+
+const GRAZING_STEPS: usize = 200_000;
+const ECCENTRIC_STEPS: usize = 100_000;
+
+/// The star's density at a / R* = 10 and a 3-day period, in g/cm^3.
+fn density_at_ten() -> f64 {
+    let period = 3.0 * 86400.0;
+    3.0 * std::f64::consts::PI * 1000.0 / (6.674_30e-11 * period * period) / 1000.0
+}
+
+fn grazing_priors(p: TransitPosterior<'_>) -> TransitPosterior<'_> {
+    p.with_prior(Coordinate::RadiusRatio, Prior::uniform(0.0, 0.3).unwrap())
+        .unwrap()
+}
+
+fn eccentric_free(f: TransitFit<'_>) -> TransitFit<'_> {
+    f.with_free(Parameter::ECosW).with_free(Parameter::ESinW)
+}
+
+fn eccentric_priors(p: TransitPosterior<'_>) -> TransitPosterior<'_> {
+    let rho = density_at_ten();
+    p.with_stellar_density(rho, 0.1 * rho).unwrap()
+}
+
+#[test]
+fn matches_emcee_with_batman() {
+    // Tolerances from a sweep of 30 seeds (see the README).
+    let (centre, tail) = against_reference(&hot(), |f| f, |p| p, 11, 1);
+    eprintln!("worst gaps in sigma: 16-84th {centre:.3}, 2.5th and 97.5th {tail:.3}");
+    assert!(centre < 0.15 && tail < 0.3, "{centre} {tail}");
+}
+
+#[test]
+#[ignore = "heavy: minutes, the grazing posterior against zeus"]
+fn a_grazing_transit_matches_zeus() {
+    // In 2 of 30 seeds (and 1 of zeus's 4 chains) one walker spends the
+    // whole chain in the full-transit ridge (a / R* near 16), which moves
+    // the 97.5th percentiles of a / R* and the density by several sigma;
+    // the median of three seeds is held to the tolerances.
+    let mut gaps: Vec<(f64, f64)> = [11, 13, 15]
+        .map(|seed| against_reference(&grazing(), |f| f, grazing_priors, seed, 8))
+        .to_vec();
+    gaps.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let (centre, tail) = gaps[1];
+    eprintln!("grazing, worst gaps in sigma: 16-84th {centre:.3}, 2.5th and 97.5th {tail:.3}");
+    assert!(
+        centre < GRAZING_GAPS.0 && tail < GRAZING_GAPS.1,
+        "{centre} {tail}"
+    );
+}
+
+#[test]
+#[ignore = "heavy: minutes, the eccentric posterior against zeus"]
+fn an_eccentric_orbit_with_a_density_prior_matches_zeus() {
+    let (centre, tail) = against_reference(&eccentric(), eccentric_free, eccentric_priors, 11, 8);
+    eprintln!("eccentric, worst gaps in sigma: 16-84th {centre:.3}, 2.5th and 97.5th {tail:.3}");
+    assert!(
+        centre < ECCENTRIC_GAPS.0 && tail < ECCENTRIC_GAPS.1,
+        "{centre} {tail}"
+    );
+}
+
+/// Over 30 seeds (the ridge aside) the worst gaps were 0.081 and 0.03.
+const GRAZING_GAPS: (f64, f64) = (0.15, 0.3);
+/// Over 30 seeds the worst gaps were 0.37 and 0.74 (medians 0.19 and
+/// 0.34): t0 and e sin w mix slowly, in zeus's chains as in ours.
+const ECCENTRIC_GAPS: (f64, f64) = (0.5, 1.0);
+
+/// The worst gaps over 30 seeds, from which the tolerances above are set:
+/// `SWEEP=grazing cargo test --release -p rustellar-mcmc --test transit --
+/// --ignored --nocapture seed_sweep` (`hot`, `grazing`, `eccentric` or
+/// `all`); without `SWEEP` it does nothing.
+#[test]
+#[ignore = "heavy: with SWEEP set, the worst gaps over 30 seeds"]
+fn seed_sweep() {
+    let Ok(which) = std::env::var("SWEEP") else {
+        return;
+    };
+    for (name, case) in [
+        ("hot", hot()),
+        ("grazing", grazing()),
+        ("eccentric", eccentric()),
+    ] {
+        if which != "all" && which != name {
+            continue;
+        }
+        let one = |s: u64| match name {
+            "grazing" => against_reference(&case, |f| f, grazing_priors, 100 + 2 * s, 1),
+            "eccentric" => {
+                against_reference(&case, eccentric_free, eccentric_priors, 100 + 2 * s, 1)
+            }
+            _ => against_reference(&case, |f| f, |p| p, 100 + 2 * s, 1),
+        };
+        let gaps: Vec<(f64, f64)> = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..30).map(|s| scope.spawn(move || one(s))).collect();
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+        for (s, g) in gaps.iter().enumerate() {
+            if g.1 > 1.0 {
+                eprintln!("{name}: seed {} tail gap {:.2}", 100 + 2 * s, g.1);
+            }
+        }
+        let mut centre: Vec<f64> = gaps.iter().map(|g| g.0).collect();
+        let mut tail: Vec<f64> = gaps.iter().map(|g| g.1).collect();
+        centre.sort_by(f64::total_cmp);
+        tail.sort_by(f64::total_cmp);
+        eprintln!(
+            "{name}: 16-84th median {:.3} worst {:.3}; tails median {:.3} worst {:.3}",
+            centre[15], centre[29], tail[15], tail[29]
+        );
+        eprintln!("{name} tails: {:.2?}", tail);
+    }
 }
 
 #[test]

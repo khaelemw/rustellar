@@ -392,13 +392,17 @@ impl<'a> TransitPosterior<'a> {
 
     /// `walkers` starting points drawn from the fit's best parameters and
     /// covariance (a normal in the fit's parameters), each inside the
-    /// posterior's support.
+    /// posterior's support. Where the fit is degenerate (an eccentric orbit
+    /// without a density prior, say) its covariance reaches far outside
+    /// the support, so the normal is narrowed tenfold, up to six times,
+    /// until the walkers fit: a small ball about the best fit, as samplers
+    /// are usually started.
     ///
     /// # Errors
     ///
     /// [`McmcError::NoCovariance`] if the fit has none or its parameters
     /// differ from the posterior's set-up; [`McmcError::OutsideSupport`]
-    /// if a hundred draws per walker leave too few inside.
+    /// if at every width a hundred draws per walker leave too few inside.
     pub fn walkers(
         &self,
         result: &FitResult,
@@ -420,27 +424,33 @@ impl<'a> TransitPosterior<'a> {
         }
         let lower = cholesky(&matrix, n).ok_or(McmcError::NoCovariance)?;
         let mut rng = Rng::new(seed);
-        let mut out = Vec::with_capacity(walkers);
-        for _ in 0..100 * walkers {
-            let z: Vec<f64> = (0..n).map(|_| rng.normal()).collect();
-            let mut v = best;
-            for (i, &p) in params.iter().enumerate() {
-                let step: f64 = (0..=i).map(|j| lower[i * n + j] * z[j]).sum();
-                v[slot(p)] += step;
-            }
-            let x: Vec<f64> = self
-                .coordinates
-                .iter()
-                .map(|&c| coordinate_of(c, &v))
-                .collect();
-            if self.log_probability(&x).is_finite() {
-                out.push(x);
-                if out.len() == walkers {
-                    return Ok(out);
+        let mut most = 0;
+        let mut scale = 1.0;
+        for _ in 0..7 {
+            let mut out = Vec::with_capacity(walkers);
+            for _ in 0..100 * walkers {
+                let z: Vec<f64> = (0..n).map(|_| rng.normal()).collect();
+                let mut v = best;
+                for (i, &p) in params.iter().enumerate() {
+                    let step: f64 = (0..=i).map(|j| lower[i * n + j] * z[j]).sum();
+                    v[slot(p)] += scale * step;
+                }
+                let x: Vec<f64> = self
+                    .coordinates
+                    .iter()
+                    .map(|&c| coordinate_of(c, &v))
+                    .collect();
+                if self.log_probability(&x).is_finite() {
+                    out.push(x);
+                    if out.len() == walkers {
+                        return Ok(out);
+                    }
                 }
             }
+            most = most.max(out.len());
+            scale *= 0.1;
         }
-        Err(McmcError::OutsideSupport { walker: out.len() })
+        Err(McmcError::OutsideSupport { walker: most })
     }
 
     /// The fit parameters behind the coordinates, in [`Parameter::ALL`]'s

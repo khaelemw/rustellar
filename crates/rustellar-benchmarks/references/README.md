@@ -57,6 +57,7 @@ versions gives the same files, to the last digit for the exact
 | `make_tls_spectra_reference.py` | tls: TLS's spectra on fixed chi-squared arrays | printed as Rust literals |
 | `make_tls_many_reference.py` | benchmarks: TLS over many seeds | `tls_many.csv` |
 | `make_tls_uneven_reference.py` | benchmarks: TLS on uneven sampling, varying errors, 2-minute cadence | `tls_<kind>.csv` |
+| `make_tls_regimes_reference.py` | benchmarks: TLS on long, ultra-short, deep, grazing and eccentric transits, 20-second cadence, gaps, flagged points and spotted stars | `tls_<kind>.csv` |
 | `make_ls_reference.py` | ls: exact powers and astropy's | `ls_points.csv`, `ls_powers.csv` |
 | `make_ls_models.py` | ls: exact peaks and best-fit sinusoids | `ls_models.csv` |
 | `make_ls_fap.py` | ls: exact false-alarm probabilities | `ls_fap.csv` |
@@ -64,6 +65,7 @@ versions gives the same files, to the last digit for the exact
 | `make_vet_reference.py` | vet: LEO-Vetter and exovetter on shared curves | `vet_references.csv` |
 | `make_mcmc_diagnostics_reference.py` | mcmc: emcee's and ArviZ's diagnostics | `crates/rustellar-mcmc/tests/reference/` |
 | `make_transit_posterior_reference.py` | mcmc: emcee with batman on one transit | `crates/rustellar-mcmc/tests/reference/` |
+| `make_transit_regimes_posterior_reference.py` | mcmc: emcee with batman on a grazing transit and an eccentric orbit with a density prior | `crates/rustellar-mcmc/tests/reference/` |
 | `verify_exovetter_odd_even.py` | vet: checks exovetter's odd/even test on its own functions | printed |
 
 ## Speed references

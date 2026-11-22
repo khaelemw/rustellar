@@ -7,7 +7,7 @@ use crate::suites::{self, Measure, SUITES, Settings};
 
 #[test]
 fn the_registry() {
-    assert_eq!(SUITES.len(), 19);
+    assert_eq!(SUITES.len(), 28);
     // Names are unique within each measure.
     for s in SUITES {
         assert_eq!(
@@ -21,7 +21,7 @@ fn the_registry() {
         );
         assert!(s.minutes >= s.quick_minutes && s.quick_minutes > 0.0);
     }
-    assert_eq!(suites::of("tls", Measure::Accuracy).len(), 5);
+    assert_eq!(suites::of("tls", Measure::Accuracy).len(), 14);
     assert_eq!(suites::of("detrend", Measure::Accuracy).len(), 4);
     assert_eq!(suites::of("vet", Measure::Speed)[0].name, "vet");
     assert!(suites::of("model", Measure::Accuracy).is_empty());

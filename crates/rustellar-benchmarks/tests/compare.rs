@@ -39,7 +39,22 @@ fn the_limb_darkened_study() {
 fn every_set_by_default() {
     let (ok, table, _) = compare(&["--limit", "0", "--step", "250", "--cpu"]);
     assert!(ok);
-    for set in ["many", "mixed", "varying", "short", "sectors"] {
+    for set in [
+        "many",
+        "mixed",
+        "varying",
+        "short",
+        "sectors",
+        "long",
+        "ultrashort",
+        "deep",
+        "grazing",
+        "eccentric",
+        "fast",
+        "gaps",
+        "flagged",
+        "variable",
+    ] {
         assert!(table.contains(&format!("### {set} (0 curves)")), "{table}");
     }
     assert!(table.contains("(8 curves,"), "{table}");

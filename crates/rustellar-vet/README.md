@@ -112,25 +112,31 @@ built from a period, a mid-transit time and a duration.
 
 ## Pointing back to the true period
 
-On the five TLS comparison sets (`compare -- vet` in
-`rustellar-benchmarks`), every planet transitleastsquares 1.32 found was
-also given to `aliases` at a third, half, two thirds, three halves, twice
-and three times its period, as a search locked onto an alias would report
-it: 4,117 candidates in all, with TLS's mid-transit time and duration and
-the default limb-darkened shape. The row of lowest chi-squared was the
-true period:
+On the fourteen TLS comparison sets (`cargo validate accuracy aliases`
+in `rustellar-benchmarks`: the original five and the harder regimes,
+long, ultra-short, deep, grazing and eccentric transits, 20-second
+cadence, gaps, flagged points and spotted stars), every planet
+transitleastsquares 1.32 found was also given to `aliases` at a third,
+half, two thirds, three halves, twice and three times its period, as a
+search locked onto an alias would report it: 7,849 candidates in all,
+with TLS's mid-transit time and duration and the default limb-darkened
+shape. The row of lowest chi-squared was the true period:
 
 | Signal to noise at the true period | Candidates | Pointed to the true period |
 |---|---|---|
-| below 7 | 813 | 768 (94.5%) |
-| 7 to 10 | 987 | 987 (100%) |
-| 10 to 20 | 1,862 | 1,862 (100%) |
-| 20 to 50 | 413 | 413 (100%) |
+| below 7 | 1,323 | 1,260 (95.2%) |
+| 7 to 10 | 1,684 | 1,684 (100%) |
+| 10 to 20 | 2,959 | 2,959 (100%) |
+| 20 to 50 | 1,046 | 1,046 (100%) |
+| 50 and above | 763 | 763 (100%) |
 
-(The 42 other candidates have mid-transit times more than a duration off
-the true transits.) TLS itself reported an alias on 15 curves; every one has
-a signal to noise of 2 to 5 at the true period, too faint for any table
-to settle, and the table is right on 1 of them. For one depth and one
+(The 74 other candidates have mid-transit times more than a duration off
+the true transits.) TLS itself reported an alias on 72 curves. On the 37
+at twice the period (median signal to noise 12 at the true one) the
+table points 28 back to it, and 6 of the 9 at three times; the 26 at a
+third, half, two thirds or three halves have median signals to noise of
+2.8 to 4.2 at the true period, mostly too faint for any table to settle, and the
+table is right on 3 of them. For one depth and one
 baseline the lowest chi-squared is the highest signal to noise, so
 choosing by either gives the same row.
 

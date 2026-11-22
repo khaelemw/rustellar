@@ -59,7 +59,7 @@ const fn speed(crate_name: &'static str, about: &'static str, minutes: f64) -> S
 }
 
 /// Every suite, accuracy first.
-pub const SUITES: [Suite; 19] = [
+pub const SUITES: [Suite; 28] = [
     accuracy(
         "many",
         "tls",
@@ -94,6 +94,69 @@ pub const SUITES: [Suite; 19] = [
         "24 transits, two sectors at 2 min, against transitleastsquares",
         1.6,
         1.3,
+    ),
+    accuracy(
+        "long",
+        "tls",
+        "100 transits, periods 9 to 13.5 d: two or three transits, against transitleastsquares",
+        1.4,
+        0.3,
+    ),
+    accuracy(
+        "ultrashort",
+        "tls",
+        "100 transits, periods 0.25 to 1 d, 10 d at 10 min, against transitleastsquares",
+        0.4,
+        0.1,
+    ),
+    accuracy(
+        "deep",
+        "tls",
+        "100 transits, radius ratios 0.1 to 0.2, against transitleastsquares",
+        1.3,
+        0.3,
+    ),
+    accuracy(
+        "grazing",
+        "tls",
+        "100 grazing transits across the star's limb, against transitleastsquares",
+        1.4,
+        0.3,
+    ),
+    accuracy(
+        "eccentric",
+        "tls",
+        "100 transits, eccentricities 0.1 to 0.7, against transitleastsquares",
+        1.4,
+        0.3,
+    ),
+    accuracy(
+        "fast",
+        "tls",
+        "40 transits, 6 d at 20 s, against transitleastsquares",
+        0.9,
+        0.5,
+    ),
+    accuracy(
+        "gaps",
+        "tls",
+        "40 transits, three 27-day blocks over 108 d, against transitleastsquares",
+        8.5,
+        4.3,
+    ),
+    accuracy(
+        "flagged",
+        "tls",
+        "100 transits with flagged points, outliers and NaNs, against transitleastsquares",
+        1.4,
+        0.3,
+    ),
+    accuracy(
+        "variable",
+        "tls",
+        "100 transits on spotted stars with red noise, detrended first, against transitleastsquares",
+        1.5,
+        0.3,
     ),
     accuracy(
         "limb",

@@ -110,8 +110,26 @@ the flux errors given).
 | `short` | 40 | 27 days at 2 minutes |
 | `sectors` | 24 | two sectors at 2 minutes, 54 days less two one-day gaps |
 
-Every transit: radius ratio 0.015 to 0.045, period 1 to 9 days, a = 12,
-b = 0.2, quadratic limb darkening (0.4804, 0.1867). The noise per point is
+In those sets every transit has radius ratio 0.015 to 0.045, period 1 to
+9 days, a = 12, b = 0.2. The harder regimes give the star the Sun's
+density (a = 4.206 P^(2/3)), b from 0 to 0.7, and each changes one thing:
+
+| Set | Curves | Light curve |
+|---|---|---|
+| `long` | 100 | periods 9 to 13.5 days in 27 days: two or three transits |
+| `ultrashort` | 100 | periods 0.25 to 1 day, 10 days at 10 minutes |
+| `deep` | 100 | radius ratios 0.1 to 0.2 |
+| `grazing` | 100 | radius ratios 0.05 to 0.12, b from 1 - k to 1 + k/2 |
+| `eccentric` | 100 | eccentricities 0.1 to 0.7, any argument of periastron |
+| `fast` | 40 | 6 days at 20 seconds |
+| `gaps` | 40 | three 27-day blocks over 108 days, one missing, each with a gap |
+| `flagged` | 100 | 2% of points flagged and dropped, 1% outliers of 5 to 20 errors, 1% NaN |
+| `variable` | 100 | a spotted star (0.1% to 0.5%, 3 to 10 days) and red noise, detrended first (wotan's biweight and `rustellar-detrend`'s, the window three transit durations) |
+
+`references/make_tls_regimes_reference.py` writes their files; each row
+also keeps the number of points and their flux summed, which the tests
+check the curves built here against. Every transit has quadratic limb
+darkening (0.4804, 0.1867). The noise per point is
 the sum of four uniforms from SplitMix64(seed), less 2, times sqrt(3), times
 the point's error, so both packages see the same light curves (the transit
 from batman in Python and `rustellar-model` here, which agree to a few

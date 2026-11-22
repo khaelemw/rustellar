@@ -56,7 +56,16 @@ fn the_suites_each_command_picks() {
             "mixed (tls)",
             "varying (tls)",
             "short (tls)",
-            "sectors (tls)"
+            "sectors (tls)",
+            "long (tls)",
+            "ultrashort (tls)",
+            "deep (tls)",
+            "grazing (tls)",
+            "eccentric (tls)",
+            "fast (tls)",
+            "gaps (tls)",
+            "flagged (tls)",
+            "variable (tls)"
         ]
     );
     // A suite by name, a crate and the same suite again: once each.
@@ -70,9 +79,9 @@ fn the_suites_each_command_picks() {
     );
     // A crate with no suite of that measure: none.
     assert!(picked(&["accuracy", "model"]).is_empty());
-    assert_eq!(picked(&["accuracy"]).len(), 11);
+    assert_eq!(picked(&["accuracy"]).len(), 20);
     assert_eq!(picked(&["speed", "all"]).len(), 8);
-    assert_eq!(picked(&["all", "--quick"]).len(), 19);
+    assert_eq!(picked(&["all", "--quick"]).len(), 28);
 }
 
 #[test]
