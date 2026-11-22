@@ -70,7 +70,8 @@ The best candidate also comes with:
   one.
 - A fit of the transit shape with the radius ratio and impact parameter
   free. When the cadence resolves ingress, this gives durations and depths
-  without the fixed template's bias.
+  without the fixed template's bias; `Candidate::duration_estimate` takes
+  its duration where it fits better than the template.
 
 The best fit is also refined in period, duration and time together, and
 its chi-squared is never worse than at transitleastsquares' answer.
@@ -85,9 +86,9 @@ same period grid. A transit counts as found when the best period is within
 
 | Light curves | Found | Period (relative) | Mid-transit time (min) | Duration (relative) | Depth (relative) |
 |---|---|---|---|---|---|
-| 300, 27 d at 30 min, some sparse | 244 / 245 | 3.8e-4 / 5.2e-4 | 6.1 / 9.0 | 0.055 / 0.093 | 0.061 / 0.065 |
-| 200, 30 then 10 min | 165 / 161 | 2.9e-4 / 4.8e-4 | 4.7 / 7.2 | 0.048 / 0.34 | 0.052 / 0.055 |
-| 200, errors 1 to 3 times the noise | 130 / 126 | 4.4e-4 / 5.8e-4 | 7.6 / 9.4 | 0.063 / 0.087 | 0.083 / 0.10 |
+| 300, 27 d at 30 min, some sparse | 244 / 245 | 3.8e-4 / 5.2e-4 | 6.1 / 9.0 | 0.066 / 0.093 | 0.061 / 0.065 |
+| 200, 30 then 10 min | 165 / 161 | 2.9e-4 / 4.8e-4 | 4.7 / 7.2 | 0.051 / 0.34 | 0.052 / 0.055 |
+| 200, errors 1 to 3 times the noise | 130 / 126 | 4.4e-4 / 5.8e-4 | 7.6 / 9.4 | 0.072 / 0.087 | 0.083 / 0.10 |
 | 40, 27 d at 2 min | 32 / 32 | 2.5e-4 / 3.5e-4 | 3.0 / 4.1 | 0.019 / 0.048 | 0.047 / 0.059 |
 | 24, two sectors at 2 min | 22 / 22 | 8.4e-5 / 1.6e-4 | 3.1 / 4.8 | 0.040 / 0.072 | 0.043 / 0.073 |
 
@@ -104,20 +105,35 @@ star with the Sun's density, each set changing one thing:
 
 | Light curves | Found | Period (relative) | Mid-transit time (min) | Duration (relative) | Depth (relative) |
 |---|---|---|---|---|---|
-| 100, periods 9 to 13.5 d (two or three transits) | 66 / 61 | 5.2e-4 / 6.5e-4 | 8.1 / 14 | 0.064 / 0.075 | 0.076 / 0.063 |
-| 100, periods 0.25 to 1 d | 50 / 50 | 5.5e-4 / 7.7e-4 | 2.5 / 3.7 | 0.042 / 0.054 | 0.073 / 0.056 |
-| 100, radius ratios 0.1 to 0.2 | 100 / 100 | 1.2e-4 / 4.0e-4 | 2.2 / 5.7 | 0.12 / 0.073 | 0.0094 / 0.021 |
-| 100, grazing | 93 / 90 | 2.0e-4 / 3.8e-4 | 3.1 / 5.7 | 0.26 / 0.15 | 0.087 / 0.15 |
-| 100, eccentricities 0.1 to 0.7 | 82 / 82 | 3.0e-4 / 4.6e-4 | 5.7 / 8.2 | 0.044 / 0.074 | 0.058 / 0.072 |
-| 40, 6 d at 20 s | 28 / 28 | 1.2e-3 / 2.3e-3 | 5.0 / 6.1 | 0.089 / 0.098 | 0.094 / 0.10 |
-| 40, three blocks over 108 d | 29 / 30 | 5.1e-5 / 1.3e-4 | 3.6 / 8.0 | 0.034 / 0.26 | 0.046 / 0.047 |
+| 100, periods 9 to 13.5 d (two or three transits) | 66 / 61 | 5.2e-4 / 6.5e-4 | 8.1 / 14 | 0.066 / 0.075 | 0.076 / 0.063 |
+| 100, periods 0.25 to 1 d | 50 / 50 | 5.5e-4 / 7.7e-4 | 2.5 / 3.7 | 0.043 / 0.054 | 0.073 / 0.056 |
+| 100, radius ratios 0.1 to 0.2 | 100 / 100 | 1.2e-4 / 4.0e-4 | 2.2 / 5.7 | 0.0047 / 0.073 | 0.0094 / 0.021 |
+| 100, grazing | 93 / 90 | 2.0e-4 / 3.8e-4 | 3.1 / 5.7 | 0.094 / 0.15 | 0.087 / 0.15 |
+| 100, eccentricities 0.1 to 0.7 | 82 / 82 | 3.0e-4 / 4.6e-4 | 5.7 / 8.2 | 0.054 / 0.074 | 0.058 / 0.072 |
+| 40, 6 d at 20 s | 28 / 28 | 1.2e-3 / 2.3e-3 | 5.0 / 6.1 | 0.093 / 0.098 | 0.094 / 0.10 |
+| 40, three blocks over 108 d | 29 / 30 | 5.1e-5 / 1.3e-4 | 3.6 / 8.0 | 0.049 / 0.26 | 0.046 / 0.047 |
 | 100, flagged points, outliers, NaNs | 19 / 18 | 3.2e-4 / 4.0e-4 | 4.1 / 5.6 | 0.037 / 0.038 | 0.023 / 0.030 |
-| 100, spotted stars, red noise, detrended | 65 / 66 | 2.9e-4 / 4.6e-4 | 5.2 / 7.7 | 0.080 / 0.062 | 0.20 / 0.21 |
+| 100, spotted stars, red noise, detrended | 65 / 66 | 2.9e-4 / 4.6e-4 | 5.2 / 7.7 | 0.090 / 0.062 | 0.20 / 0.21 |
+| The same, detrended again around the candidate | 65 / 66 | 4.0e-4 / 4.6e-4 | 5.8 / 7.7 | 0.068 / 0.062 | 0.085 / 0.21 |
 
 This crate is again better in period and mid-transit time in every set,
-but not in duration: on deep, grazing and detrended transits,
-transitleastsquares' duration is closer (in 86 of 100, 75 of 90 and 46 of
-64). Outliers of 5 to 20 sigma in 1% of the points break both searches, so
+and in duration in every set but the detrended one. The duration is
+`Candidate::duration_estimate`: the template's, or the shape fit's where
+that fit lowers the chi-squared by more than 1. A fixed template fits deep
+and grazing transits, whose ingress is longer than its own, with too short
+a duration (by 12% and 26%), and the shape fit removes that bias.
+
+On the detrended curves every duration comes out short, because the
+biweight takes part of each transit's edges into the trend: this crate's
+by 8%, transitleastsquares' by 4%. On evenly sampled curves
+transitleastsquares' durations run 2 to 6% longer than this crate's, even
+where this crate's are unbiased, so here they land closer. Detrending
+again with the candidate's transits masked (`Detrend::flatten_around` in
+`rustellar-detrend`) brings the duration level with transitleastsquares'
+(closer in 31 of 64, p 0.90) and cuts the depth error from 0.20 to 0.085.
+`cargo validate accuracy around` reruns that row.
+
+Outliers of 5 to 20 sigma in 1% of the points break both searches, so
 clip them before searching.
 
 **Against a box search.** On `rustellar-bls`'s 1,000 limb-darkened

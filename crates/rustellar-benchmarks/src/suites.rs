@@ -59,7 +59,7 @@ const fn speed(crate_name: &'static str, about: &'static str, minutes: f64) -> S
 }
 
 /// Every suite, accuracy first.
-pub const SUITES: [Suite; 28] = [
+pub const SUITES: [Suite; 29] = [
     accuracy(
         "many",
         "tls",
@@ -155,6 +155,13 @@ pub const SUITES: [Suite; 28] = [
         "variable",
         "tls",
         "100 transits on spotted stars with red noise, detrended first, against transitleastsquares",
+        1.5,
+        0.3,
+    ),
+    accuracy(
+        "around",
+        "tls",
+        "the variable set detrended again around the candidate, against transitleastsquares on the first detrending",
         1.5,
         0.3,
     ),
@@ -357,6 +364,18 @@ pub fn run(suite: Suite, settings: &Settings) -> String {
                 elapsed(start)
             )
         }
+        (Measure::Accuracy, "around") => {
+            let curves = tls::run_around(settings.limit, &settings.options.with_threads(threads));
+            format!(
+                "## rustellar-tls against transitleastsquares 1.32
+
+{}
+({:.0} s)
+",
+                tls::report("variable, detrended again around the candidate", &curves),
+                elapsed(start)
+            )
+        }
         (Measure::Accuracy, name) => {
             let kind = Kind::from_name(name).expect("a TLS set");
             let curves = tls::run(
@@ -366,7 +385,7 @@ pub fn run(suite: Suite, settings: &Settings) -> String {
             );
             format!(
                 "## rustellar-tls against transitleastsquares 1.32\n\n{}\n({:.0} s)\n",
-                tls::report(kind, &curves),
+                tls::report(kind.name(), &curves),
                 elapsed(start)
             )
         }

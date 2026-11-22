@@ -120,3 +120,45 @@ fn nothing_to_fit() {
     };
     assert_eq!(shape(&p, away, 1e-3, ld()), None);
 }
+
+// The duration estimate takes the shape's duration only where its
+// chi-squared is more than `SHAPE_CHI2_GAIN` below the template's.
+#[test]
+fn the_duration_estimate_needs_a_better_shape() {
+    let planet = TransitParams::new(
+        Epoch::from_days(1.0).unwrap(),
+        TimeDelta::from_days(2.5).unwrap(),
+        RadiusRatio::new(0.15).unwrap(),
+        ScaledSemiMajorAxis::new(8.0).unwrap(),
+        ImpactParameter::new(0.5).unwrap(),
+        ld(),
+    )
+    .unwrap();
+    let time: Vec<f64> = (0..2160).map(|i| f64::from(i) / 144.0).collect();
+    let flux = time
+        .iter()
+        .map(|&t| planet.flux_at(Epoch::from_days(t).unwrap()))
+        .collect();
+    let lc = crate::LightCurve::from_days(time, flux, vec![1e-3; 2160]).unwrap();
+    let periods = crate::Periods::from_days(&[2.45, 2.5, 2.55]).unwrap();
+    let options = crate::SearchOptions::default().with_bootstrap(0);
+    let result = crate::Tls::new(&lc)
+        .unwrap()
+        .search(&periods, &options)
+        .unwrap();
+    let mut best = result.best().cloned().unwrap();
+    let shape = best.shape.unwrap();
+    assert_ne!(shape.duration, best.duration);
+    assert_eq!(best.duration_estimate(), shape.duration);
+    // Exactly the gain: not enough.
+    best.chi2 = shape.chi2 + crate::SHAPE_CHI2_GAIN;
+    assert_eq!(best.duration_estimate(), best.duration);
+    best.chi2 = shape.chi2 + crate::SHAPE_CHI2_GAIN + 1e-6;
+    assert_eq!(best.duration_estimate(), shape.duration);
+    // A shape no better, or none.
+    best.chi2 = shape.chi2;
+    assert_eq!(best.duration_estimate(), best.duration);
+    best.chi2 = shape.chi2 + 1e6;
+    best.shape = None;
+    assert_eq!(best.duration_estimate(), best.duration);
+}

@@ -2,10 +2,11 @@
 
 use std::fmt::Write as _;
 
-use rustellar_core::Epoch;
+use rustellar_core::{Epoch, LightCurve, TimeDelta};
+use rustellar_detrend::{BreakTolerance, Candidate, Detrend, Masking};
 use rustellar_tls::{OfirPeriod, Periods, SearchOptions, Tls, TlsError, TlsResult};
 
-use crate::curves::{Found, Kind, Row, light_curve, rows, transit};
+use crate::curves::{Found, Kind, Row, light_curve, raw, rows, transit};
 use crate::stats::{median, sign_test, timing};
 
 /// `x` (zero or above) to three significant figures, in plain notation from
@@ -49,7 +50,11 @@ pub struct Curve {
 ///
 /// If the search failed, which a reference curve never makes it do.
 fn curve(kind: Kind, row: &Row, result: Result<TlsResult, TlsError>) -> Curve {
-    let lc = light_curve(kind, row);
+    curve_of(&light_curve(kind, row), row, result)
+}
+
+/// The curve of `row`, `lc` as searched, described by `result`.
+fn curve_of(lc: &LightCurve, row: &Row, result: Result<TlsResult, TlsError>) -> Curve {
     let params = transit(row);
     let result = result.expect("a search");
     let sde = result.spectra().map_or(0.0, |s| s.sde);
@@ -57,7 +62,7 @@ fn curve(kind: Kind, row: &Row, result: Result<TlsResult, TlsError>) -> Curve {
         period: b.period.as_days(),
         t0: b.transit_time.as_days(),
         depth: b.depth,
-        duration: b.duration.as_days(),
+        duration: b.duration_estimate().as_days(),
         sde,
     });
     Curve {
@@ -93,11 +98,59 @@ pub fn run(kind: Kind, limit: usize, options: &SearchOptions) -> Vec<Curve> {
         .collect()
 }
 
+/// The `Variable` set searched again around its candidates: each curve
+/// flattened as [`run`] flattens it and searched, then flattened again
+/// with the candidate's transits masked (`Detrend::flatten_around`, its
+/// default masking) and searched again. A curve whose first search finds
+/// nothing keeps its first flattening.
+///
+/// # Panics
+///
+/// If a search or a flattening fails, which a reference curve never makes
+/// them do.
+#[must_use]
+pub fn run_around(limit: usize, options: &SearchOptions) -> Vec<Curve> {
+    let kind = Kind::Variable;
+    let rows: Vec<Row> = rows(kind.reference()).into_iter().take(limit).collect();
+    let job = |lc: &LightCurve| {
+        let periods = OfirPeriod::default().periods(lc).expect("a grid");
+        (Tls::new(lc).expect("a light curve"), periods)
+    };
+    let blind: Vec<(Tls, Periods)> = rows.iter().map(|r| job(&light_curve(kind, r))).collect();
+    let flattened: Vec<LightCurve> = rows
+        .iter()
+        .zip(Tls::search_many(&blind, options))
+        .map(|(row, result)| {
+            let found = result.expect("a search").best().map(|b| Candidate {
+                period: b.period,
+                t0: b.transit_time,
+                duration: b.duration_estimate(),
+            });
+            let window = TimeDelta::from_days(row.window).expect("finite");
+            let half = TimeDelta::from_days(row.window / 2.0).expect("finite");
+            Detrend::default()
+                .with_window(window)
+                .with_break_tolerance(BreakTolerance::Fixed(half))
+                .flatten_around(&raw(kind, row), &Masking::default(), |_| found)
+                .expect("detrended")
+                .flattened()
+                .light_curve()
+                .clone()
+        })
+        .collect();
+    let jobs: Vec<(Tls, Periods)> = flattened.iter().map(job).collect();
+    rows.iter()
+        .zip(&flattened)
+        .zip(Tls::search_many(&jobs, options))
+        .map(|((row, lc), result)| curve_of(lc, row, result))
+        .collect()
+}
+
 /// The comparison of a set as a Markdown table: how many transits each
 /// finds, and on those both find, each one's median error and how often
 /// ours is the closer, with the sign test's p-value.
 #[must_use]
-pub fn report(kind: Kind, curves: &[Curve]) -> String {
+pub fn report(name: &str, curves: &[Curve]) -> String {
     let ours = |c: &Curve| c.ours.filter(|f| recovered(f, &c.row));
     let found_ours = curves.iter().filter(|c| ours(c).is_some()).count();
     let found_tls = curves
@@ -116,7 +169,7 @@ pub fn report(kind: Kind, curves: &[Curve]) -> String {
     let _ = writeln!(
         out,
         "### {} ({} curves)\n\nFound within 1% of the period: rustellar-tls {found_ours}, TLS 1.32 {found_tls}, both {}.\n",
-        kind.name(),
+        name,
         curves.len(),
         both.len()
     );

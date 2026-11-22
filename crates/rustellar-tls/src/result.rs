@@ -188,7 +188,9 @@ pub struct Candidate {
     /// Its mid-transit time: the first after the light curve's first time
     /// less half a period.
     pub transit_time: Epoch,
-    /// From first to last contact.
+    /// The template's, from first to last contact. Where the transit's
+    /// ingress is longer than the template's (a large or grazing planet)
+    /// this comes out short; [`Candidate::duration_estimate`] corrects it.
     pub duration: TimeDelta,
     /// The template's depth: the dimming at mid-transit.
     pub depth: f64,
@@ -224,6 +226,64 @@ pub struct Candidate {
     pub snr: Option<SignalToNoise>,
     /// The transit with the planet's size and impact parameter free.
     pub shape: Option<TransitShape>,
+}
+
+/// How much lower the shape's chi-squared must be than the template's for
+/// [`Candidate::duration_estimate`] to take its duration.
+pub const SHAPE_CHI2_GAIN: f64 = 1.0;
+
+impl Candidate {
+    /// The duration from first to last contact: the [`shape`](Self::shape)
+    /// fit's where it lowers the chi-squared by more than
+    /// [`SHAPE_CHI2_GAIN`], else the template's [`duration`](Self::duration).
+    ///
+    /// The template's shape is fixed, so on a transit with a longer ingress
+    /// it fits a shorter duration: by 12% on radius ratios of 0.1 to 0.2
+    /// and 26% on grazing transits. The shape fit removes that bias where
+    /// the data tell the shapes apart; where they do not (a small planet
+    /// at 30 minutes), its radius ratio and impact parameter trade against
+    /// each other and its duration scatters more than the template's.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_model::{
+    ///     ImpactParameter, LimbDarkening, RadiusRatio, ScaledSemiMajorAxis, TransitParams,
+    /// };
+    /// use rustellar_tls::{Epoch, LightCurve, Periods, SearchOptions, TimeDelta, Tls};
+    ///
+    /// // A planet of radius ratio 0.15 every 2.5 days, every 10 minutes.
+    /// let planet = TransitParams::new(
+    ///     Epoch::from_days(1.0)?,
+    ///     TimeDelta::from_days(2.5)?,
+    ///     RadiusRatio::new(0.15)?,
+    ///     ScaledSemiMajorAxis::new(8.0)?,
+    ///     ImpactParameter::new(0.5)?,
+    ///     LimbDarkening::quadratic(0.4804, 0.1867)?,
+    /// )?;
+    /// let time: Vec<f64> = (0..2160).map(|i| f64::from(i) / 144.0).collect();
+    /// let flux = time
+    ///     .iter()
+    ///     .map(|&t| planet.flux_at(Epoch::from_days(t).unwrap()))
+    ///     .collect();
+    /// let lc = LightCurve::from_days(time, flux, vec![1e-3; 2160])?;
+    /// let periods = Periods::from_days(&[2.45, 2.5, 2.55])?;
+    /// let options = SearchOptions::default().with_bootstrap(0);
+    ///
+    /// let best = Tls::new(&lc)?.search(&periods, &options)?.best().cloned().unwrap();
+    /// let truth = planet.t14().expect("a transit").as_days();
+    /// let error = |d: TimeDelta| (d.as_days() / truth - 1.0).abs();
+    /// assert!(error(best.duration) > 0.05);
+    /// assert!(error(best.duration_estimate()) < 0.01);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn duration_estimate(&self) -> TimeDelta {
+        match self.shape {
+            Some(shape) if self.chi2 - shape.chi2 > SHAPE_CHI2_GAIN => shape.duration,
+            _ => self.duration,
+        }
+    }
 }
 
 /// The result of a search.

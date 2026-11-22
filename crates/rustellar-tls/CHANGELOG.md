@@ -22,3 +22,8 @@ All notable changes to this crate are recorded here. The format follows
 - `Method::Fold` bins the folded points at high cadence, the template a
   quadratic across each bin: 2.7 to 3.7 times faster at 2 minutes, every
   period's best within 0.2% of the unbinned one.
+- `Tls::search_many`: many light curves searched at once, sharing the
+  threads and the GPU, each result the same as its own search.
+- `Candidate::duration_estimate` and `SHAPE_CHI2_GAIN`: the shape fit's
+  duration where it lowers the chi-squared by more than 1, else the
+  template's.

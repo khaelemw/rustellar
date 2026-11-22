@@ -64,8 +64,8 @@ mod tests;
 pub use error::TlsError;
 pub use options::{Method, SearchOptions, Stars, Template};
 pub use result::{
-    Candidate, OddEven, PeriodFit, ShapeUncertainties, SignalToNoise, Spectra, TlsResult,
-    TransitDepth, TransitShape, Uncertainties,
+    Candidate, OddEven, PeriodFit, SHAPE_CHI2_GAIN, ShapeUncertainties, SignalToNoise, Spectra,
+    TlsResult, TransitDepth, TransitShape, Uncertainties,
 };
 pub use tls::Tls;
 
