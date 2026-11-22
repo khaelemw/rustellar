@@ -21,7 +21,7 @@ This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
 `TimeDelta` and their errors), so you don't need to add `rustellar-core`
 yourself or keep its version in step.
 
-**Status:** in development, not yet released.
+**Status:** version 0.1. The API may still change before 1.0.
 
 Needs Rust 1.85 or later. The `cuda` feature runs the search on an NVIDIA
 GPU with exactly the same results as the CPU. It needs Rust 1.88 or later,

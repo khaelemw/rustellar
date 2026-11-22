@@ -28,7 +28,7 @@ searches fall back to the CPU.
 The shared types from `rustellar-core` (`LightCurve`, `Epoch`, `TimeDelta`)
 are always included.
 
-**Status:** in development, not yet released.
+**Status:** version 0.1. The API may still change before 1.0.
 
 ## License
 

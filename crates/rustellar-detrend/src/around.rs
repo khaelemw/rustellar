@@ -23,8 +23,11 @@ pub const MASKED_WINDOW_PER_DURATION: f64 = 2.5;
 /// duration.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Candidate {
+    /// The period.
     pub period: TimeDelta,
+    /// A mid-transit time.
     pub t0: Epoch,
+    /// The duration, first to last contact.
     pub duration: TimeDelta,
 }
 

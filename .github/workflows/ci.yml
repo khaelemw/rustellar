@@ -29,6 +29,9 @@ jobs:
             echo "cudarc is built without the cuda feature"
             exit 1
           fi
+      # Every published crate builds from its own package, as crates.io
+      # will build it (integration tests and reference data left out).
+      - run: cargo package --workspace --exclude rustellar-benchmarks
 
   test:
     strategy:

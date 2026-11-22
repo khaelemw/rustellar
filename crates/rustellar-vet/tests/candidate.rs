@@ -130,7 +130,7 @@ fn from_a_tls_search() {
     let c = Candidate::try_from(best).unwrap();
     assert_eq!(c.period(), best.period);
     assert_eq!(c.transit_time(), best.transit_time);
-    assert_eq!(c.duration(), best.duration);
+    assert_eq!(c.duration(), best.duration_estimate());
     assert_eq!(c.depth(), Some(best.depth));
     assert!((c.period().as_days() - 3.0).abs() < 0.01);
 }

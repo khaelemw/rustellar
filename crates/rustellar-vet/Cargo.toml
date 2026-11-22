@@ -5,6 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+repository.workspace = true
 keywords = ["astronomy", "exoplanet", "transit", "vetting"]
 categories = ["science", "algorithms"]
 # The published package holds the library and its unit tests, which need no

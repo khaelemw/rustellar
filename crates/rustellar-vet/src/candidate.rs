@@ -142,13 +142,14 @@ impl TryFrom<&rustellar_bls::BestBox> for Candidate {
 }
 
 /// The best candidate of a `rustellar-tls` search: its period, mid-transit
-/// time, duration and depth.
+/// time, depth and [`duration_estimate`](rustellar_tls::Candidate::duration_estimate)
+/// (the shape fit's duration where it fits better than the template).
 #[cfg(feature = "tls")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tls")))]
 impl TryFrom<&rustellar_tls::Candidate> for Candidate {
     type Error = VetError;
 
     fn try_from(best: &rustellar_tls::Candidate) -> Result<Self, VetError> {
-        Self::new(best.period, best.transit_time, best.duration)?.with_depth(best.depth)
+        Self::new(best.period, best.transit_time, best.duration_estimate())?.with_depth(best.depth)
     }
 }

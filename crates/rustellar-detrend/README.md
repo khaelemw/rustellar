@@ -30,7 +30,7 @@ This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
 `TimeDelta` and their errors), so you don't need to add `rustellar-core`
 yourself or keep its version in step.
 
-**Status:** in development, not yet released.
+**Status:** version 0.1. The API may still change before 1.0.
 
 ## Statement of need
 
@@ -195,7 +195,7 @@ has two steps:
    masked. `Detrend::flatten_around` does both steps with any search (see
    below).
 
-`cargo run --release -p rustellar-benchmarks --bin compare -- window`
+`cargo validate accuracy window`
 reruns the study.
 
 ## Masking a search's candidate
@@ -234,7 +234,7 @@ then measure with the mask. The depth comes out about 1% too deep,
 because the search also picks the mid-transit time and duration where the
 noise happens to dip.
 
-`cargo run --release -p rustellar-benchmarks --bin compare -- masking`
+`cargo validate accuracy masking`
 reruns the study.
 
 ## Whitening before the search
@@ -292,7 +292,7 @@ false alarms rise too (from 0.098 to 0.152 on white noise, matched up to
 order 10). So whitening and the matched search are worth trying at order
 30, but aren't a default step.
 
-`cargo run --release -p rustellar-benchmarks --bin compare -- whitening`
+`cargo validate accuracy whitening`
 reruns the study.
 
 ## Splines or the biweight
@@ -325,7 +325,7 @@ same way (2 sigma below, 3 above) gave the same result: depth kept 0.79 at
 2.5 durations, search 0.385. The robust splines are meant for light
 curves with flares and outliers, which these curves don't have.
 
-`cargo run --release -p rustellar-benchmarks --bin compare -- methods`
+`cargo validate accuracy methods`
 reruns the study (its README says how wotan's columns were made).
 
 ## Speed

@@ -58,3 +58,5 @@ All notable changes to this crate are recorded here. The format follows
   `rustellar-bls`'s matched search; checked against the filtered box
   summed by hand. `DetrendError::LightCurveMismatch` and
   `DetrendError::DegenerateModel`.
+- `Detrend::flatten_many`: many light curves flattened at once, each
+  result the same as its own `flatten`.

@@ -4,10 +4,11 @@
 //!
 //! The sampler is an ensemble of walkers moved together, as Goodman &
 //! Weare's (2010) affine-invariant sampler and emcee (Foreman-Mackey et
-//! al. 2013). Any log-probability over a vector of reals can be sampled;
-//! nothing is tied to transits or to an instrument.
+//! al. 2013). Any log-probability over a vector of reals can be sampled,
+//! and the [`transit`] module builds one for a transit fit. Nothing is tied
+//! to an instrument.
 //!
-//! **Status:** in development. So far:
+//! In this crate:
 //!
 //! - [`LogProbability`]: what is sampled, for any closure
 //!   `Fn(&[f64]) -> f64`.
@@ -72,3 +73,8 @@ pub use ensemble::Ensemble;
 pub use error::McmcError;
 pub use moves::{Direction, Move};
 pub use probability::LogProbability;
+
+// The README's example, compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

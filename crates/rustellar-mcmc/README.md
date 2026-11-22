@@ -16,7 +16,7 @@ rustellar = { version = "0.1", features = ["mcmc"] }
 rustellar-mcmc = "0.1"
 ```
 
-**Status:** in development, not yet released.
+**Status:** version 0.1. The API may still change before 1.0.
 
 ## Statement of need
 
@@ -81,8 +81,8 @@ priors, at a lower cost per independent sample than the Python samplers.
   autocorrelated up to 0.99, anticorrelated, unconverged, tied,
   heavy-tailed, drifting, too short, constant) they agree with emcee
   3.1.6 and ArviZ 1.0 to 5e-15 relative. The normal quantile used in the
-  rank normalisation (Wichura's AS 241) is within 4.9e-16 of 50-digit
-  values.
+  rank normalisation (Wichura's AS 241) is within 1e-15 relative of
+  50-digit values, from 1e-300 to 1 - 2^-53.
 - Random numbers: xoshiro256** (Blackman & Vigna 2021), seeded through
   SplitMix64 and matching the reference implementations' output, so a
   seed gives the same chain on every platform.

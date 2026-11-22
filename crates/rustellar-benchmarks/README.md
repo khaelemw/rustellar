@@ -137,10 +137,15 @@ the point's error, so both packages see identical light curves (the
 transit comes from batman in Python and from `rustellar-model` here,
 which agree to a few parts in 10^8).
 
-A run over every set takes about 4 minutes on 16 threads with the GPU (an
-AMD Ryzen 7 5700G and an RTX 3060 Ti), most of it the two 2-minute sets;
-`--limit` makes a quick check. The results are in `rustellar-tls`'s
-README.
+`cargo validate accuracy around` runs one more set: the `variable` curves
+flattened and searched as above, then flattened again with the
+candidate's transits masked (`Detrend::flatten_around`) and searched
+again, against transitleastsquares on the first flattening.
+
+A run over every set with `cargo validate-gpu accuracy tls` takes about
+5 minutes on 16 threads with the GPU (an AMD Ryzen 7 5700G and an RTX
+3060 Ti), the longest the gaps and the 300-curve sets; `--limit` makes a
+quick check. The results are in `rustellar-tls`'s README.
 
 ## rustellar-bls against rustellar-tls on limb-darkened transits
 

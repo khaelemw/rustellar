@@ -41,3 +41,8 @@ pub use error::{GridError, LightCurveError, TimeError};
 pub use grid::{OfirPeriod, Periods};
 pub use lightcurve::{FoldedLightCurve, LightCurve};
 pub use time::{Epoch, TimeDelta};
+
+// The README's example, compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

@@ -20,7 +20,7 @@ This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
 `TimeDelta` and their errors), so you don't need to add `rustellar-core`
 yourself or keep its version in step.
 
-**Status:** in development, not yet released.
+**Status:** version 0.1. The API may still change before 1.0.
 
 ## Statement of need
 
@@ -52,6 +52,8 @@ let params = TransitParams::new(
 
 let flux = params.flux_at(Epoch::from_days(1000.0)?);
 let t14 = params.t14().expect("this planet transits");
+assert!(flux < 0.99 && (t14.as_hours() - 2.431).abs() < 1e-3);
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 For many parameter sets on the same times, as in a fit, use `TransitModel`,

@@ -5,12 +5,12 @@
 //! is a simple ratio of it: half (every other predicted transit is empty),
 //! double (every other real transit was skipped), or a third, three times,
 //! two thirds or three halves. Its chi-squared alone often cannot tell
-//! these apart; the evidence transit by transit can. This crate will give,
-//! for a candidate and each of its aliases, the fit and that evidence: odd
+//! these apart; the evidence transit by transit can. This crate gives, for
+//! a candidate and each of its aliases, the fit and that evidence: odd
 //! and even depths, how many predicted transits have data, each transit's
 //! depth, and the signal to noise.
 //!
-//! **Status:** in development. So far:
+//! In this crate:
 //!
 //! - [`Candidate`]: a period, mid-transit time, duration and optional
 //!   depth, checked; from `rustellar-bls`'s best box with the `bls`

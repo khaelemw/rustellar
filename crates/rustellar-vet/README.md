@@ -19,7 +19,7 @@ This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
 `TimeDelta` and their errors), so you don't need to add `rustellar-core`
 yourself or keep its version in step.
 
-**Status:** in development, not yet released.
+**Status:** version 0.1. The API may still change before 1.0.
 
 ## Statement of need
 

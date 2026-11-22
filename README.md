@@ -4,7 +4,7 @@ Exoplanet and astronomy time-series tools in pure Rust. Each tool is a small
 crate of its own, tested for accuracy and speed against the Python packages
 astronomers already use.
 
-**Status:** in development. Nothing is released yet.
+**Status:** version 0.1, not yet published on crates.io.
 
 Depend on the `rustellar` crate and turn on the tools you need as features,
 or depend on a tool's own crate directly:

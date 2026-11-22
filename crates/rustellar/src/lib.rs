@@ -7,13 +7,13 @@
 //!
 //! | Feature | Module | What it does |
 //! |---|---|---|
+//! | `model` | [`model`] | Transit light curves (Mandel & Agol 2002), circular or eccentric, with exposure averaging |
+//! | `fit` | [`fit`] | Least-squares transit fits |
 //! | `bls` | [`bls`] | Box least squares transit search |
-//! | `detrend` | [`detrend`] | Detrending: a sliding biweight, median or mean, to full precision |
-//! | `ls` | [`ls`] | The Lomb-Scargle periodogram |
-//! | `mcmc` | [`mcmc`] | Ensemble Markov chain Monte Carlo (in development) |
-//! | `fit` | [`fit`] | Least-squares transit fits (in development) |
-//! | `model` | [`model`] | Transit light curves: Mandel & Agol (2002) with quadratic limb darkening, exposure averaging |
 //! | `tls` | [`tls`] | Transit least squares: a limb-darkened template search |
+//! | `detrend` | [`detrend`] | Detrending: sliding robust estimators, splines and an autoregressive model |
+//! | `ls` | [`ls`] | The Lomb-Scargle periodogram |
+//! | `mcmc` | [`mcmc`] | Ensemble Markov chain Monte Carlo and transit posteriors |
 //! | `vet` | [`vet`] | Vetting candidates: aliases, odd and even depths, coverage |
 //! | `full` | | Every tool |
 //! | `cuda` | | The `bls` and `tls` searches on an NVIDIA GPU where there is one (Rust 1.88 or later) |
@@ -22,7 +22,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! rustellar = { version = "0.0", features = ["model"] }
+//! rustellar = { version = "0.1", features = ["model"] }
 //! ```
 //!
 //! Each tool can also be used on its own (for example `rustellar-model`); the

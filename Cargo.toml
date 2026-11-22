@@ -3,23 +3,24 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.0.0"
+version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/khaelemw/rustellar"
 
 # Path for building in the workspace, version for crates.io. Keep the version
 # equal to workspace.package.version.
 [workspace.dependencies]
-rustellar-bls = { path = "crates/rustellar-bls", version = "0.0.0" }
-rustellar-core = { path = "crates/rustellar-core", version = "0.0.0" }
-rustellar-detrend = { path = "crates/rustellar-detrend", version = "0.0.0" }
-rustellar-fit = { path = "crates/rustellar-fit", version = "0.0.0" }
-rustellar-ls = { path = "crates/rustellar-ls", version = "0.0.0" }
-rustellar-mcmc = { path = "crates/rustellar-mcmc", version = "0.0.0" }
-rustellar-model = { path = "crates/rustellar-model", version = "0.0.0" }
-rustellar-tls = { path = "crates/rustellar-tls", version = "0.0.0" }
-rustellar-vet = { path = "crates/rustellar-vet", version = "0.0.0" }
+rustellar-bls = { path = "crates/rustellar-bls", version = "0.1.0" }
+rustellar-core = { path = "crates/rustellar-core", version = "0.1.0" }
+rustellar-detrend = { path = "crates/rustellar-detrend", version = "0.1.0" }
+rustellar-fit = { path = "crates/rustellar-fit", version = "0.1.0" }
+rustellar-ls = { path = "crates/rustellar-ls", version = "0.1.0" }
+rustellar-mcmc = { path = "crates/rustellar-mcmc", version = "0.1.0" }
+rustellar-model = { path = "crates/rustellar-model", version = "0.1.0" }
+rustellar-tls = { path = "crates/rustellar-tls", version = "0.1.0" }
+rustellar-vet = { path = "crates/rustellar-vet", version = "0.1.0" }
 
 # The searches' tests run thousands of searches (injection-recovery against
 # astropy and transitleastsquares), and the fit's thousands of fits to

@@ -57,3 +57,5 @@ All notable changes to this crate are recorded here. The format follows
   fall in time windows the user gives.
 - `VetError`, with `RatioZero`, `AliasPeriodNotFinite`,
   `WidthOutOfRange`, `ToleranceOutOfRange` and `WindowReversed`.
+- `refine_with_threads`: `refine` with the limb-darkened grid's trials
+  shared among threads, the same result as on one.

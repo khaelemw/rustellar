@@ -172,6 +172,10 @@ impl Chain {
 
     /// One parameter's draws past the first `discard` steps, walker by
     /// walker: the chains the [`diagnostics`] take.
+    ///
+    /// # Panics
+    ///
+    /// If `dimension` is not below [`Chain::dimensions`].
     #[must_use]
     pub fn traces(&self, dimension: usize, discard: usize) -> Vec<Vec<f64>> {
         assert!(dimension < self.dimensions, "out of range");

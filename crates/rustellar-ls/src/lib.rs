@@ -10,7 +10,7 @@
 //! Frequencies are in cycles per day of the light curve's own time scale.
 //! Nothing is tied to an instrument.
 //!
-//! **Status:** in development. So far:
+//! In this crate:
 //!
 //! - [`Frequencies`]: the trial frequencies, an even grid or any list,
 //!   checked once; [`AutoFrequency`], astropy's automatic grid.

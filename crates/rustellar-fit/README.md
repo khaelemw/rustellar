@@ -18,7 +18,7 @@ rustellar-fit = "0.1"
 This crate re-exports the core and model types it uses, so you don't need
 to add `rustellar-core` or `rustellar-model` yourself.
 
-**Status:** in development, not yet released.
+**Status:** version 0.1. The API may still change before 1.0.
 
 ## Statement of need
 
@@ -134,7 +134,7 @@ runs the Rust timings alone.
 | Grazing | 14 ms | 380 ms | 17 ms† | 23 ms† | 39 ms† | 8.5 ms† |
 | Long cadence | 8.6 ms | 200 ms | 190 ms | 290 ms | 300 ms | 19 ms |
 
-† stopped far from the minimum (chi-squared 160 to 45,000 higher; see
+† stopped short of the minimum (chi-squared 3.6 to 45,000 higher; see
 the accuracy table), so these didn't do the same work. Where a method
 does reach the same minimum, this crate is 2.2 to 27 times as fast as the
 fastest of them.

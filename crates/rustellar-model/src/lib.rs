@@ -125,3 +125,8 @@ pub use uniform::flux_uniform;
 pub use rustellar_core::{
     Epoch, FoldedLightCurve, LightCurve, LightCurveError, TimeDelta, TimeError,
 };
+
+// The README's example, compiled and run as a doctest.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;

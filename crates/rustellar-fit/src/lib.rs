@@ -7,7 +7,7 @@
 //! 2010). Times are in days of the light curve's own scale; nothing is tied
 //! to an instrument.
 //!
-//! **Status:** in development. So far:
+//! In this crate:
 //!
 //! - [`TransitFit`]: the light curve, the starting parameters and
 //!   baseline, which [`Parameter`]s are free, and each point's exposure.

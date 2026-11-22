@@ -20,7 +20,7 @@ This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
 `TimeDelta` and their errors), so you don't need to add `rustellar-core`
 yourself or keep its version in step.
 
-**Status:** in development, not yet released.
+**Status:** version 0.1. The API may still change before 1.0.
 
 ## Statement of need
 
@@ -172,7 +172,8 @@ A missing GPU or CUDA driver never causes a panic. The kernels are
 compiled once per program (a quarter of a second), and each light curve's
 points are copied to the GPU on its first search there (tens of
 milliseconds). Seconds per search on an RTX 3060 Ti, next to the same
-16-thread CPU:
+16-thread CPU timed in the same run (a separate run from the table above,
+so the CPU times differ from it by up to 15%):
 
 | | GPU, refine 0 | GPU, refine 5 | 16 threads, refine 0 | 16 threads, refine 5 |
 |---|--:|--:|--:|--:|
