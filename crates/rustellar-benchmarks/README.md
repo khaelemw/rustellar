@@ -240,7 +240,7 @@ transit posterior.
 The references' times are in `data/speed_<crate>.csv`, one row per case,
 package (with its version) and seconds. They were run on the same machine
 (an AMD Ryzen 7 5700G, 8 cores, 16 threads; Python 3.12, numpy 2.4) by
-scripts kept outside the repository, each package on its own settings as
+the scripts in [`references/`](references/README.md), each package on its own settings as
 the README says: batman, PyTransit and exoplanet-core on one thread, wotan
 on one thread after its first call, astropy's `BoxLeastSquares` on one
 thread, transitleastsquares on every core, astropy's `LombScargle` as it
@@ -250,3 +250,11 @@ always timed afresh, so on another machine they are that machine's while
 the references' stay this one's: compare the ratios only on a similar
 processor, or time the references there in the same way and replace the
 files.
+
+## Making the references again
+
+Every reference file in the repository, the crates' `tests/reference/` and
+this crate's `data/`, was made by a script in
+[`references/`](references/README.md), with a `requirements.txt` pinning
+the Python packages at the versions the files name. This crate is never
+published, so the Python stays here: the science crates have none.

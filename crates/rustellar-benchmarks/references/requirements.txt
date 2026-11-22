@@ -1,0 +1,27 @@
+# The Python references the rustellar crates are checked against, at the
+# versions every reference file in the repository was made with (Python
+# 3.12.9). Install into a fresh environment:
+#
+#     python -m venv .venv
+#     .venv/Scripts/activate         (Windows; source .venv/bin/activate elsewhere)
+#     pip install -r crates/rustellar-benchmarks/references/requirements.txt
+#
+# batman-package 2.5.3 reports itself as 2.5.1 (batman.__version__), the
+# version the tables and files name.
+numpy==2.4.3
+scipy==1.17.1
+mpmath==1.4.1
+astropy==7.2.0
+batman-package==2.5.3
+PyTransit==2.6.18
+numba==0.64.0
+exoplanet-core==0.4.0
+transitleastsquares==1.32
+wotan==1.10
+statsmodels==0.15.0
+scikit-learn==1.8.0
+emcee==3.1.6
+zeus-mcmc==2.5.4
+arviz==1.0.0
+exovetter==0.0.16
+leo-vetter==1.2.0
