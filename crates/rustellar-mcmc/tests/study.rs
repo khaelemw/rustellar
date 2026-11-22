@@ -1,7 +1,8 @@
 // The moves' autocorrelation times, for the README's table against emcee:
 // a ten-dimensional normal (any Gaussian, for affine-invariant moves) with
 // 40 walkers, and Goodman & Weare's Rosenbrock density with 20, three
-// seeds each. Run with `cargo test --release -p rustellar-mcmc --test
+// seeds each; the slice moves tuned and at a fixed width, for the table
+// against zeus. Run with `cargo test --release -p rustellar-mcmc --test
 // study -- --ignored --nocapture`.
 
 use std::time::Instant;
@@ -59,6 +60,11 @@ fn moves_autocorrelation_times() {
         (
             "slice gaussian",
             vec![(Move::slice_gaussian(1.0, 1000).unwrap(), 1.0)],
+        ),
+        ("slice fixed 2", vec![(Move::slice(2.0, 0).unwrap(), 1.0)]),
+        (
+            "slice gaussian fixed 2",
+            vec![(Move::slice_gaussian(2.0, 0).unwrap(), 1.0)],
         ),
     ];
     println!("target,move,tau,sd,evaluations per walker-step,per independent sample,seconds");
@@ -187,6 +193,7 @@ fn transit_speed() {
         ("stretch", Move::default()),
         ("de", Move::differential_evolution(None, 1e-5).unwrap()),
         ("slice", Move::slice(1.0, 2000).unwrap()),
+        ("slice fixed 1", Move::slice(1.0, 0).unwrap()),
     ] {
         for threads in [1, 4] {
             let ensemble = Ensemble::new(walkers.clone())

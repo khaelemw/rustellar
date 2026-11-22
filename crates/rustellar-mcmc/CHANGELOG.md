@@ -21,6 +21,7 @@ All notable changes to this crate are recorded here. The format follows
   fit; a stellar density prior. `McmcError::InvalidPrior` and
   `NoCovariance`.
 - A pool of threads started once per run, the work taken item by item.
-- Time per independent sample against emcee with batman and PyTransit.
+- Time per independent sample against emcee with batman and PyTransit, and
+  the slice moves against zeus.
 - `diagnostics`: `integrated_time`, `rhat`, `ess_bulk`, `ess_tail`;
   `Chain::traces`, `autocorrelation_times`, `rhat`, `ess_bulk`, `ess_tail`.

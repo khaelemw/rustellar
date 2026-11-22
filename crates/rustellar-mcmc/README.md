@@ -123,6 +123,43 @@ log-probabilities each. The wall times measure the samplers' own
 overhead on cheap targets; for transits, where the model dominates, see
 below.
 
+## The slice moves against zeus
+
+zeus 2.5.4 (Karamanis & Beutler's own ensemble slice sampler) on the same
+targets, walkers, steps and seeds as the table above, and on the transit
+posterior below (40 walkers, 30,000 steps, the first 5,000 discarded; its
+batman model). zeus's differential move tunes its width until the
+expansions and contractions are about even, then stops; its Gaussian move
+keeps a fixed width, twice the other walkers' spread, which is a width of
+2 here (`Move::slice_gaussian(2.0, 0)`).
+
+| Target | Move | zeus tau | rustellar tau | zeus log-probabilities per independent sample | rustellar | zeus s per 1000 steps | rustellar s per 1000 steps |
+|---|---|---|---|---|---|---|---|
+| normal, 10-d | differential, tuned | 20.8 ± 0.3 | 21 ± 0.2 | 102 | 102 | 1.2 | 0.017 |
+| | Gaussian, width 2 | 20.5 ± 0.3 | 20.6 ± 0.2 | 102 | 102 | 1.4 | 0.054 |
+| Rosenbrock | differential, tuned | 878 ± 16 | 1209 ± 56 | 6097 | 9046 | 1.5 | 0.0089 |
+| | differential, width 2 | | 480 ± 73 | | 3789 | | 0.010 |
+| | Gaussian, width 2 | 556 ± 90 | 626 ± 65 | 4280 | 4821 | 1.7 | 0.016 |
+| transit | differential, tuned | 128 | 140 | 708 | 864 | | |
+| | differential, width 1 | | 125 | | 787 | | |
+
+With the width fixed the two cost the same log-probabilities a step to
+within 1.3% (6.96 and 6.88 at a width of 1 on the Rosenbrock density, 4.877
+and 4.874 on the normal): the same algorithm. Where they differ it is the
+width tuning settles on. zeus stops after a few dozen steps, at a width
+that varies from run to run (it draws its pairs of walkers from Python's
+own `random`, which numpy's seed does not set; an earlier run of the same
+study gave 1287 on the Rosenbrock density), while this crate tunes for
+`tune` steps. Tuning for even expansions and contractions is no optimum:
+on the curved Rosenbrock density a fixed width of 2 needs 2.4 times fewer
+log-probabilities than the tuned one (zeus's tuned differential move
+likewise needs more than its fixed-width Gaussian one), and on the normal
+it costs nothing. On the transit zeus needs 10% to 20% fewer
+log-probabilities per independent sample, but each costs four times
+more, so its 43.6 ms per independent sample (one thread) is 3.3 times this
+crate's tuned slice move on one thread (13.1 ms) and 11 times on four (3.9 ms);
+both are slower here than differential evolution.
+
 ## The transit posterior against emcee with batman
 
 One hot Jupiter's transit (500 points, 0.0006 d apart, white noise of
@@ -156,6 +193,7 @@ batman's); this crate on 1 and 4 threads (`tests/study.rs`).
 | this crate, 1 thread | stretch | 520 | 16.4 | 8.53 |
 | this crate, 1 thread | DE | 241 | 15.0 | 3.61 |
 | this crate, 1 thread | slice | 140 | 93.1 | 13.1 |
+| zeus 2.5.4 + batman | slice | 128 | 339 | 43.6 |
 | this crate, 4 threads | stretch | 520 | 5.78 | 3.01 |
 | this crate, 4 threads | DE | 241 | 5.24 | 1.26 |
 | this crate, 4 threads | slice | 140 | 27.8 | 3.90 |
