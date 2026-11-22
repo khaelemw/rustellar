@@ -11,8 +11,10 @@ pub mod bls;
 pub mod detrend;
 pub mod fit;
 pub mod ls;
+pub mod mcmc;
 pub mod model;
 pub mod tls;
+pub mod vet;
 
 /// One reference time: a case, the package (with its version) and seconds.
 #[derive(Debug, Clone, PartialEq)]

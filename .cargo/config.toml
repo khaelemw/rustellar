@@ -22,3 +22,12 @@ gpu-coverage-tls = [
     "llvm-cov", "--release", "-p", "rustellar-tls", "--features", "cuda",
     "--summary-only",
 ]
+# The benchmark suites against the Python references, by crate:
+# `cargo validate list`, `cargo validate accuracy tls --quick`,
+# `cargo validate speed fit`, `cargo validate all --quick`.
+validate = ["run", "--release", "-p", "rustellar-benchmarks", "--bin", "rustellar-bench", "--"]
+# The same with the searches on an NVIDIA GPU.
+validate-gpu = [
+    "run", "--release", "-p", "rustellar-benchmarks", "--features", "cuda",
+    "--bin", "rustellar-bench", "--",
+]

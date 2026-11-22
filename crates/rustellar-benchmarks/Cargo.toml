@@ -18,6 +18,7 @@ rustellar-core.workspace = true
 rustellar-detrend.workspace = true
 rustellar-fit.workspace = true
 rustellar-ls.workspace = true
+rustellar-mcmc.workspace = true
 rustellar-model.workspace = true
 rustellar-tls.workspace = true
 rustellar-vet.workspace = true

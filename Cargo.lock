@@ -389,6 +389,7 @@ dependencies = [
  "rustellar-detrend",
  "rustellar-fit",
  "rustellar-ls",
+ "rustellar-mcmc",
  "rustellar-model",
  "rustellar-tls",
  "rustellar-vet",

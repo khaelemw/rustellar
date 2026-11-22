@@ -1,0 +1,11 @@
+case,package,seconds
+stretch,emcee+batman 3.1.6+2.5.1,0.03929
+stretch tau,emcee+batman 3.1.6+2.5.1,552
+de,emcee+batman 3.1.6+2.5.1,0.01581
+de tau,emcee+batman 3.1.6+2.5.1,239
+stretch,emcee+PyTransit 3.1.6+2.6.18,0.02416
+stretch tau,emcee+PyTransit 3.1.6+2.6.18,543
+de,emcee+PyTransit 3.1.6+2.6.18,0.00938
+de tau,emcee+PyTransit 3.1.6+2.6.18,231
+slice,zeus+batman 2.5.4+2.5.1,0.04358
+slice tau,zeus+batman 2.5.4+2.5.1,128

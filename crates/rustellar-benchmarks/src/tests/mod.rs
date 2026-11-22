@@ -4,6 +4,7 @@ mod masking;
 mod methods;
 mod speed;
 mod stats;
+mod suites;
 mod tls;
 mod vet;
 mod whitening;

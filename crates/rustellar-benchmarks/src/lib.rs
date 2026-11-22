@@ -18,8 +18,9 @@
 //! - [`vet`]: `rustellar-vet`'s alias table on transitleastsquares
 //!   1.32's candidates, at the true period and at its aliases.
 //! - [`speed`]: each crate timed against its Python references.
+//! - [`suites`]: every suite by name, run with one call.
 //!
-//! Run `cargo run --release -p rustellar-benchmarks --bin compare -- --help`.
+//! Run `cargo run --release -p rustellar-benchmarks --bin rustellar-bench -- list`.
 
 mod curves;
 pub mod limb;
@@ -33,6 +34,7 @@ mod random;
 mod recipe;
 pub mod speed;
 mod stats;
+pub mod suites;
 pub mod tls;
 pub mod vet;
 pub mod whitening;

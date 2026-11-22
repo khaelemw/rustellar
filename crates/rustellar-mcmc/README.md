@@ -182,7 +182,8 @@ The same posterior, 40 walkers, 30,000 steps with the first 5,000
 discarded; the time over the number of independent samples (40 x 25,000
 over the largest autocorrelation time). emcee 3.1.6 with batman 2.5.1
 and with PyTransit 2.6.18 (its quadratic model, within 3e-8 of
-batman's); this crate on 1 and 4 threads (`tests/study.rs`).
+batman's); this crate on 1 and 4 threads (`tests/study.rs`; `cargo
+validate speed mcmc` prints this table again).
 
 | Sampler | Move | tau | Seconds | ms per independent sample |
 |---|---|---|---|---|

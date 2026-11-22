@@ -175,7 +175,8 @@ the one-depth test have no counterpart in either.
 Milliseconds on one thread of an AMD Ryzen 7 5700G, for a 3.7-day planet
 in a TESS sector at 2 minutes (19,440 points) and in four years of Kepler
 long cadence (70,128 points), with the default limb-darkened shape and a
-box (`cargo bench -p rustellar-vet`):
+box (`cargo bench -p rustellar-vet`, or `cargo validate speed vet` for
+this table):
 
 | Step | TESS, limb-darkened | TESS, box | Kepler, limb-darkened | Kepler, box |
 |---|---|---|---|---|

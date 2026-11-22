@@ -73,14 +73,20 @@ cargo bench -p rustellar-model
 cargo bench -p rustellar-bls
 cargo bench -p rustellar-tls
 cargo bench -p rustellar-ls
+cargo bench -p rustellar-fit
+cargo bench -p rustellar-vet
 ```
 
-Compare the searches with their Python references on the same injected
-light curves, as tables
+Validate any crate against its Python references, accuracy and speed, as
+the tables in its README
 ([`rustellar-benchmarks`](crates/rustellar-benchmarks), not published):
 
 ```sh
-cargo run --release -p rustellar-benchmarks --bin compare
+cargo validate list                  # every suite, its crate and how long it takes
+cargo validate accuracy tls --quick  # a smoke check of one crate
+cargo validate speed fit mcmc        # speed tables, on a quiet machine
+cargo validate all --quick           # everything, in short
+cargo validate-gpu accuracy tls      # the searches on an NVIDIA GPU
 ```
 
 The reference data the tests compare against is in each crate's

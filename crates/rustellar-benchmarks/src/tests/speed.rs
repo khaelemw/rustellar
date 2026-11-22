@@ -4,8 +4,8 @@
 use std::num::NonZeroUsize;
 
 use crate::speed::{
-    Reference, best, bls, detrend, fit, ls, model, package, references, seconds, short,
-    significant, tls, two_figures,
+    Reference, best, bls, detrend, fit, ls, mcmc, model, package, references, seconds, short,
+    significant, tls, two_figures, vet,
 };
 
 const TWO: NonZeroUsize = NonZeroUsize::new(2).unwrap();
@@ -31,6 +31,7 @@ fn the_reference_files() {
         tls::reference(),
         ls::reference(),
         fit::reference(),
+        mcmc::reference(),
     ] {
         let rows = references(csv);
         assert!(!rows.is_empty());
@@ -222,4 +223,60 @@ fn the_fit_table() {
     // A missing time is a dash.
     let out = fit::report(&[], &[]);
     assert!(out.contains("| grazing | - | - | - | - | - | - |"), "{out}");
+}
+
+#[test]
+fn the_vet_table() {
+    let cases = vec![vet::case("short", 6.0, 10.0 / 1440.0)];
+    let timings = vet::run(&cases, 1, 1e-6);
+    // Two shapes for each step but the secondary eclipse.
+    assert_eq!(timings.len(), 2 * vet::STEPS.len() - 1);
+    assert!(timings.iter().all(|t| t.3 > 0.0));
+    let table = vet::report(&cases, &timings);
+    assert!(
+        table.starts_with("| Step | short, limb-darkened | short, box |"),
+        "{table}"
+    );
+    assert!(table.contains("| `refine` |"), "{table}");
+    // The secondary eclipse has no box column.
+    assert!(
+        table.contains(
+            " | - |
+"
+        ),
+        "{table}"
+    );
+    assert_eq!(vet::cases().len(), 2);
+}
+
+#[test]
+fn the_mcmc_table() {
+    let timings = mcmc::run(&mcmc::light_curve(), TWO, (16, 400, 100));
+    assert_eq!(timings.len(), 2 * mcmc::MOVES.len());
+    assert!(timings.iter().all(|t| t.2 > 0.0 && t.3 > 0.0));
+    let one = mcmc::run(&mcmc::light_curve(), NonZeroUsize::MIN, (16, 200, 50));
+    assert_eq!(one.len(), mcmc::MOVES.len());
+    let refs = references(mcmc::reference());
+    let table = mcmc::report(&timings, &refs);
+    assert!(
+        table.contains("| emcee 3.1.6 + batman 2.5.1 | stretch | 552 | 39 ms |"),
+        "{table}"
+    );
+    assert!(
+        table.contains("| zeus 2.5.4 + batman 2.5.1 | slice | 128 |"),
+        "{table}"
+    );
+    assert!(
+        table.contains("| rustellar-mcmc, 2 threads | de |"),
+        "{table}"
+    );
+    assert!(
+        table.contains("| rustellar-mcmc, 1 thread | slice |"),
+        "{table}"
+    );
+    // No reference row for a move without both its time and its tau.
+    assert!(
+        !table.contains("zeus 2.5.4 + batman 2.5.1 | stretch"),
+        "{table}"
+    );
 }

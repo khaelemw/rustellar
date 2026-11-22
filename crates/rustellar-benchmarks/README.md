@@ -5,6 +5,45 @@ data, with one command. Not published: it depends on the libraries, never
 the reverse. Each library's own reference tests stay in its crate
 (`cargo test -p rustellar-bls`, for example).
 
+## Validating a crate
+
+Clone the repository, then run the suites by crate with the `cargo
+validate` alias (for `cargo run --release -p rustellar-benchmarks --bin
+rustellar-bench --`):
+
+```sh
+git clone <this repository> && cd rustellar
+cargo validate list
+cargo validate accuracy tls --quick
+cargo validate accuracy bls detrend
+cargo validate speed fit mcmc
+cargo validate all --quick
+cargo validate speed --dry-run
+```
+
+| Command | Runs |
+|---|---|
+| `list` | a table of every suite: its crate, accuracy or speed, minutes in full and with `--quick`, what it compares |
+| `accuracy [TARGET...]` | the accuracy suites of each crate (`tls`, `bls`, `detrend`, `vet`) or suite named; all by default |
+| `speed [TARGET...]` | the speed tables of each crate named (`model`, `detrend`, `bls`, `tls`, `ls`, `fit`, `vet`, `mcmc`); all by default |
+| `all` | every accuracy suite, then every speed table |
+| `help` | the commands and options |
+
+Options: `--quick` (20 curves a set, 8 of the limb-darkened study),
+`--limit N`, `--step N`, `--threads N`, `--cpu` (searches off the GPU) and
+`--dry-run` (list what would run). Every table prints as Markdown, so
+`cargo validate accuracy tls > tls.md` keeps it. `cargo validate-gpu`
+builds with the `cuda` feature, for the searches on an NVIDIA GPU.
+
+The time estimates in `list` are for 16 CPU threads of an AMD Ryzen 7
+5700G; the GPU makes the searches several times faster. Speed tables want
+a quiet machine. The references' times there were recorded on that
+processor, so elsewhere compare the ratios only, or time the references
+on yours (see below) and replace the files.
+
+`compare` (below) is the older entry point to the same suites, by set
+name.
+
 ## rustellar-tls against transitleastsquares 1.32
 
 ```sh
@@ -150,11 +189,15 @@ cargo run --release -p rustellar-benchmarks --bin compare -- speed-model
 
 `speed` times every crate on the cases of its README's speed tables and
 prints those tables; `speed-model`, `speed-detrend`, `speed-bls`,
-`speed-tls`, `speed-ls` and `speed-fit` one crate each. The rustellar side is timed as the references
+`speed-tls`, `speed-ls`, `speed-fit`, `speed-vet` and `speed-mcmc` one
+crate each (`cargo validate speed CRATE` does the same). The rustellar side is timed as the references
 were: the best of several runs (seven for the model, the detrender and the fit,
 three for a search, one where a search takes minutes). Nothing is timed by
-default, as the numbers want a quiet machine; all six take about five
-minutes, most of it the BLS searches on one thread.
+default, as the numbers want a quiet machine; all eight take about ten
+minutes, most of it the BLS searches on one thread and the mcmc chains.
+`vet` has no reference column (no package runs the same checks); `mcmc`
+gives each sampler's time per independent sample on rustellar-mcmc's
+transit posterior.
 
 The references' times are in `data/speed_<crate>.csv`, one row per case,
 package (with its version) and seconds. They were run on the same machine
