@@ -65,7 +65,8 @@ fn the_suites_each_command_picks() {
             "fast (tls)",
             "gaps (tls)",
             "flagged (tls)",
-            "variable (tls)"
+            "variable (tls)",
+            "around (tls)"
         ]
     );
     // A suite by name, a crate and the same suite again: once each.
@@ -79,9 +80,9 @@ fn the_suites_each_command_picks() {
     );
     // A crate with no suite of that measure: none.
     assert!(picked(&["accuracy", "model"]).is_empty());
-    assert_eq!(picked(&["accuracy"]).len(), 20);
+    assert_eq!(picked(&["accuracy"]).len(), 21);
     assert_eq!(picked(&["speed", "all"]).len(), 8);
-    assert_eq!(picked(&["all", "--quick"]).len(), 28);
+    assert_eq!(picked(&["all", "--quick"]).len(), 29);
 }
 
 #[test]
