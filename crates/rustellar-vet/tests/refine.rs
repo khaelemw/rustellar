@@ -5,7 +5,7 @@
 use rustellar_model::{ScaledSemiMajorAxis, TransitParams};
 use rustellar_vet::{
     Candidate, Epoch, ImpactParameter, LightCurve, LimbDarkening, RadiusRatio, Shape, TimeDelta,
-    VetError, fit_depth, refine,
+    VetError, fit_depth, refine, refine_with_threads,
 };
 
 fn days(d: f64) -> TimeDelta {
@@ -170,6 +170,29 @@ fn the_truth_from_a_candidate_off() {
     assert!((length / truth - 1.0).abs() < 1e-3, "{length} {truth}");
     let centre = 1.0 - p.flux_at(at(1501.3));
     assert!((refined.fit.depth / centre - 1.0).abs() < 1e-3);
+}
+
+// Any number of threads gives the one thread's result exactly, and its
+// errors: on noisy curves, the long transit over a gap and a flat curve.
+#[test]
+fn threads_change_nothing() {
+    let threads = [1, 2, 3, 7, 16, 64].map(|t| std::num::NonZeroUsize::new(t).unwrap());
+    let mut cases = vec![];
+    for seed in 1..=3_u64 {
+        let c = Candidate::new(days(3.7), at(1501.31), days(0.06)).unwrap();
+        cases.push((light_curve(seed, 4e-4), c));
+    }
+    let time: Vec<f64> = (0..200).map(|i| f64::from(i) / 48.0).collect();
+    let flat = LightCurve::from_days(time, vec![1.0; 200], vec![1e-3; 200]).unwrap();
+    cases.push((flat, Candidate::new(days(1.0), at(0.5), days(0.1)).unwrap()));
+    for (lc, c) in &cases {
+        for shape in [Shape::default(), Shape::BOX] {
+            let one = refine(lc, c, shape);
+            for &t in &threads {
+                assert_eq!(refine_with_threads(lc, c, shape, t), one, "{t}");
+            }
+        }
+    }
 }
 
 #[test]

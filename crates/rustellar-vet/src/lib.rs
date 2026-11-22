@@ -19,7 +19,9 @@
 //!   duration, for a [`Shape`] (limb-darkened by default, or a box), with
 //!   its standard error ([`Fit`]).
 //! - [`refine`]: the mid-transit time and duration refined at the
-//!   candidate's period, exactly for a box ([`Refined`]).
+//!   candidate's period, exactly for a box ([`Refined`]);
+//!   [`refine_with_threads`] shares a limb-darkened shape's trials among
+//!   threads.
 //! - [`evidence`]: each predicted transit's points, coverage and depth,
 //!   and the odd and even transits' depths compared ([`Evidence`]).
 //! - [`signal_to_noise`]: the signal to noise, white and with red noise,
@@ -90,7 +92,7 @@ pub use flags::{PeriodFlag, SuspectPeriod, TimeFlag, TimeWindow, flag_periods, f
 pub use multiples::{Multiple, multiples};
 pub use noise::{Noise, SignalToNoise, TransitSnr, signal_to_noise};
 pub use period::{PeriodSearch, search_period};
-pub use refine::{Refined, refine};
+pub use refine::{Refined, refine, refine_with_threads};
 pub use secondary::{Dip, Secondary, secondary};
 pub use shape::Shape;
 

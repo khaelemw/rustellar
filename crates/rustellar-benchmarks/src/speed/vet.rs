@@ -6,12 +6,13 @@
 
 use std::fmt::Write;
 use std::hint::black_box;
+use std::num::NonZeroUsize;
 use std::time::Instant;
 
 use rustellar_model::{ScaledSemiMajorAxis, TransitParams};
 use rustellar_vet::{
     Candidate, Epoch, ImpactParameter, LightCurve, LimbDarkening, RadiusRatio, Shape, TimeDelta,
-    aliases, evidence, fit_depth, refine, secondary, signal_to_noise,
+    aliases, evidence, fit_depth, refine, refine_with_threads, secondary, signal_to_noise,
 };
 
 use super::{best, short};
@@ -122,9 +123,25 @@ pub fn run(cases: &[Case], repeats: usize, budget: f64) -> Vec<Timing> {
     out
 }
 
-/// The README's table: each step on each light curve and shape.
+/// The limb-darkened `refine` on `threads`, as a step `refine threads`;
+/// the best of `repeats` calls on each light curve.
 #[must_use]
-pub fn report(cases: &[Case], timings: &[Timing]) -> String {
+pub fn threaded(cases: &[Case], threads: NonZeroUsize, repeats: usize) -> Vec<Timing> {
+    cases
+        .iter()
+        .map(|(name, lc, c)| {
+            let secs = best(repeats, 1, || {
+                refine_with_threads(lc, c, Shape::default(), threads)
+            });
+            ((*name).to_owned(), "refine threads", "limb", secs)
+        })
+        .collect()
+}
+
+/// The README's table: each step on each light curve and shape; then the
+/// limb-darkened `refine` on more threads, if timed.
+#[must_use]
+pub fn report(cases: &[Case], timings: &[Timing], threads: NonZeroUsize) -> String {
     let mut out = String::from("| Step |");
     for (name, _, _) in cases {
         write!(out, " {name}, limb-darkened | {name}, box |").expect("a string");
@@ -144,6 +161,23 @@ pub fn report(cases: &[Case], timings: &[Timing]) -> String {
             }
         }
         out.push('\n');
+    }
+    let threaded: Vec<String> = cases
+        .iter()
+        .filter_map(|(name, _, _)| {
+            timings
+                .iter()
+                .find(|(n, s, _, _)| n == name && *s == "refine threads")
+                .map(|t| format!("{} on the {name}", short(Some(t.3))))
+        })
+        .collect();
+    if !threaded.is_empty() {
+        write!(
+            out,
+            "\nThe limb-darkened `refine` with `refine_with_threads` on {threads} threads: {}.\n",
+            threaded.join(", ")
+        )
+        .expect("a string");
     }
     out
 }

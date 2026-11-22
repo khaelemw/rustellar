@@ -1,3 +1,7 @@
+use std::num::NonZeroUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
+
 use rustellar_core::{Epoch, LightCurve, TimeDelta};
 
 use crate::fit::{fit_depth, phase};
@@ -67,6 +71,47 @@ const PASSES: u32 = 2;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn refine(lc: &LightCurve, candidate: &Candidate, shape: Shape) -> Result<Refined, VetError> {
+    refine_with_threads(lc, candidate, shape, NonZeroUsize::MIN)
+}
+
+/// [`refine`] on `threads` threads: the limb-darkened grid's trials are
+/// shared among them, and the result is the same as on one thread. The box
+/// takes one thread, as it is already fast.
+///
+/// # Errors
+///
+/// As [`refine`].
+///
+/// # Examples
+///
+/// ```
+/// use std::num::NonZeroUsize;
+///
+/// use rustellar_vet::{Candidate, Epoch, LightCurve, Shape, TimeDelta, refine, refine_with_threads};
+///
+/// let time: Vec<f64> = (0..2000).map(|i| f64::from(i) / 144.0).collect();
+/// let flux = time
+///     .iter()
+///     .map(|&t| if (t - 1.2).rem_euclid(2.5) < 0.12 { 0.998 } else { 1.0 })
+///     .collect();
+/// let lc = LightCurve::from_days(time, flux, vec![1e-3; 2000])?;
+/// let candidate = Candidate::new(
+///     TimeDelta::from_days(2.5)?,
+///     Epoch::from_days(1.27)?,
+///     TimeDelta::from_days(0.1)?,
+/// )?;
+///
+/// let four = NonZeroUsize::new(4).unwrap();
+/// let shared = refine_with_threads(&lc, &candidate, Shape::default(), four)?;
+/// assert_eq!(shared, refine(&lc, &candidate, Shape::default())?);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+pub fn refine_with_threads(
+    lc: &LightCurve,
+    candidate: &Candidate,
+    shape: Shape,
+    threads: NonZeroUsize,
+) -> Result<Refined, VetError> {
     // The candidate's own fit first, for its errors.
     fit_depth(lc, candidate, shape)?;
     let period = candidate.period().as_days();
@@ -78,7 +123,7 @@ pub fn refine(lc: &LightCurve, candidate: &Candidate, shape: Shape) -> Result<Re
     let (shift, length) = if shape == Shape::BOX {
         best_run(lc, candidate, longest)
     } else {
-        best_grid(lc, candidate, shape, longest)
+        best_grid(lc, candidate, shape, longest, threads)
     }
     .ok_or(VetError::NoPointsInTransit)?;
     let refined = at(candidate, shift, length)?;
@@ -201,6 +246,7 @@ fn best_grid(
     candidate: &Candidate,
     shape: Shape,
     longest: f64,
+    threads: NonZeroUsize,
 ) -> Option<(f64, f64)> {
     let period = candidate.period().as_days();
     let duration = candidate.duration().as_days();
@@ -268,16 +314,17 @@ fn best_grid(
             (shift_hi - shift_lo) / f64::from(STEPS),
             (log_hi - log_lo) / f64::from(STEPS),
         );
-        for a in 0..=STEPS {
+        let trial = |k: u32| {
+            let (a, b) = (k / (STEPS + 1), k % (STEPS + 1));
             let shift = shift_lo + shift_step * f64::from(a);
-            for b in 0..=STEPS {
-                let length = (log_lo + log_step * f64::from(b)).exp().min(longest);
-                let Some(g) = gain(shift, length) else {
-                    continue;
-                };
-                if best.is_none_or(|(bg, _, _)| g > bg) {
-                    best = Some((g, shift, length));
-                }
+            let length = (log_lo + log_step * f64::from(b)).exp().min(longest);
+            gain(shift, length).map(|g| (g, shift, length))
+        };
+        // Every trial scored, then the best taken in the grid's order, so
+        // that the threads change nothing.
+        for (g, shift, length) in scored(trial, threads).into_iter().flatten() {
+            if best.is_none_or(|(bg, _, _)| g > bg) {
+                best = Some((g, shift, length));
             }
         }
         let (_, shift, length) = best?;
@@ -288,4 +335,35 @@ fn best_grid(
         log_hi = (length.ln() + log_step).min(longest.ln());
     }
     best.map(|(_, shift, length)| (shift, length))
+}
+
+/// Each of the grid's trials scored, in order, shared among `threads`.
+fn scored<T: Send>(trial: impl Fn(u32) -> T + Sync, threads: NonZeroUsize) -> Vec<T> {
+    let count = (STEPS + 1) * (STEPS + 1);
+    if threads.get() == 1 {
+        return (0..count).map(trial).collect();
+    }
+    let next = AtomicUsize::new(0);
+    let mut parts: Vec<(u32, T)> = thread::scope(|scope| {
+        let workers: Vec<_> = (0..threads.get())
+            .map(|_| {
+                scope.spawn(|| {
+                    let mut done = vec![];
+                    loop {
+                        let k = next.fetch_add(1, Ordering::Relaxed);
+                        let Some(k) = u32::try_from(k).ok().filter(|&k| k < count) else {
+                            break done;
+                        };
+                        done.push((k, trial(k)));
+                    }
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|w| w.join().expect("a trial does not panic"))
+            .collect()
+    });
+    parts.sort_unstable_by_key(|&(k, _)| k);
+    parts.into_iter().map(|(_, t)| t).collect()
 }

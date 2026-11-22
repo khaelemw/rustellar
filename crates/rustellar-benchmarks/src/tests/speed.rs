@@ -255,11 +255,18 @@ fn the_fit_table() {
 #[test]
 fn the_vet_table() {
     let cases = vec![vet::case("short", 6.0, 10.0 / 1440.0)];
-    let timings = vet::run(&cases, 1, 1e-6);
+    let mut timings = vet::run(&cases, 1, 1e-6);
     // Two shapes for each step but the secondary eclipse.
     assert_eq!(timings.len(), 2 * vet::STEPS.len() - 1);
+    let alone = vet::report(&cases, &timings, TWO);
+    assert!(!alone.contains("refine_with_threads"), "{alone}");
+    timings.extend(vet::threaded(&cases, TWO, 1));
     assert!(timings.iter().all(|t| t.3 > 0.0));
-    let table = vet::report(&cases, &timings);
+    let table = vet::report(&cases, &timings, TWO);
+    assert!(
+        table.contains("`refine_with_threads` on 2 threads: ") && table.contains(" on the short."),
+        "{table}"
+    );
     assert!(
         table.starts_with("| Step | short, limb-darkened | short, box |"),
         "{table}"

@@ -405,7 +405,9 @@ fn speed_report(name: &str, threads: NonZeroUsize) -> String {
         ),
         "vet" => {
             let cases = vet::cases();
-            vet::report(&cases, &vet::run(&cases, 7, 0.2))
+            let mut timings = vet::run(&cases, 7, 0.2);
+            timings.extend(vet::threaded(&cases, threads, 7));
+            vet::report(&cases, &timings, threads)
         }
         "mcmc" => mcmc::report(
             &mcmc::run(&mcmc::light_curve(), threads, mcmc::RUN),

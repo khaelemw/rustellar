@@ -1,7 +1,9 @@
 // A candidate's checks, its errors' messages, and the conversions from the
 // searches' results (with the `bls` and `tls` features).
 
-use rustellar_vet::{Candidate, Epoch, LightCurve, TimeDelta, VetError};
+#[cfg(any(feature = "bls", feature = "tls"))]
+use rustellar_vet::LightCurve;
+use rustellar_vet::{Candidate, Epoch, TimeDelta, VetError};
 
 fn days(d: f64) -> TimeDelta {
     TimeDelta::from_days(d).unwrap()
@@ -76,6 +78,7 @@ fn the_errors_say_what_is_wrong() {
 
 // Every 30 minutes for 12 days, a dip of 0.005 lasting 0.1 days every 3
 // days from 0.7.
+#[cfg(any(feature = "bls", feature = "tls"))]
 fn dips() -> LightCurve {
     let time: Vec<f64> = (0..576).map(|i| f64::from(i) / 48.0).collect();
     let flux = time

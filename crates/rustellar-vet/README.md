@@ -53,7 +53,8 @@ duration.
 - `refine`: finds the mid-transit time and duration that fit best near the
   candidate's, keeping its period. For a box this is exact (no point on a
   301 × 301 grid does better); for a limb-darkened shape it matches the
-  best of a dense grid to one part in a million.
+  best of a dense grid to one part in a million. `refine_with_threads`
+  does the same on several threads, with the same result.
 - `evidence`: for each predicted transit, the number of points, the
   coverage and the depth, plus a comparison of the odd and even transits'
   depths. The error on their difference allows for the correlation from
@@ -205,7 +206,12 @@ and with a box. `cargo validate speed vet` reruns this table, and
 
 The limb-darkened `refine` scores each of its 5,043 trials using only the
 points inside that trial's transit, so its time doesn't grow with the
-number of out-of-transit points.
+number of out-of-transit points. `refine_with_threads` shares those
+trials among threads: on 16 threads it takes 16 ms on TESS and 57 ms on
+Kepler, ten times faster than on one. There is no GPU version: nearly all
+the time goes on the limb-darkened flux's sines, cosines and square roots,
+which a GPU rounds differently, and a consumer GPU is slower than the CPU
+in double precision.
 
 ## Quick start
 
