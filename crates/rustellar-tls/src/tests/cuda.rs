@@ -243,3 +243,38 @@ fn the_whole_search_is_the_cpus() {
         cpu
     );
 }
+
+// Many searches at once share the GPU, and each is the CPU's own.
+#[test]
+fn many_searches_on_the_gpu_are_the_cpus() {
+    use crate::{Periods, SearchOptions, Tls};
+    use rustellar_core::Device as Where;
+    let Some(_) = gpu() else { return };
+    let jobs: Vec<(Tls, Periods)> = (0..12)
+        .map(|seed| {
+            let points = points(20 + seed, 27.0, 1.0 / 48.0);
+            let lc = LightCurve::from_days(
+                points.time.clone(),
+                points.residual.iter().map(|r| 1.0 - r).collect(),
+                vec![1e-3; points.time.len()],
+            )
+            .unwrap();
+            (
+                Tls::new(&lc).unwrap(),
+                Periods::from_days(&periods(200)).unwrap(),
+            )
+        })
+        .collect();
+    let options = SearchOptions::default()
+        .with_bootstrap(0)
+        .with_threads(NonZeroUsize::new(16).unwrap());
+    let on_cpu = Tls::search_many(&jobs, &options.with_device(Where::Cpu));
+    let on_gpu = Tls::search_many(&jobs, &options.with_device(Where::Gpu(0)));
+    for (gpu, cpu) in on_gpu.into_iter().zip(on_cpu) {
+        let (gpu, cpu) = (gpu.unwrap(), cpu.unwrap());
+        assert_eq!(gpu.device(), Where::Gpu(0));
+        assert_eq!(gpu.periods(), cpu.periods());
+        assert_eq!(gpu.best(), cpu.best());
+        assert_eq!(gpu.spectra(), cpu.spectra());
+    }
+}

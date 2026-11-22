@@ -87,6 +87,63 @@ pub fn cases() -> Vec<Case> {
     .collect()
 }
 
+/// The many-curve cases: sixteen light curves like each of the first two
+/// cases (other seeds), each over its own grid.
+fn many_cases() -> Vec<(&'static str, Vec<(Tls, Periods)>)> {
+    [
+        ("many 30 min", THIRTY_MINUTES, 620, 200),
+        ("many 2 min", TWO_MINUTES, 9000, 300),
+    ]
+    .into_iter()
+    .map(|(name, cadence, n, seed)| {
+        let jobs = (0..16)
+            .map(|k| {
+                let lc = sectors(seed + k, 1, cadence, n);
+                let periods = OfirPeriod::default().periods(&lc).expect("a grid");
+                (Tls::new(&lc).expect("valid"), periods)
+            })
+            .collect();
+        (name, jobs)
+    })
+    .collect()
+}
+
+/// The many-curve cases' labels in the README.
+const MANY: [(&str, &str); 2] = [
+    ("many 30 min", "16 curves, 1 sector at 30 min"),
+    ("many 2 min", "16 curves, 1 sector at 2 min"),
+];
+
+/// Seconds a light curve, searching every curve of each many-curve case
+/// one after another and with [`Tls::search_many`], on the CPU and (with
+/// `cuda`) the GPU; timed once each, after one search to load the GPU.
+fn many(threads: NonZeroUsize) -> Vec<Timing> {
+    #[cfg_attr(not(feature = "cuda"), expect(unused_mut, reason = "no GPU run"))]
+    let mut devices = vec![("cpu", Device::Cpu)];
+    #[cfg(feature = "cuda")]
+    devices.push(("gpu", Device::Gpu(0)));
+    let mut out = vec![];
+    for (name, jobs) in many_cases() {
+        for &(device, at) in &devices {
+            let options = SearchOptions::default()
+                .with_threads(threads)
+                .with_device(at)
+                .with_bootstrap(0);
+            let per_curve = |s: f64| s / count(jobs.len());
+            // `best` makes one untimed run first, which loads the GPU.
+            let looped = best(1, 1, || {
+                for (tls, periods) in &jobs {
+                    std::hint::black_box(tls.search(periods, &options).expect("valid"));
+                }
+            });
+            out.push((format!("{name} loop {device}"), per_curve(looped)));
+            let many = best(1, 1, || Tls::search_many(&jobs, &options));
+            out.push((format!("{name} many {device}"), per_curve(many)));
+        }
+    }
+    out
+}
+
 /// The runs: a name and the options on `threads`. The GPU's only with the
 /// `cuda` feature.
 fn runs(threads: NonZeroUsize) -> Vec<(&'static str, SearchOptions)> {
@@ -131,6 +188,7 @@ pub fn run(cases: &[Case], threads: NonZeroUsize) -> Vec<Timing> {
             count(case.periods.as_slice().len()),
         ));
     }
+    out.extend(many(threads));
     out
 }
 
@@ -176,5 +234,23 @@ pub fn report(timings: &[Timing], references: &[Reference], threads: NonZeroUsiz
         fold.join(", ")
     )
     .expect("a string");
+    out.push_str(
+        "\nSeconds a light curve, sixteen curves searched one after another \
+         and with `Tls::search_many` (no bootstrap):\n\n\
+         | | Loop, CPU | `search_many`, CPU | Loop, GPU | `search_many`, GPU |\n\
+         |---|--:|--:|--:|--:|\n",
+    );
+    for (case, label) in MANY {
+        let at = |what: &str| cell(ours(timings, &format!("{case} {what}")));
+        writeln!(
+            out,
+            "| {label} | {} | {} | {} | {} |",
+            at("loop cpu"),
+            at("many cpu"),
+            at("loop gpu"),
+            at("many gpu"),
+        )
+        .expect("a string");
+    }
     out
 }

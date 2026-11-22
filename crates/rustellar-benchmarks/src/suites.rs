@@ -211,7 +211,7 @@ pub const SUITES: [Suite; 28] = [
         0.5,
     ),
     speed("bls", "searches against astropy's BoxLeastSquares", 3.0),
-    speed("tls", "searches against transitleastsquares", 1.0),
+    speed("tls", "searches against transitleastsquares", 7.0),
     speed("ls", "periodograms against astropy's LombScargle", 0.3),
     speed("fit", "fits against batman and PyTransit with scipy", 0.2),
     speed(

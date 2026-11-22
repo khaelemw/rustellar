@@ -159,9 +159,26 @@ case. At 2-minute cadence it bins the points, which keeps each period's
 best fit within 0.2% of the unbinned search. It is there to check the
 default method against, not for normal use.
 
-`cargo validate speed tls` reruns the rustellar-tls columns and prints
-them beside transitleastsquares' recorded times (`cargo validate-gpu` for
-the GPU column). `cargo bench -p rustellar-tls` runs the Rust timings
+### Many light curves
+
+`Tls::search_many` searches many light curves with the same options, each
+over its own periods, and gives each curve exactly the result
+`Tls::search` would. It runs a quarter as many searches at once as there
+are threads, four threads each, sharing the GPU if there is one. Seconds
+per light curve, sixteen one-sector curves, no bootstrap, 16 threads:
+
+| | Loop, CPU | `search_many`, CPU | Loop, GPU | `search_many`, GPU |
+|---|--:|--:|--:|--:|
+| 30-minute cadence | 0.759 | 0.557 | 0.186 | 0.117 |
+| 2-minute cadence | 1.49 | 1.05 | 0.768 | 0.490 |
+
+That is 1.4 times the speed of a loop on the CPU and 1.6 times on the
+GPU. With the GPU, most of the remaining time is spent refining the
+peaks, which runs on the CPU.
+
+`cargo validate speed tls` reruns both tables, printing the rustellar-tls
+columns beside transitleastsquares' recorded times (`cargo validate-gpu`
+for the GPU columns). `cargo bench -p rustellar-tls` runs the Rust timings
 alone.
 
 ## References

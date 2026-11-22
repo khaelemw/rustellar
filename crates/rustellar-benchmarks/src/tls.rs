@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 
 use rustellar_core::Epoch;
-use rustellar_tls::{OfirPeriod, SearchOptions, Tls};
+use rustellar_tls::{OfirPeriod, Periods, SearchOptions, Tls, TlsError, TlsResult};
 
 use crate::curves::{Found, Kind, Row, light_curve, rows, transit};
 use crate::stats::{median, sign_test, timing};
@@ -43,21 +43,15 @@ pub struct Curve {
     pub ours: Option<Found>,
 }
 
-/// Searches the curve of `row` in set `kind` with `options`, over Ofir's
-/// grid with TLS's defaults.
+/// The curve of `row` in set `kind`, searched and described by `result`.
 ///
 /// # Panics
 ///
-/// If the search fails, which a reference curve never makes it do.
-#[must_use]
-pub fn search(kind: Kind, row: &Row, options: &SearchOptions) -> Curve {
+/// If the search failed, which a reference curve never makes it do.
+fn curve(kind: Kind, row: &Row, result: Result<TlsResult, TlsError>) -> Curve {
     let lc = light_curve(kind, row);
     let params = transit(row);
-    let periods = OfirPeriod::default().periods(&lc).expect("a grid");
-    let result = Tls::new(&lc)
-        .expect("a light curve")
-        .search(&periods, options)
-        .expect("a search");
+    let result = result.expect("a search");
     let sde = result.spectra().map_or(0.0, |s| s.sde);
     let ours = result.best().map(|b| Found {
         period: b.period.as_days(),
@@ -75,13 +69,27 @@ pub fn search(kind: Kind, row: &Row, options: &SearchOptions) -> Curve {
     }
 }
 
-/// Searches the first `limit` curves of set `kind`.
+/// Searches the first `limit` curves of set `kind` with `options` (all of
+/// them at once, with `Tls::search_many`), each over Ofir's grid with
+/// TLS's defaults.
+///
+/// # Panics
+///
+/// If a search fails, which a reference curve never makes it do.
 #[must_use]
 pub fn run(kind: Kind, limit: usize, options: &SearchOptions) -> Vec<Curve> {
-    rows(kind.reference())
+    let rows: Vec<Row> = rows(kind.reference()).into_iter().take(limit).collect();
+    let jobs: Vec<(Tls, Periods)> = rows
         .iter()
-        .take(limit)
-        .map(|row| search(kind, row, options))
+        .map(|row| {
+            let lc = light_curve(kind, row);
+            let periods = OfirPeriod::default().periods(&lc).expect("a grid");
+            (Tls::new(&lc).expect("a light curve"), periods)
+        })
+        .collect();
+    rows.iter()
+        .zip(Tls::search_many(&jobs, options))
+        .map(|(row, result)| curve(kind, row, result))
         .collect()
 }
 

@@ -272,3 +272,61 @@ fn with_cuda_the_gpu() {
     }
     assert_eq!(auto.best(), on_cpu.best());
 }
+
+/// 12 days at 30 minutes with a 0.5% dip 0.1 days long every `period`
+/// days.
+fn dips(period: f64) -> Tls {
+    let time: Vec<f64> = (0..576).map(|i| f64::from(i) / 48.0).collect();
+    let flux: Vec<f64> = time
+        .iter()
+        .enumerate()
+        .map(|(i, &t)| {
+            let dip = if (t - 0.7).rem_euclid(period) < 0.1 {
+                5e-3
+            } else {
+                0.0
+            };
+            let ripple = if i % 2 == 0 { 1e-4 } else { -1e-4 };
+            1.0 - dip + ripple
+        })
+        .collect();
+    Tls::new(&LightCurve::from_days(time, flux, vec![1e-3; 576]).unwrap()).unwrap()
+}
+
+#[test]
+fn many_searches_are_each_ones() {
+    // Five curves, each over its own grid, on any number of threads: every
+    // result is that curve's own search, in the order given.
+    let jobs: Vec<(Tls, Periods)> = [2.1, 2.6, 3.0, 3.4, 3.9]
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| {
+            #[expect(clippy::cast_precision_loss, reason = "small")]
+            let from = 1.5 + 0.05 * i as f64;
+            (dips(p), Periods::from_days(&grid(from, 300)).unwrap())
+        })
+        .collect();
+    let options = cpu().with_bootstrap(10);
+    let each: Vec<_> = jobs
+        .iter()
+        .map(|(tls, p)| tls.search(p, &options))
+        .collect();
+    for threads in [1, 2, 4, 9, 16, 64] {
+        let options = options.with_threads(NonZeroUsize::new(threads).unwrap());
+        assert_eq!(Tls::search_many(&jobs, &options), each, "{threads} threads");
+    }
+    assert!(Tls::search_many(&[], &options).is_empty());
+}
+
+#[test]
+fn many_searches_keep_their_errors() {
+    let jobs = [
+        (dips(2.5), Periods::from_days(&[2.0, 3.0]).unwrap()),
+        (dips(3.0), Periods::from_days(&[2.5]).unwrap()),
+    ];
+    let options = cpu().with_min_depth(f64::NAN);
+    assert_eq!(
+        Tls::search_many(&jobs, &options),
+        vec![Err(TlsError::NonFinite { name: "min_depth" }); 2]
+    );
+}

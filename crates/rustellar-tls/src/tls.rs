@@ -1,6 +1,10 @@
 //! The search: a light curve checked once, searched with any periods and
 //! options.
 
+use std::num::NonZeroUsize;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::thread;
+
 use rustellar_core::LightCurve;
 use rustellar_core::{Device, Periods};
 
@@ -166,7 +170,96 @@ impl Tls {
         let outcome = run(&self.points, &days, internal);
         Ok(result(outcome))
     }
+
+    /// Many light curves searched with the same `options`, each over its
+    /// own periods: the results in the order given, each exactly what
+    /// [`Tls::search`] gives for that curve.
+    ///
+    /// [`SearchOptions::threads`] is shared out: a quarter as many
+    /// searches run at once as there are threads (at least one), each on
+    /// its share, and on a GPU they share it. That keeps the cores and the
+    /// GPU busier than one search at a time: on 16 threads it is about 1.4
+    /// times the speed of a loop on the CPU and 1.6 times on a GPU (see
+    /// the README).
+    ///
+    /// # Errors
+    ///
+    /// Each search's own, as [`Tls::search`]'s.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rustellar_tls::{LightCurve, Periods, SearchOptions, Tls};
+    ///
+    /// // Three light curves, a 1% dip every 2.5, 3 and 3.5 days.
+    /// let curve = |period: f64| -> Result<Tls, Box<dyn std::error::Error>> {
+    ///     let time: Vec<f64> = (0..480).map(|i| f64::from(i) / 48.0).collect();
+    ///     let flux = time
+    ///         .iter()
+    ///         .map(|&t| if (t - 1.0).rem_euclid(period) < 0.1 { 0.99 } else { 1.0 })
+    ///         .collect();
+    ///     Ok(Tls::new(&LightCurve::from_days(time, flux, vec![1e-3; 480])?)?)
+    /// };
+    /// let periods: Vec<f64> = (0..300).map(|i| 1.5 + 0.01 * f64::from(i)).collect();
+    /// let periods = Periods::from_days(&periods)?;
+    /// let jobs = [
+    ///     (curve(2.5)?, periods.clone()),
+    ///     (curve(3.0)?, periods.clone()),
+    ///     (curve(3.5)?, periods),
+    /// ];
+    /// let results = Tls::search_many(&jobs, &SearchOptions::default().with_bootstrap(0));
+    /// for (result, truth) in results.into_iter().zip([2.5, 3.0, 3.5]) {
+    ///     let best = result?.best().expect("a transit").period.as_days();
+    ///     assert!((best - truth).abs() < 0.01);
+    /// }
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn search_many(
+        jobs: &[(Self, Periods)],
+        options: &SearchOptions,
+    ) -> Vec<Result<TlsResult, TlsError>> {
+        let threads = options.threads.get();
+        let at_once = (threads / THREADS_PER_SEARCH).clamp(1, jobs.len().max(1));
+        let each = options
+            .with_threads(NonZeroUsize::new((threads / at_once).max(1)).expect("at least one"));
+        let next = AtomicUsize::new(0);
+        let mut results: Vec<Option<Result<TlsResult, TlsError>>> =
+            (0..jobs.len()).map(|_| None).collect();
+        let found: Vec<Vec<(usize, Result<TlsResult, TlsError>)>> = thread::scope(|scope| {
+            let workers: Vec<_> = (0..at_once)
+                .map(|_| {
+                    scope.spawn(|| {
+                        let mut mine = vec![];
+                        loop {
+                            let i = next.fetch_add(1, Ordering::Relaxed);
+                            let Some((tls, periods)) = jobs.get(i) else {
+                                break mine;
+                            };
+                            mine.push((i, tls.search(periods, &each)));
+                        }
+                    })
+                })
+                .collect();
+            workers
+                .into_iter()
+                .map(|w| w.join().expect("a search thread panicked"))
+                .collect()
+        });
+        for (i, result) in found.into_iter().flatten() {
+            results[i] = Some(result);
+        }
+        results
+            .into_iter()
+            .map(|r| r.expect("every job searched"))
+            .collect()
+    }
 }
+
+/// The threads each of [`Tls::search_many`]'s searches gets: on 16
+/// threads, four searches of four threads were the fastest split on the
+/// CPU (one thread each was the slowest) and as fast as any on a GPU.
+const THREADS_PER_SEARCH: usize = 4;
 
 /// The search's outcome in public types.
 fn result(outcome: search::Outcome) -> TlsResult {
