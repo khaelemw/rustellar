@@ -1,126 +1,132 @@
 # rustellar-vet
 
-Vetting transit candidates in pure Rust: the evidence that a search's
-period is the real one, shown rather than decided.
+Vetting transit candidates in pure Rust. It reports the evidence for and
+against a search's period being the real one, and leaves the decision to
+you.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `vet` feature.
 
 ```toml
 [dependencies]
-# Through the umbrella, which most projects want:
+# Through the umbrella crate (what most projects want):
 rustellar = { version = "0.1", features = ["vet"] }
 # Or this crate alone:
 rustellar-vet = "0.1"
 ```
 
-On its own it re-exports the core types it takes and returns
-(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
-`rustellar-core` need not be listed, and the two always match.
+This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
+`TimeDelta` and their errors), so you don't need to add `rustellar-core`
+yourself or keep its version in step.
 
 **Status:** in development, not yet released.
 
 ## Statement of need
 
-A transit search reports one best period. Sometimes the true period is a
-simple ratio of it: half of it (every other predicted transit is empty),
-double (every other real transit was skipped), or a third, three times,
-two thirds or three halves. A weak signal's chi-squared often prefers the
-wrong one, because the noise really does favour it. What tells them apart
-is the evidence transit by transit: whether the odd and even transits have
-the same depth, how many predicted transits fall where there are data, and
-each transit's own depth.
+A transit search reports one best period, but sometimes the true period is
+a simple multiple or fraction of it: half (every other predicted transit
+is empty), double (every other real transit was skipped), or a third,
+three times, two thirds or three halves. For a weak signal the chi-squared
+often prefers the wrong one, because the noise genuinely favours it. What
+separates them is the evidence transit by transit: whether odd and even
+transits have the same depth, how many predicted transits land on data,
+and the depth of each one.
 
-This crate will give, for a candidate and each of its aliases, the fit and
-that evidence as numbers with their errors, in a table, with no hidden
-thresholds. It takes a `Candidate` from any search: from `rustellar-bls`
-with the `bls` feature, from `rustellar-tls` with the `tls` feature, or
-built from a period, a mid-transit time and a duration.
+For a candidate and each of its aliases, this crate gives the fit and that
+evidence as numbers with their errors, laid out in a table. It applies no
+thresholds of its own. It takes a `Candidate` from any search: from
+`rustellar-bls` with the `bls` feature, from `rustellar-tls` with the `tls`
+feature, or built by hand from a period, a mid-transit time and a
+duration.
 
-## So far
+## What it does
 
 - `Candidate`: a period, mid-transit time, duration and optional depth.
-- `fit_depth`: the depth at that period, mid-transit time and duration,
-  with its standard error, for a limb-darkened shape (the default: a small
-  planet half-way to the limb of a Sun-like star, in the Kepler band) or a
-  box. The model is
-  baseline times (1 - depth times shape), fitted by weighted least squares;
-  the depth comes back to rounding from a noiseless transit, and its
-  stated error matches the scatter of 4,000 noisy fits to within 4%.
-- `refine`: the mid-transit time and duration that fit best near the
-  candidate's, at its period. For a box this is exact (no point of a
-  301 by 301 grid does better); for a limb-darkened shape it matches a
-  dense grid's best to a part in a million.
-- `evidence`: each predicted transit's points, coverage and own depth,
-  and the odd and even transits' depths compared. The difference's error
-  counts the two depths' correlation through their shared baseline; on
-  1,000 noise draws of a planet the odd-even significance has mean 0 and
-  spread 1 to within the draws' own scatter, and a candidate at half the
-  true period or an eclipsing binary stands out by more than 10 sigma.
-- `signal_to_noise`: the signal to noise with the errors given (white)
-  and with the noise measured out of transit (red, after Pont, Zucker &
-  Queloz 2006), for the candidate and for each transit; the largest
-  transit's share of the depth; and a chi-squared test of whether every
-  transit has one depth. In red noise as large as the white, over 300
-  draws, the depth scatters three times its white error and within 12% of
-  its red error; in white noise the depth test's chi-squared has the mean
-  and variance it should.
-- `aliases`: the candidate at a third, half, two thirds, one, three
-  halves, two and three times its period (or any ratios), each with its
-  fit, evidence and signal to noise, its chi-squared against the
-  candidate's, and the depth at the transits only one of the two periods
-  predicts; printed as a table. With a planet at each of those ratios of
-  the period searched, the true one is the best row every time, by a
-  chi-squared of more than 50.
-- `secondary`: a box of the transit's duration slid over every phase at
-  least a duration from the transit, the transit's points left out: the
-  dip at half the period with its upper limit, the deepest dip and the
-  strongest brightening, and the spread of the scan's significances (the
-  light curve's own noise scale). Each box equals a box fit to 1e-12, and
-  in white noise the significance at half the period has mean 0 and
-  spread 1.
-  Its `depth_ratio` (at half over the primary) near 1 means the two
-  eclipses are alike.
-- `OddEven::half_period`: whether the shallower of the odd and even
-  depths looks empty (near zero and well below the deeper), which means
-  twice the period rather than an eclipsing binary; `depth_ratio` gives
+  `Candidate::duty_cycle` gives the duration divided by the period.
+- `fit_depth`: fits the transit depth and its standard error at the
+  candidate's period, mid-transit time and duration. The model is
+  baseline × (1 − depth × shape), fitted by weighted least squares, where
+  the shape is a box or a limb-darkened transit (by default a small planet
+  half-way to the limb of a Sun-like star, in the Kepler band). On a
+  noiseless transit the depth comes back exact to rounding, and over 4,000
+  noisy fits the stated error matches the actual scatter to within 4%.
+- `refine`: finds the mid-transit time and duration that fit best near the
+  candidate's, keeping its period. For a box this is exact (no point on a
+  301 × 301 grid does better); for a limb-darkened shape it matches the
+  best of a dense grid to one part in a million.
+- `evidence`: for each predicted transit, the number of points, the
+  coverage and the depth, plus a comparison of the odd and even transits'
+  depths. The error on their difference allows for the correlation from
+  their shared baseline. Over 1,000 noise draws of a planet, the odd-even
+  significance has mean 0 and standard deviation 1 (within the draws'
+  scatter), while a candidate at half the true period, or an eclipsing
+  binary, stands out by more than 10 sigma.
+- `signal_to_noise`: the signal-to-noise ratio using the given errors
+  (white noise) and using the noise measured out of transit (red noise,
+  after Pont, Zucker & Queloz 2006), for the candidate and for each
+  transit. Also the largest single transit's share of the total depth, and
+  a chi-squared test of whether all transits have the same depth. Over 300
+  draws with red noise as large as the white, the depth scatters three
+  times its white-noise error and within 12% of its red-noise error. In
+  white noise the depth test's chi-squared has the expected mean and
+  variance.
+- `aliases`: refits the candidate at a third, half, two thirds, one, three
+  halves, two and three times its period (or any ratios you give). Each
+  row has its fit, evidence, signal-to-noise and chi-squared relative to
+  the original candidate, plus the depth at transits that only one of the
+  two periods predicts. It prints as a table. With a planet injected at
+  each of those ratios, the true period is the best row every time, by a
+  chi-squared margin of more than 50.
+- `secondary`: slides a box the length of the transit across every phase
+  at least one duration away from the transit, leaving the transit's
+  points out. It reports the dip at half the period with an upper limit,
+  the deepest dip, the strongest brightening, and the spread of the
+  scan's significances (the light curve's own noise level). Each box
+  matches a direct box fit to 1e-12, and in white noise the significance
+  at half the period has mean 0 and standard deviation 1. A `depth_ratio`
+  (secondary over primary) near 1 means the two eclipses are alike.
+- `OddEven::half_period`: whether the shallower of the odd and even depths
+  looks empty (near zero and well below the deeper one), which points to
+  twice the period rather than an eclipsing binary. `depth_ratio` gives
   the number.
-- `multiples`: the transits split `n` ways for every `n` up to a limit
-  (transit `e` in group `e mod n`), each group's depth, a chi-squared test
-  of equal depths, and the multiple of the period the deep groups point
-  to. At twice or three times the true period the right multiple and
-  starting group are named; for a planet every split is equal, and the
-  test's mean matches its degrees of freedom over 300 noise draws.
-- `ellipsoidal`: sinusoids once and twice an orbit fitted out of both
-  eclipses, the signature of a close binary (and of reflection and
-  Doppler beaming). Injected terms come back to 1e-12; each term over its
-  error is a standard normal in white noise. `Candidate::duty_cycle` gives
-  the duration over the period.
-- `search_period`: the period searched within a few percent of a
-  candidate's (or an alias's), with the mid-transit time, in steps that
-  move the outermost transits by an eighth of a duration; the whole
-  spectrum is returned.
-- `flag_periods` and `flag_times`: what you know about your data, checked
-  against the candidate. A `SuspectPeriod` is a period a real signal is
-  unlikely to share (a spacecraft's orbit, a rotation, a day), matched at
-  its multiples and fractions within a relative tolerance; each match
-  gives the ratio and the offset. A `TimeWindow` is a span a transit
-  should not fall in (an instrument event, a gap's edge, flagged data);
-  each predicted transit that overlaps one is listed with the windows it
-  overlaps. Nothing is built in for any instrument: the periods and
-  windows are yours. Checked against trying every ratio and every window.
+- `multiples`: splits the transits into `n` groups for every `n` up to a
+  limit (transit `e` goes in group `e mod n`), fits each group's depth,
+  tests whether the depths are equal, and reports which multiple of the
+  period the deep groups point to. At twice or three times the true
+  period it names the right multiple and starting group. For a real planet
+  every split is equal, and over 300 noise draws the test's mean matches
+  its degrees of freedom.
+- `ellipsoidal`: fits sinusoids at the orbital period and half of it,
+  with both eclipses masked: the signature of a close binary (and of
+  reflection and Doppler beaming). Injected signals come back to 1e-12,
+  and in white noise each term divided by its error is standard normal.
+- `search_period`: searches period and mid-transit time within a few
+  percent of a candidate's (or an alias's), in steps that move the
+  outermost transits by an eighth of a duration, and returns the whole
+  spectrum.
+- `flag_periods` and `flag_times`: check the candidate against what you
+  know about your data. A `SuspectPeriod` is a period a real signal is
+  unlikely to share (a spacecraft orbit, a rotation, a day); it is matched
+  at its multiples and fractions within a relative tolerance, and each
+  match gives the ratio and offset. A `TimeWindow` is a span where a
+  transit shouldn't fall (an instrument event, the edge of a gap, flagged
+  data); each predicted transit that overlaps one is listed with the
+  windows it hits. Nothing instrument-specific is built in: you supply the
+  periods and windows. Both are tested against a brute-force check of
+  every ratio and window.
 
 ## Pointing back to the true period
 
-On the fourteen TLS comparison sets (`cargo validate accuracy aliases`
-in `rustellar-benchmarks`: the original five and the harder regimes,
-long, ultra-short, deep, grazing and eccentric transits, 20-second
-cadence, gaps, flagged points and spotted stars), every planet
-transitleastsquares 1.32 found was also given to `aliases` at a third,
-half, two thirds, three halves, twice and three times its period, as a
-search locked onto an alias would report it: 7,849 candidates in all,
-with TLS's mid-transit time and duration and the default limb-darkened
-shape. The row of lowest chi-squared was the true period:
+This uses the fourteen TLS comparison sets from `rustellar-benchmarks`:
+the original five plus the harder regimes (long, ultra-short, deep,
+grazing and eccentric transits, 20-second cadence, gaps, flagged points
+and spotted stars). Every planet transitleastsquares 1.32 found was given
+to `aliases` at a third, half, two thirds, three halves, twice and three
+times its period, the way a search locked onto an alias would report it.
+That makes 7,849 candidates, each with transitleastsquares' mid-transit
+time and duration and the default limb-darkened shape. How often the row
+with the lowest chi-squared was the true period
+(`cargo validate accuracy aliases` reruns this):
 
 | Signal to noise at the true period | Candidates | Pointed to the true period |
 |---|---|---|
@@ -130,26 +136,29 @@ shape. The row of lowest chi-squared was the true period:
 | 20 to 50 | 1,046 | 1,046 (100%) |
 | 50 and above | 763 | 763 (100%) |
 
-(The 74 other candidates have mid-transit times more than a duration off
-the true transits.) TLS itself reported an alias on 72 curves. On the 37
-at twice the period (median signal to noise 12 at the true one) the
-table points 28 back to it, and 6 of the 9 at three times; the 26 at a
-third, half, two thirds or three halves have median signals to noise of
-2.8 to 4.2 at the true period, mostly too faint for any table to settle, and the
-table is right on 3 of them. For one depth and one
-baseline the lowest chi-squared is the highest signal to noise, so
-choosing by either gives the same row.
+The other 74 candidates had mid-transit times more than a duration away
+from the true transits, and are left out.
+
+transitleastsquares itself reported an alias on 72 curves. Of the 37 at
+twice the true period (median signal-to-noise 12 at the true one), the
+table points 28 back to the right period, and 6 of the 9 at three times.
+The 26 at a third, half, two thirds or three halves have a median
+signal-to-noise of only 2.8 to 4.2 at the true period, mostly too faint
+for any method to settle, and the table gets 3 of them right. With one
+depth and one baseline, the lowest chi-squared is also the highest
+signal-to-noise, so choosing by either picks the same row.
 
 ## Against LEO-Vetter and exovetter
 
-On the same 620 simulated light curves (27 days at 2 minutes, a 3-day
-period, a 0.1-day box transit, noise of 1e-3 a point), this crate,
-LEO-Vetter 1.2.0 and exovetter 0.0.16. The planets have a 3e-3 transit;
-one set of binaries has eclipses of 3e-3 and 2.7e-3 in turn (3.8 standard
-errors apart), another a 1e-3 secondary eclipse at half the period and
-ellipsoidal variation of 2e-4; one set of planets has red noise as large
-as the white; one has gaps. The test (`tests/references.rs`) makes the
-very same curves and checks every number below.
+This crate, LEO-Vetter 1.2.0 and exovetter 0.0.16 were run on the same
+620 simulated light curves (27 days at 2 minutes, a 3-day period, a
+0.1-day box transit, noise of 1e-3 per point). The planets have a 3e-3
+transit. One set of binaries alternates eclipses of 3e-3 and 2.7e-3 (3.8
+standard errors apart); another has a 1e-3 secondary eclipse at half the
+period and ellipsoidal variation of 2e-4. One set of planets has red
+noise as large as the white, and one has gaps. The test
+`tests/references.rs` builds the same curves and checks every number
+below.
 
 | | rustellar-vet | LEO-Vetter 1.2.0 | exovetter 0.0.16 |
 |---|---|---|---|
@@ -165,24 +174,25 @@ very same curves and checks every number below.
 | Transits with data, 20 curves with gaps | equal | equal | |
 
 LEO-Vetter's odd-even test and depth errors are as well calibrated as this
-crate's. Its secondary significance counts the binary's ellipsoidal
-variation as red noise, so it is half the white-noise value. Both packages'
-sinusoid fits (SWEET) leave out only the primary eclipse, so the
-secondary pulls their ellipsoidal amplitude 40% high; this crate leaves
-out both eclipses. exovetter's odd-even error is the scatter of single
-points rather than the error of the depth, so its significance is too
-small by about the square root of the points in a transit, and its
-ModShift significances are not in standard errors (it convolves each
-bin's sum of flux, not its mean). The upper limits, the scan's spread and
-the one-depth test have no counterpart in either.
+crate's. Its secondary significance treats the binary's ellipsoidal
+variation as red noise, which halves it compared with the white-noise
+value. Both packages' sinusoid fits (SWEET) mask only the primary
+eclipse, so the secondary pulls their ellipsoidal amplitude 40% too high;
+this crate masks both eclipses. exovetter uses the scatter of single
+points as the odd-even error instead of the error on the depth, so its
+significance is too small by roughly the square root of the number of
+points in a transit. Its ModShift significances are also not in standard
+errors, because it convolves each bin's summed flux rather than its mean.
+Neither package has an equivalent of the upper limits, the scan's spread
+or the equal-depth test.
 
 ## Speed
 
 Milliseconds on one thread of an AMD Ryzen 7 5700G, for a 3.7-day planet
-in a TESS sector at 2 minutes (19,440 points) and in four years of Kepler
-long cadence (70,128 points), with the default limb-darkened shape and a
-box (`cargo bench -p rustellar-vet`, or `cargo validate speed vet` for
-this table):
+in a TESS sector at 2-minute cadence (19,440 points) and in four years of
+Kepler long cadence (70,128 points), with the default limb-darkened shape
+and with a box. `cargo validate speed vet` reruns this table, and
+`cargo bench -p rustellar-vet` runs the timings alone.
 
 | Step | TESS, limb-darkened | TESS, box | Kepler, limb-darkened | Kepler, box |
 |---|---|---|---|---|
@@ -193,9 +203,9 @@ this table):
 | `aliases` (seven ratios) | 16 | 15 | 91 | 87 |
 | `secondary` | 0.59 | | 4.4 | |
 
-The limb-darkened `refine` scores its 5,043 trials on the points within
-each trial's own transit only, so it does not grow with the points out of
-transit.
+The limb-darkened `refine` scores each of its 5,043 trials using only the
+points inside that trial's transit, so its time doesn't grow with the
+number of out-of-transit points.
 
 ## Quick start
 
@@ -214,4 +224,4 @@ assert_eq!(candidate.depth(), Some(1e-3));
 
 ## License
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0.

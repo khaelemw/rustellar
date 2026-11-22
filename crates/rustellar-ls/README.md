@@ -7,15 +7,15 @@ Part of [rustellar](../../README.md). Use it on its own, or through the
 
 ```toml
 [dependencies]
-# Through the umbrella, which most projects want:
+# Through the umbrella crate (what most projects want):
 rustellar = { version = "0.1", features = ["ls"] }
 # Or this crate alone:
 rustellar-ls = "0.1"
 ```
 
-On its own it re-exports the core types it takes and returns
-(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
-`rustellar-core` need not be listed, and the two always match.
+This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
+`TimeDelta` and their errors), so you don't need to add `rustellar-core`
+yourself or keep its version in step.
 
 **Status:** in development, not yet released.
 
@@ -28,51 +28,55 @@ sinusoid and a floating mean are fitted by weighted least squares
 (Zechmeister & Kurster 2009), and the power is how much they lower
 chi-squared.
 
-This crate gives that periodogram exactly, and fast to a stated
-tolerance, with its peaks refined between the grid's frequencies, the
-best-fit sinusoid and false-alarm probabilities. Frequencies are in cycles
-per day of the data's own time scale; nothing is tied to an instrument.
+This crate computes that periodogram exactly, or faster to a tolerance you
+choose. It also refines peaks between grid frequencies, gives the best-fit
+sinusoid, and computes false-alarm probabilities. Frequencies are in
+cycles per day on the data's own time scale; nothing is tied to a
+particular instrument.
 
-## So far
+## What it does
 
-- `Frequencies`: an even grid or any list of frequencies, checked once.
-- `AutoFrequency`: astropy's automatic grid (VanderPlas 2018), with its
-  defaults and every setting overridable.
-- `LombScargle`: the periodogram with a floating mean (Zechmeister &
-  Kurster 2009), the mean subtracted once, or none (`Mean`), in astropy's
-  four normalisations (`Normalization`), exactly, on all cores.
-- `LombScargle::power_fast`: the same on an even grid to a stated
-  tolerance, by non-uniform FFTs, with every power checked against a
-  bound on its error and computed exactly where the bound is not met.
+- `Frequencies`: an even grid or any list of frequencies, validated once.
+- `AutoFrequency`: astropy's automatic grid (VanderPlas 2018), with the
+  same defaults, and every setting can be overridden.
+- `LombScargle`: the exact periodogram on all cores, with a floating mean
+  (Zechmeister & Kurster 2009), the mean subtracted once, or no mean
+  (`Mean`), in any of astropy's four normalisations (`Normalization`).
+- `LombScargle::power_fast`: the same on an even grid, using non-uniform
+  FFTs, to a tolerance you set. Every power is checked against a bound on
+  its error, and recomputed exactly where the bound isn't met.
 - `LombScargle::peaks`: the highest peaks, each refined off the grid to
   where the power's derivative is zero (`Peak`).
-- `LombScargle::model`: the sinusoid fitted at a frequency, its offset,
-  amplitude and phase with their standard errors (`Sinusoid`).
+- `LombScargle::model`: the sinusoid fitted at a frequency, with its
+  offset, amplitude and phase and their standard errors (`Sinusoid`).
 - `LombScargle::false_alarm_probability` and `false_alarm_level`: the
-  probability that noise alone gives the highest peak so high, and its
-  inverse, by Baluev's (2008) approximation, the Davies bound, the naive
-  count of independent frequencies or one frequency (`FalseAlarm`).
+  probability that noise alone would produce a highest peak this high,
+  and the inverse. Methods (`FalseAlarm`): Baluev's (2008) approximation,
+  the Davies bound, a naive count of independent frequencies, or a single
+  frequency.
 
 ## Accuracy
 
 The power is the weighted least-squares fit at each frequency, computed
-so that rounding does not grow with the data:
+so that rounding error doesn't grow with the data:
 
-- each phase from the exact product of frequency and time, reduced to the
-  nearest quarter cycle, so times of millions of days lose nothing;
-- each sine and cosine as a whole base and a small part, so terms near 0
-  or 1 keep their digits, and the sums centred on their means with
-  compensated summation, so frequencies far below 1 / T lose nothing;
-- the weighted mean subtracted to twice the digits of an `f64`;
-- where the sinusoid's terms are the same at every point to rounding (the
-  Nyquist frequency of even sampling), the term that is not is fitted.
+- Each phase comes from the exact product of frequency and time, reduced
+  to the nearest quarter cycle, so times of millions of days lose no
+  precision.
+- Each sine and cosine is split into a base value and a small remainder,
+  so terms near 0 or 1 keep their digits. Sums are centred on their means
+  and use compensated summation, so frequencies far below 1 / T lose
+  nothing either.
+- The weighted mean is subtracted at twice `f64` precision.
+- Where one of the sinusoid's terms is constant across all points (the
+  Nyquist frequency of even sampling), only the other term is fitted.
 
-Against the same least squares at 40 digits on six seeded cases (uneven
-sampling, BJD-sized times, a near-perfect sinusoid, frequencies far below
-1 / T, even sampling through its Nyquist frequency, five points), with
-astropy 7.2's three methods on the same frequencies, the largest error
-as a fraction of the periodogram's peak (floating mean, standard
-normalisation):
+This is compared with the same least squares at 40 digits on six seeded
+cases (uneven sampling, BJD-sized times, a near-perfect sinusoid,
+frequencies far below 1 / T, even sampling through its Nyquist frequency,
+and five points), alongside astropy 7.2's three methods on the same
+frequencies. The table gives the largest error as a fraction of the
+periodogram's peak (floating mean, standard normalisation):
 
 | Case | rustellar-ls | astropy slow | astropy cython | astropy fast |
 |---|--:|--:|--:|--:|
@@ -83,13 +87,13 @@ normalisation):
 | Even sampling, Nyquist | 4e-16 | NaN | NaN | 0.51 |
 | Five points | 6e-16 | 5e-15 | 1e-14 | 9e-2 |
 
-Every mean and normalisation is within ten roundings of the peak (the
-model and log normalisations, which divide by the chi-squared left, also
-within a few roundings of the flux over the residuals). One frequency is
-left out: five points at 2.5 cycles per day, where the fit's terms
-depend on each other to 1e-15 and the exact answer rests on digits no
-`f64` computation of them holds; there all four methods agree with each
-other, not with 40 digits.
+Every mean option and normalisation is within ten rounding errors of the
+peak. (The model and log normalisations, which divide by the remaining
+chi-squared, are also within a few rounding errors relative to the flux
+over the residuals.) One frequency is left out: five points at 2.5
+cycles per day, where the fit's terms are dependent to 1e-15 and the
+exact answer depends on digits that no `f64` calculation keeps. There all
+four methods agree with each other but not with the 40-digit value.
 
 The fast method's largest error in the standard normalisation on the same
 cases (floating mean), against astropy's fast method above:
@@ -103,23 +107,25 @@ cases (floating mean), against astropy's fast method above:
 | Even sampling, Nyquist | 2e-7 | 7e-11 | 4e-15 |
 | Five points | 2e-6 | 2e-10 | 3e-14 |
 
-Each point's phase is exact before it is spread, so times of any size
-lose nothing; the transforms (Leroy 2012, with the kernel of Barnett,
-Magland & af Klinteberg 2019) are asked for a hundredth of the
-tolerance, and each power's error is bounded from theirs and the fit's
-conditioning. Where the bound fails (the lowest frequencies, where the
-fit's terms nearly coincide, and degenerate ones such as the Nyquist
-frequency of even sampling) that power is computed exactly instead.
+Each point's phase is computed exactly before it is spread onto the FFT
+grid, so times of any size lose nothing. The transforms (Leroy 2012, with
+the kernel of Barnett, Magland & af Klinteberg 2019) run at a hundredth
+of the requested tolerance, and each power's error is bounded using
+theirs and the fit's conditioning. Where the bound fails (the lowest
+frequencies, where the fit's terms nearly coincide, and degenerate ones
+such as the Nyquist frequency of even sampling), that power is computed
+exactly instead.
 
 ### Peaks and the sinusoid
 
-Each peak is moved to where the power's derivative is zero, from the
-derivative's own sums (the same centred terms as the power), by the ITP
-method (Oliveira & Takahashi 2020). Interpolating the power instead cannot
-place a peak closer than about 1e-8 of its width, where its change falls
-below its rounding. Against the maximum at 40 digits on the same cases
-(each case's three highest peaks with every mean), the largest error in
-the peak's frequency as a fraction of its width 1 / T:
+Each peak is moved to where the power's derivative is zero, using the
+derivative's own sums (the same centred terms as the power) and the ITP
+root finder (Oliveira & Takahashi 2020). Interpolating the power instead
+can't place a peak closer than about 1e-8 of its width, because the
+power's change there is smaller than its rounding error. Compared with the
+40-digit maximum on the same cases (each case's three highest peaks, with
+every mean option), the largest error in peak frequency as a fraction of
+the peak width 1 / T:
 
 | Case | rustellar-ls | parabola through three powers | grid's best (astropy) |
 |---|--:|--:|--:|
@@ -130,17 +136,18 @@ the peak's frequency as a fraction of its width 1 / T:
 | Even sampling, Nyquist | 7e-15 | 5e-3 | 6e-2 |
 | Five points | 2e-15 | 1e-1 | 9e-2 |
 
-The power there is within 2e-15 of the exact power at the maximum. The
+The power at the refined peak is within 2e-15 of the exact maximum. The
 sinusoid there (offset, amplitude, phase and their standard errors) is
-within 4e-15 of 40 digits on every case; astropy's `model_parameters`
-gives an amplitude off by up to 5e-10 at BJD-sized times and by 100% far
-below 1 / T, where the normal equations of its raw terms cancel.
+within 4e-15 of the 40-digit values in every case. astropy's
+`model_parameters` gets the amplitude wrong by up to 5e-10 at BJD-sized
+times, and by 100% far below 1 / T, where its normal equations lose all
+precision to cancellation.
 
 ### False-alarm probabilities
 
-Against Baluev's (2008) formulas at 40 digits on the same cases and
-100,000 even points, for probabilities from 0.5 to 1e-40 in every
-normalisation, the largest relative error:
+Compared with Baluev's (2008) formulas at 40 digits, on the same cases
+plus 100,000 evenly spaced points, for probabilities from 0.5 down to
+1e-40 in every normalisation, the largest relative error:
 
 | Method | probability | level | astropy probability | astropy level |
 |---|--:|--:|--:|--:|
@@ -149,15 +156,15 @@ normalisation, the largest relative error:
 | Naive | 1e-14 | 5e-15 | 4e-12 | 8e-4, fails below 1e-16 |
 | Single | 1e-14 | 3e-15 | 4e-12 | 3e-12 |
 
-Each probability is computed in logarithms, so one far below 1e-16 keeps
-its digits; the gamma ratio from its asymptotic series, not a difference
-of log-gammas; each level found to the last bits by ITP. Without a mean,
-the degrees of freedom are Baluev's (no parameter for the reference fit,
-two with the sinusoid), where astropy refuses. Against 4,000 simulations
-of Gaussian noise on 60 uneven points, the share whose highest peak
-passes the Baluev level for 0.5, 0.1 and 0.01 is 0.464, 0.097 and
-0.0105 (an upper bound, close for small probabilities); for the naive
-level for 0.1 it is 0.24.
+Probabilities are computed in logarithms, so values far below 1e-16 keep
+their precision. The gamma-function ratio uses its asymptotic series
+rather than a difference of log-gammas, and each level is solved to the
+last bits with ITP. With no mean, the degrees of freedom follow Baluev
+(none for the reference fit, two with the sinusoid); astropy refuses this
+case. In 4,000 simulations of Gaussian noise on 60 uneven points, the
+fraction whose highest peak exceeds the Baluev level for 0.5, 0.1 and
+0.01 is 0.464, 0.097 and 0.0105 (Baluev is an upper bound, and close for
+small probabilities). For the naive level at 0.1 it is 0.24.
 
 ```rust
 use rustellar_ls::{AutoFrequency, LightCurve};
@@ -175,11 +182,11 @@ assert_eq!(grid.min(), 0.01);
 
 ## Speed
 
-On one AMD Ryzen 7 5700G (8 cores, 16 threads), floating mean, standard
-normalisation, against astropy 7.2 on the same machine and the same light
-curves (`n` points over 30 days with a 2.7-day sinusoid, an even grid from
-0.01 per day, step 0.005), each the best of three; `cargo run --release -p
-rustellar-benchmarks --bin compare -- speed-ls` prints these tables:
+On an AMD Ryzen 7 5700G (8 cores, 16 threads), floating mean, standard
+normalisation, against astropy 7.2 on the same machine and light curves
+(`n` points over 30 days with a 2.7-day sinusoid, on an even grid from
+0.01 per day in steps of 0.005), best of three. `cargo validate speed ls`
+reruns these tables.
 
 | Points x frequencies | exact, 1 thread | exact, 16 threads | astropy slow | astropy cython |
 |---|--:|--:|--:|--:|
@@ -187,10 +194,11 @@ rustellar-benchmarks --bin compare -- speed-ls` prints these tables:
 | 10,000 x 10,000 | 0.70 s | 93 ms | 5.4 s | 2.3 s |
 
 The exact method costs about 7 ns per point and frequency on one thread,
-3 times less than astropy's cython method: the phase from two exact
-products and fdlibm's minimax polynomials on the reduced angle (no
-library sine, no fused multiply-add needed), compiled for AVX2 where the
-processor has it (the same arithmetic, so the same bits either way).
+a third of astropy's cython method. The phase comes from two exact
+products, and the sine and cosine from fdlibm's minimax polynomials on
+the reduced angle (no library sine, and no fused multiply-add needed).
+It is compiled for AVX2 where the processor supports it, with the same
+arithmetic, so the results are bit-identical either way.
 
 The fast method on 16 threads, against astropy's fast method (which has no
 tolerance; see Accuracy):
@@ -203,12 +211,12 @@ tolerance; see Accuracy):
 | 100,000 x 100,000 | 44 ms | 45 ms | 0.12 s |
 | 1,000,000 x 1,000,000 | 0.39 s | 0.42 s | 2.0 s |
 
-It costs `O(n + m log m)` for `n` points and `m` frequencies, on our own
-cache-blocked FFT, with the same bits on any number of threads. Its
-frequencies below a few times 1 / T are computed exactly (see Accuracy),
-which is most of its time on the smallest grids. `cargo bench -p
-rustellar-ls` times both methods on their own.
+It costs `O(n + m log m)` for `n` points and `m` frequencies, using this
+crate's own cache-blocked FFT, with bit-identical results on any number
+of threads. Frequencies below a few times 1 / T are computed exactly (see
+Accuracy), which takes most of the time on the smallest grids. `cargo
+bench -p rustellar-ls` times both methods alone.
 
 ## License
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0.

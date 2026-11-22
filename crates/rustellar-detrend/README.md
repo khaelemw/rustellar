@@ -1,48 +1,52 @@
 # rustellar-detrend
 
-Detrending light curves in pure Rust: the slow variation of a star and of
-the instrument estimated and divided out before a transit search. The method
-is a time-windowed sliding filter, by default Tukey's biweight (Hippke et al.
-2019), solved to full double precision, with every point in the windows
-that cover it and the same results on any number of threads. Welsch's,
-Andrews' and Huber's M-estimators, Huber's proposal 2 (location and scale
-together, as wotan's `huber`), the Hodges-Lehmann estimator, the trimmed
-and winsorized means, the median and the mean are there too, and a
-least-squares cubic spline fitted to each segment, plain, clipped or
-Huber's.
+Detrending light curves in pure Rust. It estimates the slow variation from
+the star and the instrument and divides it out before a transit search.
+
+The default method is a sliding time window with Tukey's biweight (Hippke
+et al. 2019), solved to full double precision, with bit-identical results
+on any number of threads. Also available:
+
+- Welsch's, Andrews' and Huber's M-estimators;
+- Huber's proposal 2 (location and scale estimated together, like wotan's
+  `huber`);
+- the Hodges-Lehmann estimator, trimmed and winsorized means, the median
+  and the mean;
+- a least-squares cubic spline fitted to each segment, either plain,
+  with outliers clipped, or with Huber weights.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `detrend` feature.
 
 ```toml
 [dependencies]
-# Through the umbrella, which most projects want:
+# Through the umbrella crate (what most projects want):
 rustellar = { version = "0.1", features = ["detrend"] }
 # Or this crate alone:
 rustellar-detrend = "0.1"
 ```
 
-On its own it re-exports the core types it takes and returns
-(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
-`rustellar-core` need not be listed, and the two always match.
+This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
+`TimeDelta` and their errors), so you don't need to add `rustellar-core`
+yourself or keep its version in step.
 
 **Status:** in development, not yet released.
 
 ## Statement of need
 
 The time-windowed biweight is the detrender most transit searches use,
-through wotan, a Python package. Its iteration stops at a tolerance, so its
-trend is good to a few parts per million at best, and worse for fluxes in
-counts or far from 1; a window edge falls on whichever side the rounding of
-a time difference puts it.
+via the Python package wotan. wotan's iteration stops at a tolerance, so
+its trend is accurate to a few parts per million at best, and worse for
+fluxes in counts or far from 1. Whether a point lands inside a window can
+also depend on rounding in a time difference.
 
-This crate is that detrender for Rust. Its biweight and other M-estimators
-are correctly rounded wherever the sign of the sum that defines them can be
-told from zero; its median, mean, Hodges-Lehmann estimator and trimmed and
-winsorized means are correctly rounded; and every window edge is decided
-exactly. It runs on all cores with the same result, to the bit, on any
-number of threads and any processor, and on one thread it is faster than
-wotan.
+This crate is that detrender in Rust. Its biweight and other M-estimators
+return the correctly rounded answer whenever the sign of the defining sum
+can be distinguished from zero. The median, mean, Hodges-Lehmann estimator
+and trimmed and winsorized means are always correctly rounded, and window
+edges are decided exactly. It uses all cores, gives bit-identical results
+on any thread count and any processor, and is faster than wotan even on
+one thread.
 
 ## Quick start
 
@@ -73,9 +77,10 @@ assert!((flux[740] - 0.995).abs() < 1e-5);
 
 **Survey light curves.** Five simulated curves with spots, drift, flares,
 noise and transits (a TESS sector at 2-minute cadence, a fast rotator, one
-in counts, a faint star at flux 1e-5, a Kepler quarter), 1,477 sampled
-points against the biweight root at 50 digits. Each of wotan's is compared
-with the root of its own window:
+in counts, a faint star at flux 1e-5, and a Kepler quarter). At 1,477
+sampled points, each trend value is compared with the 50-digit biweight
+solution. wotan's values are compared with the solution for wotan's own
+window at each point:
 
 | | Nearest double | Worst relative error |
 |---|--:|--:|
@@ -84,76 +89,84 @@ with the root of its own window:
 | wotan 1.10, counts | 0 | 2.4e-11 |
 | wotan 1.10, faint star | 0 | 4.6e-5 |
 
-Huber's M-estimator (c 1.28) at the same points: this crate's the nearest
-double at all 1,477; wotan's `huber_psi`, one step from the median, at
-none, worst 3.2e-4 relative to its own window's root.
+For Huber's M-estimator (c 1.28) at the same points, this crate gives the
+nearest double at all 1,477. wotan's `huber_psi`, which takes one step
+from the median, gives it at none, with a worst error of 3.2e-4 relative
+to its own window's solution.
 
-**Reference windows.** 909 biweight windows and 1,599 windows of the other
-methods, at 50 digits or exactly: every M-estimate within half a unit plus
-its rounding doubt, and the nearest double wherever that doubt is small
-(all but a few windows with roots very near zero, ties and multiple roots);
-the order estimators to the bit. wotan is never nearer.
+**Reference windows.** On 909 biweight windows and 1,599 windows for the
+other methods, compared with 50-digit or exact answers, every M-estimate
+is within half a unit in the last place plus its rounding uncertainty,
+and is the nearest double wherever that uncertainty is small (all but a
+few windows with solutions very near zero, ties or multiple solutions).
+The order-based estimators match exactly. wotan is never closer.
 
-**Huber's proposal 2** (`Method::HuberJoint`, c 1.5), against the exact
-solution of its two equations at 60 digits: this crate's the nearest
-double at all 1,477 points; wotan's `huber` (statsmodels, which stops at a
-tolerance of 1e-6 of the scale), against the solution on its own window,
-at 7, worst relative error 1.9e-9. It never fell back to the median
-there.
+**Huber's proposal 2** (`Method::HuberJoint`, c 1.5), compared with the
+60-digit solution of its two equations: this crate gives the nearest
+double at all 1,477 points. wotan's `huber` (via statsmodels, which stops
+at a tolerance of 1e-6 of the scale) does so at 7, with a worst relative
+error of 1.9e-9. This crate never had to fall back to the median on these
+points.
 
-**The spline** (`Method::Spline`), against the exact least-squares
-spline on the same knots (60 digits) on 60 light curves (40,291 points of
-normalised flux, counts, values about zero and about 1e200, with gaps,
-masks and edge cutoffs), in units of 2^-52 times the largest flux: this
-crate's median error 1.4, scipy's `LSQUnivariateSpline` (FITPACK) 17.5.
-Where masks leave the knots badly conditioned, scipy's worst is 9,128
-and this crate's 113. The times are taken relative to the knots exactly
-and the fit refined twice from residuals found with fused multiply-adds.
+**The spline** (`Method::Spline`) is compared with the exact 60-digit
+least-squares spline on the same knots, on 60 light curves (40,291 points
+of normalised flux, counts, values around zero and around 1e200, with
+gaps, masks and edge cutoffs). In units of 2^-52 times the largest flux,
+this crate's median error is 1.4 and scipy's `LSQUnivariateSpline`
+(FITPACK) 17.5. Where masks leave the knots badly conditioned, scipy's
+worst is 9,128 and this crate's 113. Times are taken relative to the
+knots exactly, and the fit is refined twice from residuals computed with
+fused multiply-adds.
 
-**The robust spline** (`Method::RobustSpline`), against the same clipping
-loop run exactly at 60 digits on 40 light curves with flares, dips and
-single outliers: the same points clipped in every case, and the trend
-within 2 ulps of the data's scale; the loop with scipy's fits, 4 to 47.
-wotan's `rspline` is a different loop: it clips only below the spline, so
-flares stay in and on pure noise its trend sits 0.09 standard deviations
-high (this crate's: unbiased, both sides clipped), and it always makes
-ten fits.
+**The robust spline** (`Method::RobustSpline`) is compared with the same
+clipping loop run at 60 digits, on 40 light curves with flares, dips and
+single outliers. It clips exactly the same points in every case, and the
+trend is within 2 ulps of the data's scale; the same loop using scipy's
+fits is off by 4 to 47. wotan's `rspline` works differently: it clips only
+points below the spline, so flares stay in, its trend on pure noise sits
+0.09 standard deviations too high (this crate clips both sides and is
+unbiased), and it always runs ten fits.
 
-**The Huber spline** (`Method::HuberSpline`, statsmodels' `RLM` with
-`HuberT` on the B-splines), against its fixed point solved at 50 digits on
-30 light curves with flares, dips and outliers: within 3 ulps of the data's
-scale in 29, 71 in one badly conditioned case; statsmodels at its default
-tolerance from 4 ulps to 1.1e10 (1e-6 relative), at 1e-14 from 2 to 40.
-Newton's steps on which points are within c s (the estimating equations
-are linear once those are known), not reweighting alone: one or two steps
-where reweighting takes tens.
+**The Huber spline** (`Method::HuberSpline`, equivalent to statsmodels'
+`RLM` with `HuberT` on the B-splines) is compared with its fixed point
+solved at 50 digits, on 30 light curves with flares, dips and outliers.
+It is within 3 ulps of the data's scale in 29 of them, and 71 in one
+badly conditioned case. statsmodels at its default tolerance is off by 4
+ulps up to 1.1e10 (1e-6 relative), and at a tolerance of 1e-14 by 2 to
+40. Once you know which points lie within c × s, the estimating equations
+are linear, so this crate takes Newton steps on that set instead of only
+reweighting: one or two steps where reweighting takes tens.
 
-**The autoregressive fit** (`Autoregressive`), against statsmodels 0.15's
-`AutoReg` (trend "c") and the same least squares solved at 60 digits on 48
-series (autoregressive processes about 1, with a leftover wave, in counts,
-and near a unit root): each coefficient's term in the prediction (the
-constant, and each coefficient times the largest flux) within 0.16 ulps of
-the largest term, a median 0; statsmodels a median 161 and 4,122 at most. The order AIC chooses matches `ar_select_order` in all
-48. Givens rotations (without a platform's `hypot`, so the same bits
-everywhere), then refinement steps on residuals with exact products until
-they stop shrinking, where statsmodels solves with a pseudo-inverse.
+**The autoregressive fit** (`Autoregressive`) is compared with
+statsmodels 0.15's `AutoReg` (trend "c") and with the same least squares
+solved at 60 digits, on 48 series (autoregressive processes around 1,
+with a leftover wave, in counts, and near a unit root). Measuring each
+term of the prediction (the constant, and each coefficient times the
+largest flux) against the largest term, this crate's error is at most
+0.16 ulps with a median of 0; statsmodels' median is 161 and its worst
+4,122. The order chosen by AIC matches `ar_select_order` in all 48. The
+fit uses Givens rotations (without the platform's `hypot`, so results are
+identical everywhere), then refines on residuals with exact products
+until they stop shrinking; statsmodels uses a pseudo-inverse.
 
-**Detrend then search.** The five curves flattened by this crate's trend
-and by wotan's, then searched with rustellar-bls: both find every transit
-with the same period and mid-transit time, and depths that agree to 0.006.
-The exact trend changes accuracy and speed, not detections.
+**Detrend then search.** The five curves were flattened with this crate's
+trend and with wotan's, then searched with rustellar-bls. Both find every
+transit with the same period and mid-transit time, and depths agree to
+0.006. So the exact trend improves accuracy and speed, but doesn't change
+what gets detected.
 
 ## Choosing the window
 
-A window too short follows a transit and takes some of its depth; one too
-long leaves the star's variability in, which raises false peaks. Hippke et
-al. (2019) suggest about three times the transit's duration. Measured here
-on 400 injected curves (a TESS sector at 10 minutes, white noise 1e-3;
-limb-darkened transits 1 to 7 hours long, signal to noise 10 to 44 in white
-noise alone for 80% of them; for the star, two sinusoids of 0.5 to 10 days
-and 1e-4 to 5e-3), biweight throughout. The share of searches whose best
-BLS peak is the injected period, and the medians of the depth kept and of
-the signal to noise kept (as a fraction of the white-noise ideal):
+A window that's too short follows the transit and removes some of its
+depth; one that's too long leaves stellar variability in, which creates
+false peaks. Hippke et al. (2019) suggest about three times the transit
+duration. This was measured on 400 injected curves: a TESS sector at
+10-minute cadence with white noise of 1e-3; limb-darkened transits 1 to 7
+hours long, 80% of them with a white-noise signal-to-noise of 10 to 44;
+and stellar variability from two sinusoids with periods of 0.5 to 10 days
+and amplitudes of 1e-4 to 5e-3. All use the biweight. The table shows how
+often the best BLS peak is the injected period, and the median fraction
+of depth and signal-to-noise kept (relative to the white-noise ideal):
 
 | Window | Blind BLS: right period | Right, SDE above 7 | Depth kept | Signal to noise kept | Transits masked: signal to noise kept |
 |---|--:|--:|--:|--:|--:|
@@ -167,17 +180,20 @@ the signal to noise kept (as a fraction of the white-noise ideal):
 | 12 | 0.49 | 0.17 | 0.95 | 0.81 | 0.87 |
 | 0.5 days | 0.70 | 0.46 | 0.70 | 0.66 | 0.98 |
 
-A longer window keeps more of the depth, yet the search does worse after
-it: the variability it leaves in makes false peaks. With the transits
-masked (over 1.2 durations) every window keeps the whole depth, and the
-shorter it is the less variability it leaves. So, two steps:
+A longer window keeps more of the depth, but the search does worse
+afterwards, because the variability left in creates false peaks. With the
+transits masked (over 1.2 durations), every window keeps the full depth,
+and shorter windows leave less variability. So the recommended approach
+has two steps:
 
-1. **Search** after `Detrend::with_window_for_transit(longest)`: a window
-   of 2.5 times the longest duration searched for (`WINDOW_PER_DURATION`),
-   in the middle of the range the search did best after, so a transit
-   somewhat longer than expected keeps most of its depth.
-2. **Measure** a candidate after detrending again with its transits left
-   out: `Detrend::flatten_around` does both steps with any search, below.
+1. **Search** after `Detrend::with_window_for_transit(longest)`, which
+   uses a window of 2.5 times the longest duration you're searching for
+   (`WINDOW_PER_DURATION`). That's in the middle of the range where the
+   search did best, so a transit somewhat longer than expected still keeps
+   most of its depth.
+2. **Measure** the candidate after detrending again with its transits
+   masked. `Detrend::flatten_around` does both steps with any search (see
+   below).
 
 `cargo run --release -p rustellar-benchmarks --bin compare -- window`
 reruns the study.
@@ -185,14 +201,14 @@ reruns the study.
 ## Masking a search's candidate
 
 `Detrend::flatten_around(lc, &Masking::default(), search)` flattens the
-light curve, runs `search` (any transit search, such as a BLS or TLS one,
-returning its best candidate's period, mid-transit time and duration),
+light curve, runs `search` (any transit search, such as BLS or TLS, that
+returns its best candidate's period, mid-transit time and duration),
 masks the candidate's transits (`transit_mask`) and flattens again around
-them. With `Masking::with_rounds` it searches again, until the search finds
-the same transits. On the same 400 curves, from the biweight at 2.5
-durations and a blind BLS search (mask and window in the candidate's
-durations, as the search found it; the true transits' row in the true
-duration):
+them. With `Masking::with_rounds` it repeats the search until it finds the
+same transits twice. Results on the same 400 curves, starting from the
+biweight at 2.5 durations and a blind BLS search. Mask and window sizes
+are in units of the candidate's duration as the search found it (for the
+"true transits" rows, the true duration):
 
 | Flattening | Mask | Window | Depth kept | Signal to noise kept | 10th percentile | Search right |
 |---|--:|--:|--:|--:|--:|--:|
@@ -205,37 +221,39 @@ duration):
 | True transits masked | 1.2 | 2 | 1.00 | 0.99 | 0.78 | 0.892 |
 | True transits masked | 1.5 | 2.5 | 1.00 | 0.98 | 0.69 | 0.838 |
 
-One mask around the search's own candidate keeps the whole depth and 98%
-of the signal to noise, against 63% blind, as much as masking the true
-transits: the coarse durations and mid-transit times a search reports cost
-nothing with a mask 1.5 durations long. The few curves where it does
-worse (the 10th percentile) are those whose search was wrong, and masking
-cannot put that right: a search on a curve masked around a candidate
-favours it, so searching again never found the true period where the blind
-search had not (0 of 92), and moved a few right ones to aliases. Hence one
-round by default: search blind, measure masked. The depth comes out about
-1% deep, because the search picks the mid-transit time and duration where
-the noise is deepest too.
+Masking once around the search's own candidate keeps the full depth and
+98% of the signal-to-noise (against 63% without masking), as much as
+masking the true transits. With a mask 1.5 durations long, the search's
+approximate duration and mid-transit time cost nothing. The curves where
+it does worse (the 10th percentile) are the ones where the search was
+wrong to begin with, and masking can't fix that: a curve masked around a
+candidate favours that candidate, so searching again never found the true
+period where the blind search had missed it (0 of 92), and pushed a few
+correct ones to aliases. Hence the default of one round: search blind,
+then measure with the mask. The depth comes out about 1% too deep,
+because the search also picks the mid-transit time and duration where the
+noise happens to dip.
 
 `cargo run --release -p rustellar-benchmarks --bin compare -- masking`
 reruns the study.
 
 ## Whitening before the search
 
-`Autoregressive::default().whiten(&flat)` fits a flattened light curve
-with an autoregressive model (each flux from the up to 30 before it in its
-run of regular cadence, the order by AIC) and returns what the model
-misses, `1 + e`: noise correlated over a few cadences comes out white, as
-in ARPS (Caceres et al. 2019). A transit comes out shallower (by the
-model's gain, `1 - phi_1 - ... - phi_p`) with a deeper first point.
+`Autoregressive::default().whiten(&flat)` fits an autoregressive model to
+a flattened light curve (each flux predicted from up to 30 previous ones
+within a run of regular cadence, with the order chosen by AIC) and
+returns the residuals as `1 + e`. Noise correlated over a few cadences
+comes out white, as in ARPS (Caceres et al. 2019). A transit comes out
+shallower, scaled by the model's gain `1 - phi_1 - ... - phi_p`, with a
+deeper first point.
 
-A box is not what a whitened transit looks like, so `whiten` has a
-matched search too. `Whitened::matched(&flat)` filters the flattened
-light curve back through the model, so that a box summed on it is the
-generalised least squares fit of a box in the model's noise, and
+A whitened transit no longer looks like a box, so there is also a matched
+search. `Whitened::matched(&flat)` filters the flattened light curve back
+through the model, so that summing a box over it gives the generalised
+least-squares fit of a box in the model's noise.
 `Matched::information(duration)` says how much more a box of that
-duration is worth than its points: in correlated noise a transit's
-ingress and egress carry more of its signal than its middle.
+duration is worth than its point count suggests: in correlated noise, a
+transit's ingress and egress carry more of the signal than its middle.
 `rustellar-bls`'s `Bls::search_whitened` takes both.
 
 ```rust,ignore
@@ -249,13 +267,13 @@ let result = Bls::new(filtered.light_curve())?.search_whitened(
 )?;
 ```
 
-On the window study's 400 curves, flattened (the biweight at 2.5
-durations) and searched, with their white noise and with noise as
-correlated as an AR(1) process with 0.5 and 0.8, each with its transit
-and without: how often the search finds the transit above the SDE that 5%
-of the curves without one reach. BLS on the flattened curve, BLS on the
-whitened one, and the matched search, with AIC choosing the order up to
-3, 10 and 30.
+This uses the window study's 400 curves, flattened (biweight at 2.5
+durations) and searched, with white noise and with AR(1) noise at 0.5 and
+0.8, each with and without its transit. The table shows how often the
+search finds the transit above the SDE threshold that only 5% of the
+transit-free curves reach. Columns: BLS on the flattened curve, BLS on
+the whitened curve, and the matched search, with AIC choosing the order
+up to 3, 10 or 30.
 
 | Noise | Flattened | Whitened, up to 3 | Up to 10 | Up to 30 | Matched, up to 3 | Up to 10 | Up to 30 |
 |---|--:|--:|--:|--:|--:|--:|--:|
@@ -263,27 +281,27 @@ whitened one, and the matched search, with AIC choosing the order up to
 | AR(1) 0.5 | **0.318** | 0.278 | 0.302 | 0.302 | 0.258 | 0.275 | 0.305 |
 | AR(1) 0.8 | 0.235 | **0.242** | 0.225 | 0.228 | 0.225 | 0.203 | 0.185 |
 
-The matched search with a long model finds the most transits on white
-noise, 23% more than the flattened curve's search, at the same false
-alarms; a long model takes out what the window left of the star. In red
-noise neither whitening nor the matched search beats searching the
-flattened curve: the window has already taken out most of the slow
-noise, and the model's fit to the rest moves as much as it gains. At SDE
-above 7 every whitened search looks better, but only because false alarms
-rise with it (0.098 to 0.152 on white noise, matched up to 10). So
-whitening and the matched search are options to try, at order 30, not a
-step to take by default.
+With a long model, the matched search finds the most transits on white
+noise, 23% more than searching the flattened curve, at the same false
+alarm rate, because a long model removes what the window left of the
+star. In red noise, neither whitening nor the matched search beats
+searching the flattened curve: the window has already removed most of the
+slow noise, and fitting the rest adds as much noise as it removes. At a
+fixed SDE of 7 every whitened search looks better, but only because the
+false alarms rise too (from 0.098 to 0.152 on white noise, matched up to
+order 10). So whitening and the matched search are worth trying at order
+30, but aren't a default step.
 
 `cargo run --release -p rustellar-benchmarks --bin compare -- whitening`
 reruns the study.
 
 ## Splines or the biweight
 
-The splines are options beside the biweight, not a replacement. On the
-window study's 400 curves (transits on spotted stars, above), each method's
-depth kept, signal to noise kept, and how often a blind BLS search after it
-finds the injected period with SDE above 7; wotan's on the same curves,
-searched the same way:
+The splines are alternatives to the biweight, not replacements. On the
+window study's 400 curves (transits on spotted stars, above), the table
+gives each method's depth kept, signal-to-noise kept, and how often a
+blind BLS search afterwards finds the injected period with SDE above 7,
+with wotan's methods on the same curves for comparison:
 
 | Method | Knots or window, in durations | Depth kept | Signal to noise kept | Search finds it |
 |---|--:|--:|--:|--:|
@@ -297,14 +315,15 @@ searched the same way:
 | wotan `rspline` | 2.5 | 0.91 | 0.87 | 0.400 |
 | wotan `hspline` | 1.5 | 0.47 | 0.46 | 0.468 |
 
-For a search the biweight stays the default, and the plain spline with
-knots 1.5 durations apart does as well; every spline searched best there
-(1 duration and 4 did worse). wotan's `rspline` keeps the most depth
-because it clips only points below the spline, so it drops the transit's
-own points, but noise dips go too and its search finds fewer transits.
-Clipping this crate's robust spline that way (2 below, 3 above) did the
-same: depth kept 0.79 at 2.5 durations, search 0.385. The robust splines
-are for light curves with flares and outliers, which these have none of.
+The biweight stays the default for searching. The plain spline with knots
+1.5 durations apart does just as well, and every spline searched best at
+that spacing (1 and 4 durations did worse). wotan's `rspline` keeps the
+most depth because it only clips points below the spline, which removes
+the transit's own points from the fit. But it removes noise dips too, so
+its search finds fewer transits. Clipping this crate's robust spline the
+same way (2 sigma below, 3 above) gave the same result: depth kept 0.79 at
+2.5 durations, search 0.385. The robust splines are meant for light
+curves with flares and outliers, which these curves don't have.
 
 `cargo run --release -p rustellar-benchmarks --bin compare -- methods`
 reruns the study (its README says how wotan's columns were made).
@@ -313,9 +332,9 @@ reruns the study (its README says how wotan's columns were made).
 
 Seconds on an AMD Ryzen 7 5700G (8 cores, 16 threads), Rust 1.99; wotan
 1.10 (numba 0.64, after its first call) runs on one thread. The light
-curves are the survey's: a Kepler quarter (4,265 points, 1-day window), a
-TESS sector at 2 minutes (18,139 points) and at 20 seconds (108,878), the
-TESS windows half a day.
+curves are a Kepler quarter (4,265 points, 1-day window) and a TESS
+sector at 2 minutes (18,139 points) and at 20 seconds (108,878 points),
+both with half-day windows.
 
 | Biweight | wotan 1.10 | rustellar-detrend, 1 thread | rustellar-detrend, 16 threads |
 |---|--:|--:|--:|
@@ -338,25 +357,25 @@ Each method on the 2-minute sector, one thread (wotan's default settings):
 | Trimmed mean | 0.196 | 0.0176 |
 | Winsorized mean | 0.196 | 0.0204 |
 
-The least-squares spline (`Method::Spline`, knots half a day apart) on the
-same sector: scipy's `LSQUnivariateSpline` 0.00259, this crate 0.00244.
-The robust spline (sigma 3): wotan's `rspline` 0.447, this crate 0.00616.
-The Huber spline (c 1.345): statsmodels' `RLM` 0.765 (the design matrix
-built beforehand), wotan's `hspline` (scikit-learn) 0.269, this crate
-0.0114.
+On the same sector:
 
-The autoregressive fit (AIC up to order 30, the residuals made) on the
-same sector: statsmodels' `ar_select_order` and refit 0.303, this crate
-0.0102, every order's fit taken from one factorisation.
+- Least-squares spline (`Method::Spline`, knots half a day apart): scipy's
+  `LSQUnivariateSpline` 0.00259, this crate 0.00244.
+- Robust spline (sigma 3): wotan's `rspline` 0.447, this crate 0.00616.
+- Huber spline (c 1.345): statsmodels' `RLM` 0.765 (with the design
+  matrix built beforehand), wotan's `hspline` (scikit-learn) 0.269, this
+  crate 0.0114.
+- Autoregressive fit (AIC up to order 30, including the residuals):
+  statsmodels' `ar_select_order` plus refit 0.303, this crate 0.0102,
+  since every order's fit comes from one factorisation.
 
-`Method::Huber` uses a fixed scale, c times the MAD (c 1.28, as wotan's
-`huber_psi`); `Method::HuberJoint` estimates the scale with the location,
-as wotan's `huber`.
+`Method::Huber` uses a fixed scale of c times the MAD (c 1.28, like
+wotan's `huber_psi`); `Method::HuberJoint` estimates the scale together
+with the location, like wotan's `huber`.
 
-`cargo run --release -p rustellar-benchmarks --bin compare --
-speed-detrend` prints these tables again, the rustellar-detrend columns
-timed afresh beside wotan's recorded times; `cargo bench -p
-rustellar-detrend` runs them alone.
+`cargo validate speed detrend` reruns the rustellar-detrend columns and
+prints them beside wotan's recorded times. `cargo bench -p
+rustellar-detrend` runs the Rust timings alone.
 
 ## References
 
@@ -373,4 +392,4 @@ rustellar-detrend` runs them alone.
 
 ## License
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0.

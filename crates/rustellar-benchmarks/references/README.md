@@ -72,7 +72,7 @@ versions gives the same files, to the last digit for the exact
 
 Each times a Python package on the same light curves as the Rust side and
 writes or prints the rows of `crates/rustellar-benchmarks/data/speed_<crate>.csv`.
-Time them on a quiet machine; the files in the repository were made on an
+Time them on an idle machine; the files in the repository were made on an
 AMD Ryzen 7 5700G.
 
 | Script | Times |

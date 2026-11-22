@@ -1,29 +1,35 @@
 # rustellar
 
 Exoplanet and astronomy time-series tools in pure Rust. Each tool is its own
-crate. This one brings in the tools you turn on as features, so a project
-compiles only what it uses.
+crate, and this one pulls in whichever you turn on as features, so you only
+compile what you use.
 
 ```toml
 [dependencies]
-rustellar = { version = "0.0", features = ["model"] }
+rustellar = { version = "0.1", features = ["tls", "vet"] }
 ```
 
 | Feature | Crate | What it does |
 |---|---|---|
-| `bls` | `rustellar-bls` | Box least squares transit search (in development) |
-| `detrend` | `rustellar-detrend` | Detrending: a sliding biweight to full precision (in development) |
-| `model` | `rustellar-model` | Transit light curves (Mandel & Agol 2002), exposure averaging |
-| `tls` | `rustellar-tls` | Transit least squares: a limb-darkened template search (in development) |
-| `full` | | Every tool |
-| `cuda` | | The `bls` and `tls` searches on an NVIDIA GPU where there is one (Rust 1.88 or later) |
+| `model` | `rustellar-model` | Transit light curves (Mandel & Agol 2002) with exposure averaging |
+| `fit` | `rustellar-fit` | Least-squares transit fitting |
+| `bls` | `rustellar-bls` | Box least squares transit search |
+| `tls` | `rustellar-tls` | Transit least squares search |
+| `detrend` | `rustellar-detrend` | Detrending filters (biweight and others) |
+| `ls` | `rustellar-ls` | Lomb-Scargle periodogram |
+| `mcmc` | `rustellar-mcmc` | Ensemble MCMC and transit posteriors |
+| `vet` | `rustellar-vet` | Vetting transit candidates |
+| `full` | | All of the above |
+| `cuda` | | Runs the `bls` and `tls` searches on an NVIDIA GPU (needs Rust 1.88 or later) |
+
+`cuda` is not part of `full`. Without the CUDA driver at run time, the
+searches fall back to the CPU.
 
 The shared types from `rustellar-core` (`LightCurve`, `Epoch`, `TimeDelta`)
-are always included. Each new tool will be added as a feature; see the
-[workspace README](../../README.md) for the ones planned.
+are always included.
 
 **Status:** in development, not yet released.
 
 ## License
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0.

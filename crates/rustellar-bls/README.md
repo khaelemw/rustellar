@@ -1,23 +1,24 @@
 # rustellar-bls
 
-Box least squares (BLS) transit search in pure Rust: the periodogram of
-Kovacs, Zucker & Mazeh (2002), weighted by the flux errors (or not: give
-every point the same error), with the highest peaks refitted exactly.
+Box least squares (BLS) transit search in pure Rust. It computes the
+periodogram of Kovacs, Zucker & Mazeh (2002), weighted by the flux errors
+(give every point the same error for an unweighted search), and refits the
+highest peaks exactly.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate.
 
 ```toml
 [dependencies]
-# Through the umbrella, which most projects want:
+# Through the umbrella crate (what most projects want):
 rustellar = { version = "0.1", features = ["bls"] }
 # Or this crate alone:
 rustellar-bls = "0.1"
 ```
 
-On its own it re-exports the core types it takes and returns
-(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
-`rustellar-core` need not be listed, and the two always match.
+This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
+`TimeDelta` and their errors), so you don't need to add `rustellar-core`
+yourself or keep its version in step.
 
 **Status:** in development, not yet released.
 
@@ -29,13 +30,14 @@ package with a C kernel, so a Rust pipeline has to call into Python or write
 its own. Its fast method also rounds each box to its phase bins, so the period,
 mid-transit time and depth it reports are only as good as the bins.
 
-This crate is that search for Rust. It has no dependencies beyond
-`rustellar-core` and runs on all cores with the same result, to the bit, on
-any number of threads. The binned search finds the peaks. Each of the
-highest is then searched again exactly: over every mid-transit time, a
-continuous range of durations, and periods between the grid's. Its accuracy
-is measured against astropy, transitleastsquares and exact rational
-arithmetic, and every comparison runs in the test suite.
+This crate is that search in Rust. It depends only on `rustellar-core`
+(plus `cudarc` if you turn on the GPU feature), uses all cores, and gives
+bit-identical results on any number of threads. A binned search finds the
+peaks, then each of the highest is searched again exactly: over every
+mid-transit time, a continuous range of durations, and periods between the
+grid points. Its accuracy is measured against astropy, transitleastsquares
+and exact rational arithmetic, and every comparison is part of the test
+suite.
 
 ## Quick start
 
@@ -63,8 +65,9 @@ assert!((best.transit.period().as_days() - 3.0).abs() < 0.01);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-`result.power()` is the periodogram, `result.peaks()` the refined peaks.
-astropy's automatic grid is `AutoPeriod`; `TransitBox` fits one box exactly.
+`result.power()` is the periodogram and `result.peaks()` the refined peaks.
+`AutoPeriod` gives astropy's automatic period grid, and `TransitBox` fits a
+single box exactly.
 
 ## Accuracy
 
@@ -90,28 +93,29 @@ the first set), and its period error is about the same.
 
 **Limb-darkened transits.** Real transits are rounded, which favours
 transitleastsquares. 1,000 transits from the Mandel & Agol model (quadratic
-limb darkening, impact parameters 0 to 1), and 1,000 light curves of noise
-alone to set each search's detection threshold at 1% false alarms:
+limb darkening, impact parameters 0 to 1), plus 1,000 light curves of pure
+noise to set each search's detection threshold for 1% false alarms:
 
 | | Recovered | Period | Mid-transit time (days) |
 |---|---|---|---|
 | rustellar-bls | 790 | 2.5e-4 | 1.8e-3 |
 | astropy 7.2.0 (fast) | 790 | 2.7e-4 | 2.6e-3 |
 
-On a subset of 252, transitleastsquares recovered 212 to this crate's 200: it
-fits a limb-darkened transit rather than a box. Its period error is the same
-as this crate's (2.5e-4), and its mid-transit time error larger (2.8e-3 days
-against 1.5e-3).
+On a subset of 252, transitleastsquares recovered 212 to this crate's 200,
+since it fits a limb-darkened shape instead of a box. Its period error is
+the same as this crate's (2.5e-4) and its mid-transit time error is larger
+(2.8e-3 days against 1.5e-3).
 
 **Against brute force.** On 36 survey light curves at 864 periods, the
-exact search is never below astropy's brute-force (`slow`) method, and
-above it at 788.
+exact search never finds lower power than astropy's brute-force (`slow`)
+method, and finds higher power at 788 of them.
 
 **Rounding.** On 234,000 and 1,008,000 points, the depth, signal-to-noise
 ratio and power of the reported boxes are compared with their values in
 exact rational arithmetic. This crate's largest relative error is 2.0e-15,
 within a bound derived from the data. astropy's grows with the period, to
-3.0e-13 at 400 days, because it sums large running totals plainly.
+3.0e-13 at 400 days, because it adds up large running totals without
+compensation.
 
 ## Speed
 
@@ -132,40 +136,43 @@ Kepler).
 | 13 sectors, Ofir | 42,692 | 88.8 | 47.6 | 7.24 |
 | Kepler, Ofir | 166,108 | 200 | 81.7 | 12.2 |
 
-`cargo run --release -p rustellar-benchmarks --bin compare -- speed-bls`
-prints this table again, the rustellar-bls columns timed afresh beside
-astropy's recorded times; `cargo bench -p rustellar-bls` runs the
-16-thread cases.
+`cargo validate speed bls` reruns the rustellar-bls columns and prints
+them beside astropy's recorded times. `cargo bench -p rustellar-bls` runs
+the 16-thread cases alone.
 
 ### On a GPU
 
 With the `cuda` feature (Rust 1.88 or later, an NVIDIA driver and the CUDA
 NVRTC library at run time), `Bls::search` runs the binned step and the
 refinement of the peaks on the GPU. The peaks, refined boxes and best box
-are the CPU's to the bit; the power elsewhere agrees to 1e-12 of itself.
-`SearchOptions::device` chooses where a search runs:
+are bit-identical to the CPU's, and the rest of the power spectrum agrees
+to a relative 1e-12. `SearchOptions::device` chooses where a search runs:
 
-- `Device::Auto` (the default): the first GPU where the feature is on and a
-  GPU can be used, otherwise the CPU, with no error. A GPU that fails during
-  a search leaves it to the CPU.
-- `Device::Cpu`: the CPU, for power the same to the bit on every machine.
+- `Device::Auto` (the default): the first GPU if the feature is on and a
+  GPU is usable, otherwise the CPU, with no error. If the GPU fails partway
+  through, the CPU finishes the search.
+- `Device::Cpu`: always the CPU, so the power is bit-identical on every
+  machine.
 - `Device::Gpu(index)`: that GPU, or `BlsError::GpuUnavailable`.
 
-`BlsResult::device` says where a search ran.
+`BlsResult::device` reports where a search ran.
 
-- Binned step: every point is put in the same bin as on the CPU, and the
-  bins' sums are exact 64-bit fixed point, so their order does not matter.
-  Every period whose power could change the peaks or the best box is
-  searched again on the CPU.
-- Refinement: each fold is made on the GPU with the CPU's arithmetic, in the
-  CPU's order (the compensated sums one point after another), and every run
-  of points is scored as the CPU scores it. The CPU builds each best box
-  from its run.
+How the results stay identical:
 
-No GPU or CUDA driver is never a panic. The kernels are compiled once a
-program (a quarter of a second), and each light curve's points are copied
-to the GPU at its first search there (tens of milliseconds). Seconds per
-search on an RTX 3060 Ti beside the same 16-thread CPU:
+- Binned step: every point goes in the same bin as on the CPU, and the bin
+  sums are exact 64-bit fixed point, so the order they are added in does
+  not matter. Any period whose power could change the peaks or the best
+  box is searched again on the CPU.
+- Refinement: each fold is computed on the GPU with the same arithmetic in
+  the same order as the CPU (compensated sums, one point after another),
+  and each run of points is scored the same way. The CPU builds each best
+  box from its run.
+
+A missing GPU or CUDA driver never causes a panic. The kernels are
+compiled once per program (a quarter of a second), and each light curve's
+points are copied to the GPU on its first search there (tens of
+milliseconds). Seconds per search on an RTX 3060 Ti, next to the same
+16-thread CPU:
 
 | | GPU, refine 0 | GPU, refine 5 | 16 threads, refine 0 | 16 threads, refine 5 |
 |---|--:|--:|--:|--:|
@@ -173,9 +180,9 @@ search on an RTX 3060 Ti beside the same 16-thread CPU:
 | 13 sectors, Ofir | 0.94 | 1.35 | 8.3 | 9.3 |
 | Kepler, Ofir | 1.82 | 1.95 | 12.8 | 13.0 |
 
-Searching many light curves at once, each on one thread from 16 threads
-(a new `Bls` each, refine 5, six durations), the GPU shared between them;
-seconds a light curve:
+For many light curves at once, run one search per thread (16 threads,
+a new `Bls` for each curve, refine 5, six durations); the searches share
+the GPU. Seconds per light curve:
 
 | Light curve | Points | Periods | GPU | CPU |
 |---|--:|--:|--:|--:|
@@ -186,17 +193,18 @@ seconds a light curve:
 
 ## Limits
 
-- The power is the binned search's. Only the peaks are refitted exactly, so
-  a detection statistic measured from the power is not inflated.
+- The power spectrum comes from the binned search. Only the peaks are
+  refitted exactly, so a detection statistic measured from the power is
+  not inflated.
 - The errors are taken as white noise. For noise correlated over a few
   cadences, `Bls::search_whitened` searches a light curve filtered by an
   autoregressive model (`rustellar-detrend`'s `Whitened::matched`), the
   matched filter for a box in that noise. On 400 injected curves it
   finds 23% more transits than the plain search on white noise at the
-  same false alarms, and no more under AR(1) red noise (the study is in
-  `rustellar-detrend`'s README); otherwise inflate the flux errors.
-- Detection thresholds, vetting statistics and alias checks are for the
-  pipeline using the search.
+  same false-alarm rate, and no more under AR(1) red noise (the study is
+  in `rustellar-detrend`'s README). Otherwise, inflate the flux errors.
+- Detection thresholds are left to you. For vetting statistics and alias
+  checks, see `rustellar-vet`.
 
 ## References
 
@@ -208,4 +216,4 @@ seconds a light curve:
 
 ## License
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0.

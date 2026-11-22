@@ -1,31 +1,31 @@
 # rustellar-tls
 
-Transit least squares in pure Rust: a search for a repeating transit with a
-limb-darkened template instead of a box (Hippke & Heller 2019). At each trial
-period and duration the template is fitted at every mid-transit time, its
-depth by weighted least squares, and the best fit's chi-squared gives the
-spectrum.
+Transit least squares in pure Rust (Hippke & Heller 2019). It searches a
+light curve for a repeating transit using a limb-darkened transit shape
+instead of a box. For each trial period and duration, it fits the shape at
+every mid-transit time, solving for the depth by weighted least squares,
+and the best fit's chi-squared goes into the periodogram.
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate.
 
 ```toml
 [dependencies]
-# Through the umbrella, which most projects want:
+# Through the umbrella crate (what most projects want):
 rustellar = { version = "0.1", features = ["tls"] }
 # Or this crate alone:
 rustellar-tls = "0.1"
 ```
 
-On its own it re-exports the core types it takes and returns
-(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
-`rustellar-core` need not be listed, and the two always match.
+This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
+`TimeDelta` and their errors), so you don't need to add `rustellar-core`
+yourself or keep its version in step.
 
 **Status:** in development, not yet released.
 
-Rust 1.85 or later; the `cuda` feature (the search on an NVIDIA GPU, with
-the CPU's results to the bit) needs Rust 1.88 or later, an NVIDIA driver
-and the CUDA NVRTC library at run time.
+Needs Rust 1.85 or later. The `cuda` feature runs the search on an NVIDIA
+GPU with exactly the same results as the CPU. It needs Rust 1.88 or later,
+plus an NVIDIA driver and the CUDA NVRTC library at run time.
 
 ## Example
 
@@ -50,28 +50,30 @@ assert!((best.period.as_days() - 3.0).abs() < 0.01);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-`SearchOptions::default()` is TLS's defaults: its template, durations for
-stars of 0.13 to 3.5 solar radii and 0.1 to 1 solar mass, a least depth of
-10 ppm. It searches on every core, and on the GPU with `cuda` where there
-is one.
+`SearchOptions::default()` uses transitleastsquares' defaults: its
+template, durations for stars of 0.13 to 3.5 solar radii and 0.1 to 1
+solar mass, and a minimum depth of 10 ppm. The search uses every CPU core,
+or the GPU if the `cuda` feature is on and one is present.
 
 ## Beyond TLS
 
 The best candidate also comes with:
 
-- standard errors of period, transit time, duration and depth, from the
-  chi-squared's curvature and by a moving block bootstrap; the bootstrap's
-  hold where the signal is weak or the noise correlated over hours, where
-  the curvature's are too small;
-- each transit's own depth, and odd against even transits;
-- a signal to noise for noise correlated over hours (Pont, Zucker & Queloz
-  2006) beside TLS's white one;
-- its shape with the planet's radius ratio and impact parameter fitted,
-  for durations and depths without the template's bias where the cadence
-  resolves ingress.
+- Uncertainties on period, transit time, duration and depth, two ways:
+  from the curvature of the chi-squared, and from a moving block
+  bootstrap. The bootstrap errors stay realistic when the signal is weak
+  or the noise is correlated over hours, where the curvature errors come
+  out too small.
+- The depth of each individual transit, and odd versus even transits.
+- A signal-to-noise ratio that accounts for noise correlated over hours
+  (Pont, Zucker & Queloz 2006), alongside transitleastsquares' white-noise
+  one.
+- A fit of the transit shape with the radius ratio and impact parameter
+  free. When the cadence resolves ingress, this gives durations and depths
+  without the fixed template's bias.
 
-The search's own fit at each period is also refined, and every refined
-fit's chi-squared is at or below that at transitleastsquares' answer.
+The best fit is also refined in period, duration and time together, and
+its chi-squared is never worse than at transitleastsquares' answer.
 
 ## Accuracy
 
@@ -89,15 +91,16 @@ same period grid. A transit counts as found when the best period is within
 | 40, 27 d at 2 min | 32 / 32 | 2.5e-4 / 3.5e-4 | 3.0 / 4.1 | 0.019 / 0.048 | 0.047 / 0.059 |
 | 24, two sectors at 2 min | 22 / 22 | 8.4e-5 / 1.6e-4 | 3.1 / 4.8 | 0.040 / 0.072 | 0.043 / 0.073 |
 
-Every median is this crate's or lower. Where both found the transit, this
-crate is closer to the truth more often in period and mid-transit time in
-every set (sign test p ≤ 0.02 except the 40, too few to tell). Recovery is
-a tie: 12 transits only this crate found and 5 only transitleastsquares
-did (p 0.14), all at SDE 4.5 to 6.9, where the transit and the tallest
-noise peak are about as high. `rustellar-benchmarks` reruns this.
+This crate's median error is the same or lower in every column. Where
+both found the transit, this crate is closer to the truth more often in
+period and mid-transit time in every set (sign test p ≤ 0.02, except the
+set of 40, which is too small to tell). Recovery is a tie: 12 transits
+were found only by this crate and 5 only by transitleastsquares (p 0.14),
+all at SDE 4.5 to 6.9, where the transit is barely taller than the highest
+noise peak. `cargo validate accuracy tls` reruns this.
 
 **In harder regimes.** The same comparison on 780 more transits around a
-star of the Sun's density, each set changing one thing:
+star with the Sun's density, each set changing one thing:
 
 | Light curves | Found | Period (relative) | Mid-transit time (min) | Duration (relative) | Depth (relative) |
 |---|---|---|---|---|---|
@@ -111,32 +114,34 @@ star of the Sun's density, each set changing one thing:
 | 100, flagged points, outliers, NaNs | 19 / 18 | 3.2e-4 / 4.0e-4 | 4.1 / 5.6 | 0.037 / 0.038 | 0.023 / 0.030 |
 | 100, spotted stars, red noise, detrended | 65 / 66 | 2.9e-4 / 4.6e-4 | 5.2 / 7.7 | 0.080 / 0.062 | 0.20 / 0.21 |
 
-Period and mid-transit time are again this crate's in every set. The
-duration is not: on deep, grazing and detrended transits
-transitleastsquares' is closer (in 86, 75 and 46 of 100, 90 and 64), a
-gap still to close. Outliers of 5 to 20 errors in 1% of the points
-defeat both searches; clip them before searching.
+This crate is again better in period and mid-transit time in every set,
+but not in duration: on deep, grazing and detrended transits,
+transitleastsquares' duration is closer (in 86 of 100, 75 of 90 and 46 of
+64). Outliers of 5 to 20 sigma in 1% of the points break both searches, so
+clip them before searching.
 
 **Against a box search.** On `rustellar-bls`'s 1,000 limb-darkened
-transits and 1,000 light curves of noise alone, each search's detection
-threshold set at 1% false alarms:
+transits and 1,000 light curves of pure noise, with each search's
+detection threshold set for 1% false alarms:
 
 | | Found | Period (relative) | Mid-transit time (min) |
 |---|---|---|---|
 | rustellar-tls | 838 | 1.2e-4 | 1.7 |
 | rustellar-bls | 790 | 2.5e-4 | 2.6 |
 
-The gain is largest from the ground (145 of 250 against 104). On the 252
-of these transitleastsquares 1.32 was run on, it found 212 to this crate's
-214, with mid-transit times of 4.0 minutes against 1.8.
+The gain is largest for ground-based data (145 of 250, against 104). On
+the 252 of these that transitleastsquares 1.32 was also run on, it found
+212 to this crate's 214, with a median mid-transit time error of 4.0
+minutes against 1.8.
 
 ## Speed
 
 Seconds per search on an AMD Ryzen 7 5700G (8 cores, 16 threads) and an
-RTX 3060 Ti, Rust 1.99, every search on 16 threads. transitleastsquares
-1.32 (numpy 2.4) runs with its defaults, the best of its repeats. One box
-transit every 4.7 days in white noise; the same grid (TLS's has 2 to 4
-more short periods from older solar constants).
+RTX 3060 Ti, Rust 1.99, with every search on 16 threads.
+transitleastsquares 1.32 (numpy 2.4) runs with its defaults, best of
+several repeats. The data is a box transit every 4.7 days in white noise,
+searched over the same period grid (transitleastsquares' has 2 to 4 extra
+short periods because it uses older solar constants).
 
 | | Points | Periods | transitleastsquares | rustellar-tls, no bootstrap | default (bootstrap 100) | GPU, no bootstrap |
 |---|--:|--:|--:|--:|--:|--:|
@@ -144,17 +149,20 @@ more short periods from older solar constants).
 | 1 sector, 2 min | 18,000 | 2,349 | 13.2 | 1.50 | 1.89 | 0.810 |
 | 2 sectors, 2 min | 36,000 | 5,411 | 38.2 | 3.89 | 4.67 | 1.42 |
 
-Doing what transitleastsquares does (no bootstrap), that is 9 to 12 times
-faster on the CPU and 16 to 57 times on the GPU; the bootstrap's errors add
-20 to 26%.
-`Method::Fold`, transitleastsquares' own way, takes 1.71, 9.77 and 32.3
-seconds, faster than transitleastsquares in each (at 2-minute cadence its
-points are binned, every period's best within 0.2% of the unbinned
-search): use it only to check the default against. `cargo run --release
--p rustellar-benchmarks --bin compare -- speed-tls` prints the table
-again, the rustellar-tls columns timed afresh beside transitleastsquares'
-recorded times (`--features cuda` for the GPU column); `cargo bench -p
-rustellar-tls` runs them alone.
+Doing the same work as transitleastsquares (no bootstrap), this crate is
+9 to 12 times faster on the CPU and 16 to 57 times faster on the GPU. The
+bootstrap errors add 20 to 26% to the time.
+
+`Method::Fold` searches the way transitleastsquares does and takes 1.71,
+9.77 and 32.3 seconds, still faster than transitleastsquares in every
+case. At 2-minute cadence it bins the points, which keeps each period's
+best fit within 0.2% of the unbinned search. It is there to check the
+default method against, not for normal use.
+
+`cargo validate speed tls` reruns the rustellar-tls columns and prints
+them beside transitleastsquares' recorded times (`cargo validate-gpu` for
+the GPU column). `cargo bench -p rustellar-tls` runs the Rust timings
+alone.
 
 ## References
 
@@ -165,4 +173,4 @@ rustellar-tls` runs them alone.
 
 ## License
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0.

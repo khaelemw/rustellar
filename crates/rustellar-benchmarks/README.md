@@ -1,9 +1,10 @@
 # rustellar-benchmarks
 
-The rustellar crates compared with their Python references on the same
-data, with one command. Not published: it depends on the libraries, never
-the reverse. Each library's own reference tests stay in its crate
-(`cargo test -p rustellar-bls`, for example).
+Compares the rustellar crates with the Python packages they replace, on
+the same data, with one command. This crate isn't published: it depends
+on the other crates, and none of them depend on it. Each crate's own
+reference tests stay in that crate (`cargo test -p rustellar-bls`, for
+example).
 
 ## Validating a crate
 
@@ -36,10 +37,10 @@ Options: `--quick` (20 curves a set, 8 of the limb-darkened study),
 builds with the `cuda` feature, for the searches on an NVIDIA GPU.
 
 The time estimates in `list` are for 16 CPU threads of an AMD Ryzen 7
-5700G; the GPU makes the searches several times faster. Speed tables want
-a quiet machine. The references' times there were recorded on that
-processor, so elsewhere compare the ratios only, or time the references
-on yours (see below) and replace the files.
+5700G; the GPU makes the searches several times faster. Run the speed
+tables on an idle machine. The Python packages' times were recorded on
+that processor, so on other hardware compare only the ratios, or time the
+Python packages on your machine (see below) and replace the files.
 
 `compare` (below) is the older entry point to the same suites, by set
 name.
@@ -59,27 +60,28 @@ cargo validate diff 0.1.0 0.2.0             # what changed between two releases
 cargo validate diff 0.1.0 results/mine      # or against any saved folder
 ```
 
-`--save` writes to this version's folder and `--to DIR` anywhere else;
-saving again adds to the folder and the card. With `--repeat N` each speed
-suite runs N times and saves each time's best, with each time's spread
-(the median's distance from the best) in `speed-<crate>.spread.csv`.
-Before any speed suite a fixed loop is timed nine times, and a warning
-printed when its times spread by more than 5%: something else is running.
-Each timing starts with one call to warm the caches.
+`--save` writes to this version's folder, and `--to DIR` writes anywhere
+else; saving again adds to the folder and the card. With `--repeat N`,
+each speed suite runs N times and saves the best time for each cell, with
+its spread (the median's distance from the best) in
+`speed-<crate>.spread.csv`. Before any speed suite, a fixed loop is timed
+nine times, and a warning is printed if those times vary by more than 5%,
+which means something else is using the machine. Each timing starts with
+one untimed call to warm the caches.
 
-`diff` compares the two runs' tables cell by cell, at the same table, row
-and column. A time counts as changed beyond `--tolerance` (default 10%)
-or twice either run's spread, where that is larger; any other number or
-text counts at any change, as the accuracy suites are seeded and so
-repeat exactly on one machine. It prints each changed cell with its old
-and new value, and how much slower or faster a time is. The references'
-columns never change (they are read from `data/`), so a change there means
-a reference file was replaced.
+`diff` compares two runs' tables cell by cell (same table, row and
+column). A time counts as changed if it moves by more than `--tolerance`
+(default 10%) or twice either run's spread, whichever is larger. Any
+other number or text counts as changed if it differs at all, since the
+accuracy suites are seeded and repeat exactly on the same machine. It
+prints each changed cell with its old and new value, and how much slower
+or faster a time got. The Python packages' columns are read from `data/`
+and never change, so a change there means a reference file was replaced.
 
-For a release: on a quiet machine, run every suite saved (`accuracy
---save` with the GPU if there is one, then `speed --save --repeat 3`),
+For a release: on an idle machine, run and save every suite (`accuracy
+--save`, with the GPU if there is one, then `speed --save --repeat 3`),
 `diff` against the last release, explain or fix every change, copy the
-new tables into the crates' READMEs and commit the folder with the
+new tables into the crates' READMEs, and commit the folder with the
 release.
 
 ## rustellar-tls against transitleastsquares 1.32
@@ -126,14 +128,14 @@ density (a = 4.206 P^(2/3)), b from 0 to 0.7, and each changes one thing:
 | `flagged` | 100 | 2% of points flagged and dropped, 1% outliers of 5 to 20 errors, 1% NaN |
 | `variable` | 100 | a spotted star (0.1% to 0.5%, 3 to 10 days) and red noise, detrended first (wotan's biweight and `rustellar-detrend`'s, the window three transit durations) |
 
-`references/make_tls_regimes_reference.py` writes their files; each row
-also keeps the number of points and their flux summed, which the tests
-check the curves built here against. Every transit has quadratic limb
-darkening (0.4804, 0.1867). The noise per point is
-the sum of four uniforms from SplitMix64(seed), less 2, times sqrt(3), times
-the point's error, so both packages see the same light curves (the transit
-from batman in Python and `rustellar-model` here, which agree to a few
-parts in 10^8).
+`references/make_tls_regimes_reference.py` writes their files. Each row
+also stores the number of points and the sum of the flux, and the tests
+check that the curves built in Rust match. Every transit has quadratic
+limb darkening (0.4804, 0.1867). The noise at each point is the sum of
+four uniform draws from SplitMix64(seed), minus 2, times sqrt(3), times
+the point's error, so both packages see identical light curves (the
+transit comes from batman in Python and from `rustellar-model` here,
+which agree to a few parts in 10^8).
 
 A run over every set takes about 4 minutes on 16 threads with the GPU (an
 AMD Ryzen 7 5700G and an RTX 3060 Ti), most of it the two 2-minute sets;
@@ -227,13 +229,14 @@ threads.
 cargo run --release -p rustellar-benchmarks --bin compare -- vet
 ```
 
-transitleastsquares 1.32's candidates on the five TLS sets, from their
-reference files (no search is run). Where TLS found the injected period
-the candidate is also given at a third, half, two thirds, three halves,
-twice and three times it; where TLS found an alias, as it is. Each is
-pointed at its alias table's lowest chi-squared, and the table counts how
-often that is the true period, by ratio and by the signal to noise at the
-true period. The results are in `rustellar-vet`'s README. It takes a few
+This takes transitleastsquares 1.32's candidates on the TLS sets from
+their reference files (no search is run). Where transitleastsquares found
+the injected period, the candidate is also tried at a third, half, two
+thirds, three halves, twice and three times that period; where it found
+an alias, the candidate is used as found. Each candidate's alias table
+picks the row with the lowest chi-squared, and the output counts how
+often that's the true period, by ratio and by signal-to-noise at the true
+period. The results are in `rustellar-vet`'s README. It takes a few
 seconds; `--limit N` uses each set's first N curves.
 
 ## Speed against the Python references
@@ -243,31 +246,33 @@ cargo run --release -p rustellar-benchmarks --bin compare -- speed
 cargo run --release -p rustellar-benchmarks --bin compare -- speed-model
 ```
 
-`speed` times every crate on the cases of its README's speed tables and
+`speed` times every crate on the cases in its README's speed tables and
 prints those tables; `speed-model`, `speed-detrend`, `speed-bls`,
-`speed-tls`, `speed-ls`, `speed-fit`, `speed-vet` and `speed-mcmc` one
-crate each (`cargo validate speed CRATE` does the same). The rustellar side is timed as the references
-were: the best of several runs (seven for the model, the detrender and the fit,
-three for a search, one where a search takes minutes). Nothing is timed by
-default, as the numbers want a quiet machine; all eight take about ten
-minutes, most of it the BLS searches on one thread and the mcmc chains.
-`vet` has no reference column (no package runs the same checks); `mcmc`
-gives each sampler's time per independent sample on rustellar-mcmc's
-transit posterior.
+`speed-tls`, `speed-ls`, `speed-fit`, `speed-vet` and `speed-mcmc` do one
+crate each (as does `cargo validate speed CRATE`). The Rust side is timed
+the same way the Python packages were: best of several runs (seven for
+the model, detrending and fitting, three for a search, one where a
+search takes minutes). Nothing is timed by default, since the numbers
+need an idle machine. All eight take about ten minutes, mostly the
+single-threaded BLS searches and the mcmc chains. `vet` has no Python
+column, since no package runs the same checks; `mcmc` gives each
+sampler's time per independent sample on rustellar-mcmc's transit
+posterior.
 
 The references' times are in `data/speed_<crate>.csv`, one row per case,
 package (with its version) and seconds. They were run on the same machine
 (an AMD Ryzen 7 5700G, 8 cores, 16 threads; Python 3.12, numpy 2.4) by
-the scripts in [`references/`](references/README.md), each package on its own settings as
-the README says: batman, PyTransit and exoplanet-core on one thread, wotan
-on one thread after its first call, astropy's `BoxLeastSquares` on one
-thread, transitleastsquares on every core, astropy's `LombScargle` as it
-runs (one thread; its fast method uses numpy's FFT), batman's and
-PyTransit's fits with scipy's `least_squares` on one thread. The rustellar columns are
-always timed afresh, so on another machine they are that machine's while
-the references' stay this one's: compare the ratios only on a similar
-processor, or time the references there in the same way and replace the
-files.
+the scripts in [`references/`](references/README.md), each package with
+the settings its crate's README gives: batman, PyTransit and
+exoplanet-core on one thread, wotan on one thread after its first call,
+astropy's `BoxLeastSquares` on one thread, transitleastsquares on every
+core, astropy's `LombScargle` as it runs (one thread; its fast method
+uses numpy's FFT), and batman's and PyTransit's fits with scipy's
+`least_squares` on one thread. The rustellar columns are always timed
+fresh, so on another machine they reflect that machine while the Python
+columns still reflect this one. Compare only the ratios, and only on a
+similar processor, or time the Python packages on your machine the same
+way and replace the files.
 
 ## Making the references again
 

@@ -1,24 +1,24 @@
 # rustellar-model
 
-Transit light curves in pure Rust: how a star dims as a planet on a circular
-or eccentric orbit passes in front of it. The model is the analytic one of Mandel & Agol
-(2002) for uniform, linear and quadratic limb darkening, with exposure
-averaging for long-cadence data (Kipping 2010).
+Transit light curves in pure Rust: how a star dims as a planet on a
+circular or eccentric orbit passes in front of it. It uses the analytic
+model of Mandel & Agol (2002) for uniform, linear and quadratic limb
+darkening, with exposure averaging for long-cadence data (Kipping 2010).
 
 Part of [rustellar](../../README.md). Use it on its own, or through the
 `rustellar` crate with the `model` feature.
 
 ```toml
 [dependencies]
-# Through the umbrella, which most projects want:
+# Through the umbrella crate (what most projects want):
 rustellar = { version = "0.1", features = ["model"] }
 # Or this crate alone:
 rustellar-model = "0.1"
 ```
 
-On its own it re-exports the core types it takes and returns
-(`LightCurve`, `Epoch`, `TimeDelta` and their errors), so
-`rustellar-core` need not be listed, and the two always match.
+This crate re-exports the core types it uses (`LightCurve`, `Epoch`,
+`TimeDelta` and their errors), so you don't need to add `rustellar-core`
+yourself or keep its version in step.
 
 **Status:** in development, not yet released.
 
@@ -29,8 +29,9 @@ transit model many times. The established implementations, batman (Kreidberg
 2015), PyTransit (Parviainen 2015) and exoplanet-core (Agol, Luger &
 Foreman-Mackey 2020), are Python packages with compiled kernels, so a Rust
 pipeline has to call into Python or write its own model. This crate is that
-model for Rust, with no dependencies, inputs checked by their types, and its
-accuracy measured against all three packages and an exact numerical integral.
+model in Rust. It depends only on `rustellar-core`, its parameter types
+reject invalid values when they're built, and its accuracy is measured
+against all three packages and an exact numerical integral.
 
 ## Quick start
 
@@ -112,10 +113,9 @@ The setup for these timings:
 - times spread evenly over ±0.1 days around mid-transit, so about half are
   in transit.
 
-`cargo run --release -p rustellar-benchmarks --bin compare -- speed-model`
-prints these tables again, this crate timed afresh beside the
-references' recorded times; `cargo bench -p rustellar-model` runs the
-Rust side alone.
+`cargo validate speed model` reruns this crate's timings and prints them
+beside the other packages' recorded times. `cargo bench -p
+rustellar-model` runs the Rust timings alone.
 
 | | 100 times | 1,000 | 10,000 | 100,000 |
 |---|--:|--:|--:|--:|
@@ -141,23 +141,25 @@ A single flux in transit takes 42 ns with the planet fully on the disk and
 - **batman and PyTransit** use polynomial approximations good to about 1e-8.
 - **exoplanet-core** uses the same formulation at full precision.
 
-This crate is the fastest at every size: its light curves 1.18 to 2.2
-times as fast as PyTransit's, and its flux alone 1.13 to 5.8 times as fast
-as exoplanet-core's (which takes the separations, leaving out the orbit). A
-time beyond the transit's angle gets its flux of exactly 1 without a sine
-and cosine, and across the limb the three integrals share one lens.
-Averaged over exposures it is the fastest too, by 15 to 20% over
-PyTransit: one sine and cosine serve each exposure, the instants' phases
-turned from the time stamp's, and an exposure wholly out of transit is not
-summed. At the same accuracy, the midpoint rule used here
-needs about half as many samples as batman's rule.
+This crate is the fastest at every size. Its light curves are 1.18 to 2.2
+times as fast as PyTransit's, and its flux alone is 1.13 to 5.8 times as
+fast as exoplanet-core's (which takes separations as input, so skips the
+orbit). Two things help: a time clearly outside the transit gets a flux of
+exactly 1 without computing a sine and cosine, and across the limb the
+three elliptic integrals share one calculation.
+
+With exposure averaging it is also the fastest, 15 to 20% ahead of
+PyTransit. Each exposure needs only one sine and cosine (the sample
+phases are rotated from it), and an exposure entirely out of transit is
+skipped. For the same accuracy, the midpoint rule used here needs about
+half as many samples as batman's.
 
 ## Limits
 
-No light from the planet, and a radius ratio of at most 10,000. On an
-eccentric orbit, `b` is the impact parameter at mid-transit, `t0` the time of
-inferior conjunction, and the periastron must stay outside the star
-(`e < 1 - 1/a`).
+The planet is assumed to emit no light, and the radius ratio can be at
+most 10,000. On an eccentric orbit, `b` is the impact parameter at
+mid-transit and `t0` the time of inferior conjunction, and periastron must
+stay outside the star (`e < 1 - 1/a`).
 
 ## References
 
@@ -170,4 +172,4 @@ inferior conjunction, and the periastron must stay outside the star
 
 ## License
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0.

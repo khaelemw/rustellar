@@ -1,8 +1,8 @@
 # rustellar
 
 Exoplanet and astronomy time-series tools in pure Rust. Each tool is a small
-crate with no dependencies and a written scope, tested against the
-established Python packages.
+crate of its own, tested for accuracy and speed against the Python packages
+astronomers already use.
 
 **Status:** in development. Nothing is released yet.
 
@@ -11,12 +11,12 @@ or depend on a tool's own crate directly:
 
 ```toml
 [dependencies]
-rustellar = { version = "0.0", features = ["model"] }
+rustellar = { version = "0.1", features = ["tls", "vet"] }
 ```
 
 | Crate | Feature | What it does | Status |
 |---|---|---|---|
-| [`rustellar`](crates/rustellar) | | Brings in the tools below by feature | in place |
+| [`rustellar`](crates/rustellar) | | Brings in the tools below by feature | done |
 | [`rustellar-core`](crates/rustellar-core) | always on | Light curves, folding, time types | done |
 | [`rustellar-model`](crates/rustellar-model) | `model` | Transit light curves (Mandel & Agol 2002), exposure averaging | done |
 | [`rustellar-fit`](crates/rustellar-fit) | `fit` | Least-squares transit fit | done |
@@ -35,25 +35,26 @@ Run the tests (all features, so the umbrella crate's tools are included too):
 cargo test --workspace --all-features
 ```
 
-The long studies (injection-recovery against other packages, minutes each)
-are left out of that run; run them on their own:
+The longer comparisons against other packages take minutes each, so they
+are skipped by default. Run them with:
 
 ```sh
 cargo test --workspace --release -- --ignored
 ```
 
-CI has no GPU, so run the GPU tests on a machine with an NVIDIA GPU before
-pushing changes to the GPU code. These are cargo aliases (in
-`.cargo/config.toml`); a missing GPU fails here, not skips:
+CI has no GPU, so if you change the GPU code, run the GPU tests locally on a
+machine with an NVIDIA GPU. These cargo aliases are defined in
+`.cargo/config.toml`. If no GPU is found the tests fail instead of being
+skipped, so a passing run means the GPU really was tested:
 
 ```sh
 cargo gpu-test
 cargo gpu-test --test cuda -- --ignored
 ```
 
-The second runs the heavy GPU comparisons. With
-[cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov), the line
-coverage of `rustellar-bls`, its GPU code included:
+The second runs the longer GPU comparisons. To see line coverage of
+`rustellar-bls` including its GPU code (needs
+[cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov)):
 
 ```sh
 cargo gpu-coverage
@@ -77,29 +78,30 @@ cargo bench -p rustellar-fit
 cargo bench -p rustellar-vet
 ```
 
-Validate any crate against its Python references, accuracy and speed, as
-the tables in its README
-([`rustellar-benchmarks`](crates/rustellar-benchmarks), not published):
+To check a crate's accuracy and speed against the Python packages (this
+produces the tables in each crate's README; see
+[`rustellar-benchmarks`](crates/rustellar-benchmarks), which is not
+published):
 
 ```sh
-cargo validate list                  # every suite, its crate and how long it takes
-cargo validate accuracy tls --quick  # a smoke check of one crate
-cargo validate speed fit mcmc        # speed tables, on a quiet machine
-cargo validate all --quick           # everything, in short
+cargo validate list                  # list the suites and how long each takes
+cargo validate accuracy tls --quick  # a quick check of one crate
+cargo validate speed fit mcmc        # speed tables (run on an idle machine)
+cargo validate all --quick           # a quick run of everything
 cargo validate-gpu accuracy tls      # the searches on an NVIDIA GPU
 cargo validate speed --save --repeat 3
 cargo validate diff 0.1.0 0.2.0      # what changed between two releases
 ```
 
-Each release's results are saved in `crates/rustellar-benchmarks/results/`.
+Results for each release are saved in `crates/rustellar-benchmarks/results/`.
 
-The reference data the tests compare against is in each crate's
-`tests/reference` folder. The published packages stay small: they hold the
-unit tests, which need no files (their data is generated in the test), and
-leave out the reference data, the integration tests and the benchmarks
-(each crate's `exclude`). So a test that reads a reference file is an
-integration test, in `tests/`, and the full suite runs from the source.
+The reference data the tests compare against lives in each crate's
+`tests/reference` folder. To keep the published packages small, they
+contain only the unit tests, which generate their own data. Reference
+data, integration tests and benchmarks are excluded, so any test that
+reads a reference file goes in `tests/`, and the full suite only runs from
+a clone of this repository.
 
 ## License
 
-MIT or Apache-2.0, at your option.
+MIT or Apache-2.0.
