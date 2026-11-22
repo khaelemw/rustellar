@@ -4,7 +4,7 @@ Exoplanet and astronomy time-series tools in pure Rust. Each tool is a small
 crate of its own, tested for accuracy and speed against the Python packages
 astronomers already use.
 
-**Status:** version 0.1, not yet published on crates.io.
+**Status:** version 0.1. The API may still change before 1.0.
 
 Depend on the `rustellar` crate and turn on the tools you need as features,
 or depend on a tool's own crate directly:
@@ -22,7 +22,7 @@ rustellar = { version = "0.1", features = ["tls", "vet"] }
 | [`rustellar-fit`](crates/rustellar-fit) | `fit` | Least-squares transit fit | done |
 | [`rustellar-bls`](crates/rustellar-bls) | `bls` | Box least squares transit search | done |
 | [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) | done |
-| [`rustellar-mcmc`](crates/rustellar-mcmc) | `mcmc` | Ensemble MCMC, diagnostics and transit posteriors | in development |
+| [`rustellar-mcmc`](crates/rustellar-mcmc) | `mcmc` | Ensemble MCMC, diagnostics and transit posteriors | done |
 | [`rustellar-ls`](crates/rustellar-ls) | `ls` | Lomb-Scargle periodogram, peaks, false-alarm probabilities | done |
 | [`rustellar-tls`](crates/rustellar-tls) | `tls` | Transit least squares | done |
 | [`rustellar-vet`](crates/rustellar-vet) | `vet` | Vetting candidates: aliases, odd and even depths, coverage | done |
