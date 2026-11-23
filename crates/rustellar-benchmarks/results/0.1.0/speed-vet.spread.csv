@@ -1,0 +1,23 @@
+cell,spread
+rustellar-vet speed / `fit_depth` / sector, 2 minutes, limb-darkened,0.0000
+rustellar-vet speed / `fit_depth` / sector, 2 minutes, box,0.0556
+rustellar-vet speed / `fit_depth` / four years, 30 minutes, limb-darkened,0.0123
+rustellar-vet speed / `fit_depth` / four years, 30 minutes, box,0.0000
+rustellar-vet speed / `refine` / sector, 2 minutes, limb-darkened,0.0000
+rustellar-vet speed / `refine` / sector, 2 minutes, box,0.0000
+rustellar-vet speed / `refine` / four years, 30 minutes, limb-darkened,0.0000
+rustellar-vet speed / `refine` / four years, 30 minutes, box,0.0000
+rustellar-vet speed / `evidence` / sector, 2 minutes, limb-darkened,0.0179
+rustellar-vet speed / `evidence` / sector, 2 minutes, box,0.0189
+rustellar-vet speed / `evidence` / four years, 30 minutes, limb-darkened,0.0000
+rustellar-vet speed / `evidence` / four years, 30 minutes, box,0.0000
+rustellar-vet speed / `signal_to_noise` / sector, 2 minutes, limb-darkened,0.0111
+rustellar-vet speed / `signal_to_noise` / sector, 2 minutes, box,0.0115
+rustellar-vet speed / `signal_to_noise` / four years, 30 minutes, limb-darkened,0.0167
+rustellar-vet speed / `signal_to_noise` / four years, 30 minutes, box,0.0000
+rustellar-vet speed / `aliases` / sector, 2 minutes, limb-darkened,0.0000
+rustellar-vet speed / `aliases` / sector, 2 minutes, box,0.0000
+rustellar-vet speed / `aliases` / four years, 30 minutes, limb-darkened,0.0119
+rustellar-vet speed / `aliases` / four years, 30 minutes, box,0.0000
+rustellar-vet speed / `secondary` / sector, 2 minutes, limb-darkened,0.0000
+rustellar-vet speed / `secondary` / four years, 30 minutes, limb-darkened,0.0200

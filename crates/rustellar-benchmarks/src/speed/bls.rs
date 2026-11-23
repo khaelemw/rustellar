@@ -7,7 +7,7 @@
 use std::fmt::Write;
 use std::num::NonZeroUsize;
 
-use rustellar_bls::{Bls, Durations, Objective, OfirPeriod, Periods, SearchOptions};
+use rustellar_bls::{Bls, Device, Durations, Objective, OfirPeriod, Periods, SearchOptions};
 use rustellar_core::{LightCurve, TimeDelta};
 
 use crate::recipe::Survey;
@@ -129,7 +129,8 @@ pub fn cases() -> Vec<Case> {
 /// each case's number of periods (`periods 1 sector Ofir`).
 pub type Timing = (String, f64);
 
-/// Each case timed on one thread and on `threads`, the best of three
+/// Each case timed on the CPU (with the `cuda` feature too) on one thread
+/// and on `threads`, the best of three
 /// searches (one where points times periods pass a billion, as astropy's).
 #[must_use]
 pub fn run(cases: &[Case], threads: NonZeroUsize) -> Vec<Timing> {
@@ -144,7 +145,8 @@ pub fn run(cases: &[Case], threads: NonZeroUsize) -> Vec<Timing> {
             let options = SearchOptions::default()
                 .with_objective(Objective::Snr)
                 .with_refine_peaks(0)
-                .with_threads(t);
+                .with_threads(t)
+                .with_device(Device::Cpu);
             let s = best(repeats, 1, || {
                 bls.search(&case.periods, &durations, &options)
                     .expect("valid")

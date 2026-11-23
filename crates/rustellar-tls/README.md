@@ -147,7 +147,7 @@ detection threshold set for 1% false alarms:
 
 The gain is largest for ground-based data (145 of 250, against 104). On
 the 252 of these that transitleastsquares 1.32 was also run on, it found
-212 to this crate's 214, with a median mid-transit time error of 4.0
+212, as many as this crate, with a median mid-transit time error of 4.0
 minutes against 1.8.
 
 ## Speed
@@ -161,16 +161,16 @@ short periods because it uses older solar constants).
 
 | | Points | Periods | transitleastsquares | rustellar-tls, no bootstrap | default (bootstrap 100) | GPU, no bootstrap |
 |---|--:|--:|--:|--:|--:|--:|
-| 1 sector, 30 min | 1,240 | 2,436 | 8.82 | 0.728 | 0.880 | 0.154 |
-| 1 sector, 2 min | 18,000 | 2,349 | 13.2 | 1.50 | 1.89 | 0.810 |
-| 2 sectors, 2 min | 36,000 | 5,411 | 38.2 | 3.89 | 4.67 | 1.42 |
+| 1 sector, 30 min | 1,240 | 2,436 | 8.82 | 0.797 | 0.981 | 0.160 |
+| 1 sector, 2 min | 18,000 | 2,349 | 13.2 | 1.71 | 2.11 | 0.932 |
+| 2 sectors, 2 min | 36,000 | 5,411 | 38.2 | 4.46 | 5.18 | 1.45 |
 
 Doing the same work as transitleastsquares (no bootstrap), this crate is
-9 to 12 times faster on the CPU and 16 to 57 times faster on the GPU. The
-bootstrap errors add 20 to 26% to the time.
+8 to 11 times faster on the CPU and 14 to 55 times faster on the GPU. The
+bootstrap errors add 16 to 23% to the time.
 
-`Method::Fold` searches the way transitleastsquares does and takes 1.71,
-9.77 and 32.3 seconds, still faster than transitleastsquares in every
+`Method::Fold` searches the way transitleastsquares does and takes 1.75,
+10.2 and 34.4 seconds, still faster than transitleastsquares in every
 case. At 2-minute cadence it bins the points, which keeps each period's
 best fit within 0.2% of the unbinned search. It is there to check the
 default method against, not for normal use.
@@ -185,10 +185,10 @@ per light curve, sixteen one-sector curves, no bootstrap, 16 threads:
 
 | | Loop, CPU | `search_many`, CPU | Loop, GPU | `search_many`, GPU |
 |---|--:|--:|--:|--:|
-| 30-minute cadence | 0.759 | 0.557 | 0.186 | 0.117 |
-| 2-minute cadence | 1.49 | 1.05 | 0.768 | 0.490 |
+| 30-minute cadence | 0.860 | 0.659 | 0.185 | 0.115 |
+| 2-minute cadence | 1.66 | 1.20 | 0.848 | 0.523 |
 
-That is 1.4 times the speed of a loop on the CPU and 1.6 times on the
+That is 1.3 to 1.4 times the speed of a loop on the CPU and 1.6 times on the
 GPU. With the GPU, most of the remaining time is spent refining the
 peaks, which runs on the CPU.
 
