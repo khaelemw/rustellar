@@ -6,13 +6,4 @@ All notable changes to this crate are recorded here. The format follows
 
 ## 0.1.0 - 2026-11-22
 
-### Added
-
-- The `rustellar` crate, with the `rustellar-core` types at the top level.
-  Each tool is a module, turned on by a feature of the same name.
-- The `model` feature (transit light curves, from `rustellar-model`), and
-  `full` for every tool.
-- The `bls` feature (box least squares, from `rustellar-bls`; in
-  development).
-- The `cuda` feature: the `bls` and `tls` searches on an NVIDIA GPU where
-  there is one (Rust 1.88 or later; not in `full`).
+Initial release.

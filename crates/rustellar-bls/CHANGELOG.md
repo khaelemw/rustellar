@@ -6,42 +6,4 @@ All notable changes to this crate are recorded here. The format follows
 
 ## 0.1.0 - 2026-11-22
 
-### Added
-
-- `Durations` and `BlsError`: the search's durations, checked when built,
-  and its errors.
-- `AutoPeriod`: astropy's automatic period grid, the same to the last bit,
-  with errors where astropy quietly carries on with bad settings.
-- `OfirPeriod` (from `rustellar-core`): Ofir's (2014) optimal period grid, with the IAU 2015 solar
-  values, about 50 times fewer periods than `AutoPeriod` over a TESS
-  sector.
-- `TransitBox` and `BoxFit`: one box fitted exactly, with compensated sums
-  and an in-transit test right to about a picosecond far from the
-  mid-transit time.
-- `TransitBox::best` and `BestBox`: the exact search at one period and
-  duration, over every mid-transit time; never below astropy's slow search.
-- `Bls`, `SearchOptions`, `Objective`, `BlsResult` and `Peak`: the search
-  over many periods. Bins that tile the orbit, the power and best box at
-  every period, and the highest peaks refined exactly over every
-  mid-transit time, a continuous range of durations, and periods between
-  the grid's (ranked by their best box on the grid,
-  `Peak::grid_objective`). Runs on all cores with the same results, to the
-  bit, on any number; `search_into` reuses a result's memory.
-- `BlsError::TooManyBins`.
-- An unweighted search, documented: one error for every point (boxes and
-  depths independent of its value, tested to the bit).
-- `Bls::search_whitened`: the matched search for a box in a whitened
-  light curve's noise, each box's statistics divided by the information
-  of its own duration (from `rustellar-detrend`'s `Matched`).
-- `Periods`, `OfirPeriod` and `Device` from `rustellar-core`, re-exported
-  here, so every search shares one period grid; their errors come as
-  `BlsError::Grid(GridError)`.
-- With the feature `cuda` (Rust 1.88): `Bls::search` runs its binned step
-  and its refinement of the peaks on an NVIDIA GPU where there is one
-  (`Device::Auto`, the default), else on the CPU (`SearchOptions::device`,
-  `BlsResult::device`, `BlsError::GpuUnavailable`). Every point goes in the
-  CPU's bin, the bins' sums are exact 64-bit fixed point, and every period
-  that could decide the peaks or the best box is searched on the CPU; the
-  refinement's folds are made and searched with the CPU's arithmetic in the
-  CPU's order. The peaks and the best box are the CPU's to the bit. No GPU
-  or CUDA driver is an error, never a panic.
+Initial release.
