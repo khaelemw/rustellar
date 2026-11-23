@@ -5,7 +5,7 @@ from its log-probability, provides diagnostics that tell you when the
 chains can be trusted, and builds transit posteriors on `rustellar-model`
 and `rustellar-fit`.
 
-Part of [rustellar](../../README.md). Use it on its own, or through the
+Part of [rustellar](https://github.com/khaelemw/rustellar). Use it on its own, or through the
 `rustellar` crate with the `mcmc` feature.
 
 ```toml
@@ -240,24 +240,24 @@ with batman 2.5.1 and with PyTransit 2.6.18 (its quadratic model, within
 3e-8 of batman's), and this crate on 1 and 4 threads (`tests/study.rs`;
 `cargo validate speed mcmc` reruns the table).
 
-| Sampler | Move | tau | Seconds | ms per independent sample |
-|---|---|---|---|---|
-| emcee + batman | stretch | 552 | 71.2 | 39.3 |
-| emcee + batman | DE | 239 | 66.2 | 15.8 |
-| emcee + PyTransit | stretch | 543 | 44.5 | 24.2 |
-| emcee + PyTransit | DE | 231 | 40.5 | 9.38 |
-| this crate, 1 thread | stretch | 520 | 16.4 | 8.53 |
-| this crate, 1 thread | DE | 241 | 15.0 | 3.61 |
-| this crate, 1 thread | slice | 140 | 93.1 | 13.1 |
-| zeus 2.5.4 + batman | slice | 128 | 339 | 43.6 |
-| this crate, 4 threads | stretch | 520 | 5.78 | 3.01 |
-| this crate, 4 threads | DE | 241 | 5.24 | 1.26 |
-| this crate, 4 threads | slice | 140 | 27.8 | 3.90 |
+| Sampler | Move | tau | ms per independent sample |
+|---|---|--:|--:|
+| emcee + batman | stretch | 552 | 39 |
+| emcee + batman | DE | 239 | 16 |
+| emcee + PyTransit | stretch | 543 | 24 |
+| emcee + PyTransit | DE | 231 | 9.4 |
+| zeus 2.5.4 + batman | slice | 128 | 44 |
+| this crate, 1 thread | stretch | 520 | 7.9 |
+| this crate, 1 thread | DE | 241 | 3.3 |
+| this crate, 1 thread | slice | 140 | 12 |
+| this crate, 4 threads | stretch | 520 | 2.7 |
+| this crate, 4 threads | DE | 241 | 1.2 |
+| this crate, 4 threads | slice | 140 | 3.6 |
 
 The autocorrelation times match emcee's for each move, and each
 log-probability costs a third of PyTransit's and a fifth of batman's
-under emcee. So on one thread this crate needs 2.6 to 4.6 times less time
-per independent sample, and on four threads 7 to 13 times less. The slice
+under emcee. So on one thread this crate needs 2.8 to 4.9 times less time
+per independent sample, and on four threads 8 to 14 times less. The slice
 move mixes best per step but needs 864 log-probabilities per independent
 sample against differential evolution's 289, so on a cheap posterior like
 this one differential evolution is faster.

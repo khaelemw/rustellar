@@ -10,9 +10,13 @@
 //! curvature, and by bootstrap, which hold where the signal is weak), each
 //! transit's depth, odd and even transits compared, a signal to noise for
 //! correlated noise, and its shape with the planet's size and impact
-//! parameter free.
+//! parameter free; where that shape fits better, its duration is the
+//! better estimate ([`Candidate::duration_estimate`]).
+//!
 //! The search runs on every core, or on an NVIDIA GPU with the `cuda`
-//! feature, with the same results to the bit.
+//! feature, with the same results to the bit. [`Tls::search_many`]
+//! searches many light curves at once, each with the result
+//! [`Tls::search`] would give it.
 //!
 //! # Examples
 //!

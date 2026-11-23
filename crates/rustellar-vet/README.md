@@ -4,7 +4,7 @@ Vetting transit candidates in pure Rust. It reports the evidence for and
 against a search's period being the real one, and leaves the decision to
 you.
 
-Part of [rustellar](../../README.md). Use it on its own, or through the
+Part of [rustellar](https://github.com/khaelemw/rustellar). Use it on its own, or through the
 `rustellar` crate with the `vet` feature.
 
 ```toml
@@ -197,18 +197,18 @@ and with a box. `cargo validate speed vet` reruns this table, and
 
 | Step | TESS, limb-darkened | TESS, box | Kepler, limb-darkened | Kepler, box |
 |---|---|---|---|---|
-| `fit_depth` | 0.22 | 0.19 | 0.83 | 0.71 |
-| `refine` | 153 | 1.2 | 558 | 18 |
-| `evidence` | 0.59 | 0.56 | 3.2 | 3.1 |
-| `signal_to_noise` | 0.93 | 0.90 | 6.4 | 6.3 |
-| `aliases` (seven ratios) | 16 | 15 | 91 | 87 |
-| `secondary` | 0.59 | | 4.4 | |
+| `fit_depth` | 0.21 | 0.18 | 0.81 | 0.69 |
+| `refine` | 150 | 1.2 | 560 | 17 |
+| `evidence` | 0.55 | 0.52 | 3.1 | 3.0 |
+| `signal_to_noise` | 0.87 | 0.85 | 6.1 | 5.9 |
+| `aliases` (seven ratios) | 15 | 13 | 85 | 81 |
+| `secondary` | 0.75 | | 4.9 | |
 
 The limb-darkened `refine` scores each of its 5,043 trials using only the
 points inside that trial's transit, so its time doesn't grow with the
 number of out-of-transit points. `refine_with_threads` shares those
-trials among threads: on 16 threads it takes 16 ms on TESS and 57 ms on
-Kepler, ten times faster than on one. There is no GPU version: nearly all
+trials among threads: on 16 threads it takes 16 ms on TESS and 55 ms on
+Kepler, about ten times faster than on one. There is no GPU version: nearly all
 the time goes on the limb-darkened flux's sines, cosines and square roots,
 which a GPU rounds differently, and a consumer GPU is slower than the CPU
 in double precision.

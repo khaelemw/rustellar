@@ -9,13 +9,16 @@
 //! ([`Method::Spline`]). The crate provides:
 //!
 //! - the settings, [`Detrend`]: the [`Method`] (Tukey's biweight by
-//!   default, the median or the mean), the window, where the light curve is
+//!   default; Welsch's, Andrews' and Huber's M-estimators, Huber's
+//!   proposal 2, the Hodges-Lehmann estimator, trimmed and winsorized
+//!   means, the median, the mean, or a spline), the window, where the light curve is
 //!   split ([`BreakTolerance`]), the edge cutoff, the window's [`Edges`] and
 //!   the threads; the window can be set from the longest transit searched
 //!   for ([`Detrend::with_window_for_transit`]);
 //! - the trend at each point, [`Detrend::trend`], with an optional mask
 //!   (transits left out of every window);
-//! - the light curve divided by it, [`Detrend::flatten`] ([`Flattened`]);
+//! - the light curve divided by it, [`Detrend::flatten`] ([`Flattened`]),
+//!   and many light curves at once, [`Detrend::flatten_many`];
 //! - the mask of a candidate's transits, [`transit_mask`], to detrend again
 //!   with them left out;
 //! - both steps around a search's candidate, [`Detrend::flatten_around`]:
@@ -28,8 +31,9 @@
 //!   [`Matched`], with `rustellar-bls`'s `Bls::search_whitened`).
 //!
 //! The biweight is solved to full double precision (correctly rounded
-//! wherever its defining sum's sign can be told from zero), the median and
-//! the mean are correctly rounded, and every window edge is decided exactly.
+//! wherever its defining sum's sign can be told from zero), as are the
+//! other M-estimators; the median, the mean, the Hodges-Lehmann estimator
+//! and the trimmed and winsorized means are correctly rounded, and every window edge is decided exactly.
 //! The results are the same, to the bit, on any number of threads. Accuracy
 //! against wotan and exact arithmetic, and speed, are in the README.
 //!

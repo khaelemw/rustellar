@@ -25,8 +25,3 @@ All notable changes to this crate are recorded here. The format follows
   same to the bit as on one.
 - `Parameter::ECosW` and `Parameter::ESinW`: eccentric orbits, fixed by
   default; the baseline stays the last parameter.
-
-### Changed
-
-- The Jacobian writes only the rows in transit, and the geodesic
-  acceleration runs column by column: 10% to 25% faster on one thread.

@@ -31,15 +31,3 @@ All notable changes to this crate are recorded here. The format follows
   `periastron_deg`; every geometry, timing and flux method follows the orbit.
 - `ParamError`, `LimbDarkeningError` and `LengthMismatch`;
   `ParamError::EccentricityOutOfRange` and `PeriastronTooClose`.
-
-### Changed
-
-- Averaging over an exposure is about a third faster: one sine and cosine
-  per time stamp, each instant's phase turned from it, and an exposure wholly
-  out of transit not summed. Within 1e-14 of the instant-by-instant mean.
-- `flux_at` takes one sine and cosine, and squares rather than `hypot`: 5%
-  faster, the same to rounding.
-- Light curves leave out the sine and cosine beyond the transit's angle,
-  where the flux is exactly 1, and across the limb `flux` builds its lens
-  and arcs once for all three integrals: light curves 19% faster, a flux
-  across the limb 30% faster, every value the same to the bit.

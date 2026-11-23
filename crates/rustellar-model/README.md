@@ -5,7 +5,7 @@ circular or eccentric orbit passes in front of it. It uses the analytic
 model of Mandel & Agol (2002) for uniform, linear and quadratic limb
 darkening, with exposure averaging for long-cadence data (Kipping 2010).
 
-Part of [rustellar](../../README.md). Use it on its own, or through the
+Part of [rustellar](https://github.com/khaelemw/rustellar). Use it on its own, or through the
 `rustellar` crate with the `model` feature.
 
 ```toml
@@ -121,17 +121,17 @@ rustellar-model` runs the Rust timings alone.
 
 | | 100 times | 1,000 | 10,000 | 100,000 |
 |---|--:|--:|--:|--:|
-| rustellar-model | 3.9 µs | 40 µs | 0.39 ms | 3.9 ms |
+| rustellar-model | 4.1 µs | 42 µs | 0.41 ms | 4.1 ms |
 | batman 2.5.1 | 7.5 µs | 65 µs | 0.63 ms | 6.4 ms |
 | PyTransit 2.6.18 | 8.7 µs | 50 µs | 0.46 ms | 4.6 ms |
-| rustellar-model, flux only (no orbit) | 3.1 µs | 30 µs | 0.30 ms | 3.0 ms |
+| rustellar-model, flux only (no orbit) | 3.0 µs | 30 µs | 0.30 ms | 3.0 ms |
 | exoplanet-core 0.4.0, flux only (no orbit) | 18 µs | 48 µs | 0.34 ms | 3.9 ms |
 
 Kepler long cadence (29.4 min), 1,000 times:
 
 | Samples per exposure | 5 | 15 | 30 |
 |---|--:|--:|--:|
-| rustellar-model | 0.17 ms | 0.50 ms | 1.0 ms |
+| rustellar-model | 0.18 ms | 0.50 ms | 0.98 ms |
 | batman 2.5.1 | 0.33 ms | 0.98 ms | 2.0 ms |
 | PyTransit 2.6.18 | 0.20 ms | 0.59 ms | 1.2 ms |
 
@@ -143,14 +143,14 @@ A single flux in transit takes 42 ns with the planet fully on the disk and
 - **batman and PyTransit** use polynomial approximations good to about 1e-8.
 - **exoplanet-core** uses the same formulation at full precision.
 
-This crate is the fastest at every size. Its light curves are 1.18 to 2.2
-times as fast as PyTransit's, and its flux alone is 1.13 to 5.8 times as
+This crate is the fastest at every size. Its light curves are 1.12 to 2.1
+times as fast as PyTransit's, and its flux alone is 1.13 to 6.0 times as
 fast as exoplanet-core's (which takes separations as input, so skips the
 orbit). Two things help: a time clearly outside the transit gets a flux of
 exactly 1 without computing a sine and cosine, and across the limb the
 three elliptic integrals share one calculation.
 
-With exposure averaging it is also the fastest, 15 to 20% ahead of
+With exposure averaging it is also the fastest, 10 to 18% ahead of
 PyTransit. Each exposure needs only one sine and cosine (the sample
 phases are rotated from it), and an exposure entirely out of transit is
 skipped. For the same accuracy, the midpoint rule used here needs about

@@ -14,18 +14,18 @@ or depend on a tool's own crate directly:
 rustellar = { version = "0.1", features = ["tls", "vet"] }
 ```
 
-| Crate | Feature | What it does | Status |
-|---|---|---|---|
-| [`rustellar`](crates/rustellar) | | Brings in the tools below by feature | done |
-| [`rustellar-core`](crates/rustellar-core) | always on | Light curves, folding, time types | done |
-| [`rustellar-model`](crates/rustellar-model) | `model` | Transit light curves (Mandel & Agol 2002), exposure averaging | done |
-| [`rustellar-fit`](crates/rustellar-fit) | `fit` | Least-squares transit fit | done |
-| [`rustellar-bls`](crates/rustellar-bls) | `bls` | Box least squares transit search | done |
-| [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) | done |
-| [`rustellar-mcmc`](crates/rustellar-mcmc) | `mcmc` | Ensemble MCMC, diagnostics and transit posteriors | done |
-| [`rustellar-ls`](crates/rustellar-ls) | `ls` | Lomb-Scargle periodogram, peaks, false-alarm probabilities | done |
-| [`rustellar-tls`](crates/rustellar-tls) | `tls` | Transit least squares | done |
-| [`rustellar-vet`](crates/rustellar-vet) | `vet` | Vetting candidates: aliases, odd and even depths, coverage | done |
+| Crate | Feature | What it does |
+|---|---|---|
+| [`rustellar`](crates/rustellar) | | Brings in the tools below by feature |
+| [`rustellar-core`](crates/rustellar-core) | always on | Light curves, folding, time types |
+| [`rustellar-model`](crates/rustellar-model) | `model` | Transit light curves (Mandel & Agol 2002), exposure averaging |
+| [`rustellar-fit`](crates/rustellar-fit) | `fit` | Least-squares transit fit |
+| [`rustellar-bls`](crates/rustellar-bls) | `bls` | Box least squares transit search |
+| [`rustellar-detrend`](crates/rustellar-detrend) | `detrend` | Detrending filters (biweight and others) |
+| [`rustellar-mcmc`](crates/rustellar-mcmc) | `mcmc` | Ensemble MCMC, diagnostics and transit posteriors |
+| [`rustellar-ls`](crates/rustellar-ls) | `ls` | Lomb-Scargle periodogram, peaks, false-alarm probabilities |
+| [`rustellar-tls`](crates/rustellar-tls) | `tls` | Transit least squares |
+| [`rustellar-vet`](crates/rustellar-vet) | `vet` | Vetting candidates: aliases, odd and even depths, coverage |
 
 ## Development
 
@@ -72,6 +72,7 @@ Run the benchmarks:
 ```sh
 cargo bench -p rustellar-model
 cargo bench -p rustellar-bls
+cargo bench -p rustellar-detrend
 cargo bench -p rustellar-tls
 cargo bench -p rustellar-ls
 cargo bench -p rustellar-fit
@@ -95,8 +96,8 @@ cargo validate diff 0.1.0 0.2.0      # what changed between two releases
 
 Results for each release are saved in `crates/rustellar-benchmarks/results/`.
 
-The reference data the tests compare against lives in each crate's
-`tests/reference` folder. To keep the published packages small, they
+The reference data the tests compare against lives in the crates'
+`tests/reference` folders. To keep the published packages small, they
 contain only the unit tests, which generate their own data. Reference
 data, integration tests and benchmarks are excluded, so any test that
 reads a reference file goes in `tests/`, and the full suite only runs from

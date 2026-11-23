@@ -3,7 +3,8 @@
 //! parameters, their standard errors and the quantities derived from them.
 //!
 //! The model is Mandel & Agol's (2002) with quadratic limb darkening, on a
-//! circular orbit, optionally averaged over each point's exposure (Kipping
+//! circular orbit or, with [`Parameter::ECosW`] and [`Parameter::ESinW`],
+//! an eccentric one, optionally averaged over each point's exposure (Kipping
 //! 2010). Times are in days of the light curve's own scale; nothing is tied
 //! to an instrument.
 //!

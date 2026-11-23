@@ -5,8 +5,8 @@ periodogram of Kovacs, Zucker & Mazeh (2002), weighted by the flux errors
 (give every point the same error for an unweighted search), and refits the
 highest peaks exactly.
 
-Part of [rustellar](../../README.md). Use it on its own, or through the
-`rustellar` crate.
+Part of [rustellar](https://github.com/khaelemw/rustellar). Use it on its own, or through the
+`rustellar` crate with the `bls` feature.
 
 ```toml
 [dependencies]
@@ -131,10 +131,10 @@ Kepler).
 
 | | Periods | astropy | rustellar-bls, 1 thread | rustellar-bls, 16 threads |
 |---|--:|--:|--:|--:|
-| 1 sector | 10,000 | 4.23 | 1.40 | 0.201 |
-| 1 sector, Ofir | 2,353 | 0.767 | 0.289 | 0.0413 |
-| 13 sectors, Ofir | 42,692 | 88.8 | 47.6 | 7.24 |
-| Kepler, Ofir | 166,108 | 200 | 81.7 | 12.2 |
+| 1 sector | 10,000 | 4.23 | 1.40 | 0.202 |
+| 1 sector, Ofir | 2,353 | 0.767 | 0.287 | 0.0426 |
+| 13 sectors, Ofir | 42,692 | 88.8 | 47.4 | 7.02 |
+| Kepler, Ofir | 166,108 | 200 | 81.8 | 11.8 |
 
 `cargo validate speed bls` reruns the rustellar-bls columns and prints
 them beside astropy's recorded times. `cargo bench -p rustellar-bls` runs
@@ -173,7 +173,7 @@ compiled once per program (a quarter of a second), and each light curve's
 points are copied to the GPU on its first search there (tens of
 milliseconds). Seconds per search on an RTX 3060 Ti, next to the same
 16-thread CPU timed in the same run (a separate run from the table above,
-so the CPU times differ from it by up to 15%):
+so the CPU times differ from it by up to 20%):
 
 | | GPU, refine 0 | GPU, refine 5 | 16 threads, refine 0 | 16 threads, refine 5 |
 |---|--:|--:|--:|--:|

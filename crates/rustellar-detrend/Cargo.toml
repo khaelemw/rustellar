@@ -1,6 +1,6 @@
 [package]
 name = "rustellar-detrend"
-description = "Detrending light curves in pure Rust: a time-windowed sliding biweight (Hippke et al. 2019) solved to full precision"
+description = "Detrending light curves in pure Rust: time-windowed robust estimators such as the biweight (Hippke et al. 2019), solved to full precision, and splines"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

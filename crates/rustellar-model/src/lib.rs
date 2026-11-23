@@ -1,9 +1,9 @@
-//! Transit light curves: how a star dims as a planet on a circular orbit
-//! passes in front of it.
+//! Transit light curves: how a star dims as a planet on a circular or
+//! eccentric orbit passes in front of it.
 //!
-//! The model is the analytic one of Mandel & Agol (2002) for quadratic limb
-//! darkening (the star is darker towards its edge), in pure Rust with no
-//! dependencies beyond `rustellar-core`.
+//! The model is the analytic one of Mandel & Agol (2002) for uniform, linear
+//! and quadratic limb darkening (the star is darker towards its edge), in
+//! pure Rust with no dependencies beyond `rustellar-core`.
 //!
 //! # Quick start
 //!
@@ -72,7 +72,9 @@
 //!
 //! # Limits
 //!
-//! Circular orbits only, with no light from the planet itself. The radius
+//! No light from the planet itself. On an eccentric orbit
+//! ([`TransitParams::with_eccentricity`]) periastron must stay outside the
+//! star. The radius
 //! ratio is at most [`RadiusRatio::MAX`] (10,000), as far as the flux's
 //! accuracy is tested.
 //!

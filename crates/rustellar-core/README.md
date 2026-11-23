@@ -3,7 +3,7 @@
 The light curve and time types that every rustellar crate shares, in pure
 Rust with no dependencies.
 
-Part of [rustellar](../../README.md). You rarely need to add it yourself:
+Part of [rustellar](https://github.com/khaelemw/rustellar). You rarely need to add it yourself:
 each rustellar crate re-exports the core types it uses, and the
 `rustellar` crate re-exports the light curve and time types.
 

@@ -2,7 +2,7 @@
 
 The Lomb-Scargle periodogram for unevenly sampled series in pure Rust.
 
-Part of [rustellar](../../README.md). Use it on its own, or through the
+Part of [rustellar](https://github.com/khaelemw/rustellar). Use it on its own, or through the
 `rustellar` crate with the `ls` feature.
 
 ```toml

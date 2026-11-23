@@ -6,8 +6,8 @@ instead of a box. For each trial period and duration, it fits the shape at
 every mid-transit time, solving for the depth by weighted least squares,
 and the best fit's chi-squared goes into the periodogram.
 
-Part of [rustellar](../../README.md). Use it on its own, or through the
-`rustellar` crate.
+Part of [rustellar](https://github.com/khaelemw/rustellar). Use it on its own, or through the
+`rustellar` crate with the `tls` feature.
 
 ```toml
 [dependencies]
