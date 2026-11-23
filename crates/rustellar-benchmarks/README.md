@@ -70,7 +70,10 @@ which means something else is using the machine. Each timing starts with
 one untimed call to warm the caches.
 
 `diff` compares two runs' tables cell by cell (same table, row and
-column). A time counts as changed if it moves by more than `--tolerance`
+column; a row is named by its first cell, or by as many of its first
+cells as tell it apart). A time is a number with a unit, or a bare
+number of seconds in a speed table (counts such as Points, Periods and
+tau excepted). A time counts as changed if it moves by more than `--tolerance`
 (default 10%) or twice either run's spread, whichever is larger. Any
 other number or text counts as changed if it differs at all, since the
 accuracy suites are seeded and repeat exactly on the same machine. It

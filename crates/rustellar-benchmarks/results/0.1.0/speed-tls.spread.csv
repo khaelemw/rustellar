@@ -1,0 +1,21 @@
+cell,spread
+rustellar-tls speed / 1 sector, 30 min / transitleastsquares 1.32,0.0
+rustellar-tls speed / 1 sector, 30 min / rustellar-tls, no bootstrap,0.014326647564469927
+rustellar-tls speed / 1 sector, 30 min / default (bootstrap 100),0.004602991944764101
+rustellar-tls speed / 1 sector, 30 min / GPU, no bootstrap,0.0340136054421769
+rustellar-tls speed / 1 sector, 2 min / transitleastsquares 1.32,0.0
+rustellar-tls speed / 1 sector, 2 min / rustellar-tls, no bootstrap,0.014084507042253534
+rustellar-tls speed / 1 sector, 2 min / default (bootstrap 100),0.00540540540540541
+rustellar-tls speed / 1 sector, 2 min / GPU, no bootstrap,0.005256241787122212
+rustellar-tls speed / 2 sectors, 2 min / transitleastsquares 1.32,0.0
+rustellar-tls speed / 2 sectors, 2 min / rustellar-tls, no bootstrap,0.0051282051282051325
+rustellar-tls speed / 2 sectors, 2 min / default (bootstrap 100),0.006493506493506547
+rustellar-tls speed / 2 sectors, 2 min / GPU, no bootstrap,0.01492537313432837
+rustellar-tls speed / 16 curves, 1 sector at 30 min / Loop, CPU,0.003886010362694304
+rustellar-tls speed / 16 curves, 1 sector at 30 min / `search_many`, CPU,0.012612612612612623
+rustellar-tls speed / 16 curves, 1 sector at 30 min / Loop, GPU,0.0
+rustellar-tls speed / 16 curves, 1 sector at 30 min / `search_many`, GPU,0.0181818181818182
+rustellar-tls speed / 16 curves, 1 sector at 2 min / Loop, CPU,0.006993006993007
+rustellar-tls speed / 16 curves, 1 sector at 2 min / `search_many`, CPU,0.0
+rustellar-tls speed / 16 curves, 1 sector at 2 min / Loop, GPU,0.002713704206241522
+rustellar-tls speed / 16 curves, 1 sector at 2 min / `search_many`, GPU,0.011441647597254015

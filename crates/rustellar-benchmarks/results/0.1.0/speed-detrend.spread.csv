@@ -1,0 +1,35 @@
+cell,spread
+rustellar-detrend speed / Kepler quarter / wotan 1.10,0.0
+rustellar-detrend speed / Kepler quarter / rustellar-detrend, 1 thread,0.004672897196261695
+rustellar-detrend speed / Kepler quarter / rustellar-detrend, 16 threads,0.008403361344537655
+rustellar-detrend speed / TESS, 2 minutes / wotan 1.10,0.0
+rustellar-detrend speed / TESS, 2 minutes / rustellar-detrend, 1 thread,0.006703910614525177
+rustellar-detrend speed / TESS, 2 minutes / rustellar-detrend, 16 threads,0.009259259259259203
+rustellar-detrend speed / TESS, 20 seconds / wotan 1.10,0.0
+rustellar-detrend speed / TESS, 20 seconds / rustellar-detrend, 1 thread,0.006944444444444451
+rustellar-detrend speed / TESS, 20 seconds / rustellar-detrend, 16 threads,0.0
+rustellar-detrend speed / Median / wotan 1.10,0.0
+rustellar-detrend speed / Median / rustellar-detrend,0.012145748987854282
+rustellar-detrend speed / Mean / wotan 1.10,0.0
+rustellar-detrend speed / Mean / rustellar-detrend,0.030120481927710836
+rustellar-detrend speed / Biweight / wotan 1.10,0.0
+rustellar-detrend speed / Biweight / rustellar-detrend,0.006696428571428608
+rustellar-detrend speed / Welsch / wotan 1.10,0.0
+rustellar-detrend speed / Welsch / rustellar-detrend,0.00980392156862746
+rustellar-detrend speed / Andrews' sine wave / wotan 1.10,0.0
+rustellar-detrend speed / Andrews' sine wave / rustellar-detrend,0.010204081632653069
+rustellar-detrend speed / Huber (fixed scale) / rustellar-detrend,0.004143646408839706
+rustellar-detrend speed / Huber's proposal 2 / wotan 1.10,0.0
+rustellar-detrend speed / Huber's proposal 2 / rustellar-detrend,0.0
+rustellar-detrend speed / Hodges-Lehmann / wotan 1.10,0.0
+rustellar-detrend speed / Hodges-Lehmann / rustellar-detrend,0.0
+rustellar-detrend speed / Trimmed mean / wotan 1.10,0.0
+rustellar-detrend speed / Trimmed mean / rustellar-detrend,0.0
+rustellar-detrend speed / Winsorized mean / wotan 1.10,0.0
+rustellar-detrend speed / Winsorized mean / rustellar-detrend,0.004672897196261654
+rustellar-detrend speed / Kepler quarter / One after another,0.014925373134328396
+rustellar-detrend speed / Kepler quarter / `flatten_many`,0.01298701298701295
+rustellar-detrend speed / TESS, 2 minutes / One after another,0.0
+rustellar-detrend speed / TESS, 2 minutes / `flatten_many`,0.005382131324004273
+rustellar-detrend speed / TESS, 20 seconds / One after another,0.002967359050445106
+rustellar-detrend speed / TESS, 20 seconds / `flatten_many`,0.0032679738562091535

@@ -1,0 +1,13 @@
+cell,spread
+rustellar-bls speed / 1 sector / astropy 7.2.0,0.0
+rustellar-bls speed / 1 sector / rustellar-bls, 1 thread,0.0
+rustellar-bls speed / 1 sector / rustellar-bls, 16 threads,0.015075376884422124
+rustellar-bls speed / 1 sector, Ofir / astropy 7.2.0,0.0
+rustellar-bls speed / 1 sector, Ofir / rustellar-bls, 1 thread,0.00701754385964913
+rustellar-bls speed / 1 sector, Ofir / rustellar-bls, 16 threads,0.057071960297766657
+rustellar-bls speed / 13 sectors, Ofir / astropy 7.2.0,0.0
+rustellar-bls speed / 13 sectors, Ofir / rustellar-bls, 1 thread,0.006369426751592296
+rustellar-bls speed / 13 sectors, Ofir / rustellar-bls, 16 threads,0.010071942446043078
+rustellar-bls speed / Kepler, Ofir / astropy 7.2.0,0.0
+rustellar-bls speed / Kepler, Ofir / rustellar-bls, 1 thread,0.004914004914004809
+rustellar-bls speed / Kepler, Ofir / rustellar-bls, 16 threads,0.01724137931034492

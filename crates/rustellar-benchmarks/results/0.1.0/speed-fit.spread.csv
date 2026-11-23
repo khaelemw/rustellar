@@ -1,37 +1,37 @@
 cell,spread
-rustellar-fit speed / hot jupiter noiseless / rustellar-fit,0.0000
-rustellar-fit speed / hot jupiter noiseless / batman 2.5.1 lm 2-point,0.0000
-rustellar-fit speed / hot jupiter noiseless / trf 2-point,0.0000
-rustellar-fit speed / hot jupiter noiseless / trf 3-point,0.0000
-rustellar-fit speed / hot jupiter noiseless / trf tight,0.0000
-rustellar-fit speed / hot jupiter noiseless / PyTransit 2.6.18 trf 3-point,0.0000
-rustellar-fit speed / hot jupiter / rustellar-fit,0.0000
-rustellar-fit speed / hot jupiter / batman 2.5.1 lm 2-point,0.0000
-rustellar-fit speed / hot jupiter / trf 2-point,0.0000
-rustellar-fit speed / hot jupiter / trf 3-point,0.0000
-rustellar-fit speed / hot jupiter / trf tight,0.0000
-rustellar-fit speed / hot jupiter / PyTransit 2.6.18 trf 3-point,0.0000
-rustellar-fit speed / bjd times / rustellar-fit,0.0000
-rustellar-fit speed / bjd times / batman 2.5.1 lm 2-point,0.0000
-rustellar-fit speed / bjd times / trf 2-point,0.0000
-rustellar-fit speed / bjd times / trf 3-point,0.0000
-rustellar-fit speed / bjd times / trf tight,0.0000
-rustellar-fit speed / bjd times / PyTransit 2.6.18 trf 3-point,0.0000
-rustellar-fit speed / small planet / rustellar-fit,0.0000
-rustellar-fit speed / small planet / batman 2.5.1 lm 2-point,0.0000
-rustellar-fit speed / small planet / trf 2-point,0.0000
-rustellar-fit speed / small planet / trf 3-point,0.0000
-rustellar-fit speed / small planet / trf tight,0.0000
-rustellar-fit speed / small planet / PyTransit 2.6.18 trf 3-point,0.0000
-rustellar-fit speed / grazing / rustellar-fit,0.0000
-rustellar-fit speed / grazing / batman 2.5.1 lm 2-point,0.0000
-rustellar-fit speed / grazing / trf 2-point,0.0000
-rustellar-fit speed / grazing / trf 3-point,0.0000
-rustellar-fit speed / grazing / trf tight,0.0000
-rustellar-fit speed / grazing / PyTransit 2.6.18 trf 3-point,0.0000
-rustellar-fit speed / long cadence / rustellar-fit,0.0000
-rustellar-fit speed / long cadence / batman 2.5.1 lm 2-point,0.0000
-rustellar-fit speed / long cadence / trf 2-point,0.0000
-rustellar-fit speed / long cadence / trf 3-point,0.0000
-rustellar-fit speed / long cadence / trf tight,0.0000
-rustellar-fit speed / long cadence / PyTransit 2.6.18 trf 3-point,0.0000
+rustellar-fit speed / hot jupiter noiseless / rustellar-fit,0.0
+rustellar-fit speed / hot jupiter noiseless / batman 2.5.1 lm 2-point,0.0
+rustellar-fit speed / hot jupiter noiseless / trf 2-point,0.0
+rustellar-fit speed / hot jupiter noiseless / trf 3-point,0.0
+rustellar-fit speed / hot jupiter noiseless / trf tight,0.0
+rustellar-fit speed / hot jupiter noiseless / PyTransit 2.6.18 trf 3-point,0.0
+rustellar-fit speed / hot jupiter / rustellar-fit,0.0
+rustellar-fit speed / hot jupiter / batman 2.5.1 lm 2-point,0.0
+rustellar-fit speed / hot jupiter / trf 2-point,0.0
+rustellar-fit speed / hot jupiter / trf 3-point,0.0
+rustellar-fit speed / hot jupiter / trf tight,0.0
+rustellar-fit speed / hot jupiter / PyTransit 2.6.18 trf 3-point,0.0
+rustellar-fit speed / bjd times / rustellar-fit,0.0
+rustellar-fit speed / bjd times / batman 2.5.1 lm 2-point,0.0
+rustellar-fit speed / bjd times / trf 2-point,0.0
+rustellar-fit speed / bjd times / trf 3-point,0.0
+rustellar-fit speed / bjd times / trf tight,0.0
+rustellar-fit speed / bjd times / PyTransit 2.6.18 trf 3-point,0.0
+rustellar-fit speed / small planet / rustellar-fit,0.0
+rustellar-fit speed / small planet / batman 2.5.1 lm 2-point,0.0
+rustellar-fit speed / small planet / trf 2-point,0.0
+rustellar-fit speed / small planet / trf 3-point,0.0
+rustellar-fit speed / small planet / trf tight,0.0
+rustellar-fit speed / small planet / PyTransit 2.6.18 trf 3-point,0.0
+rustellar-fit speed / grazing / rustellar-fit,0.0
+rustellar-fit speed / grazing / batman 2.5.1 lm 2-point,0.0
+rustellar-fit speed / grazing / trf 2-point,0.0
+rustellar-fit speed / grazing / trf 3-point,0.0
+rustellar-fit speed / grazing / trf tight,0.0
+rustellar-fit speed / grazing / PyTransit 2.6.18 trf 3-point,0.0
+rustellar-fit speed / long cadence / rustellar-fit,0.0
+rustellar-fit speed / long cadence / batman 2.5.1 lm 2-point,0.0
+rustellar-fit speed / long cadence / trf 2-point,0.0
+rustellar-fit speed / long cadence / trf 3-point,0.0
+rustellar-fit speed / long cadence / trf tight,0.0
+rustellar-fit speed / long cadence / PyTransit 2.6.18 trf 3-point,0.0

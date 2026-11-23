@@ -130,6 +130,77 @@ fn two_runs_compared() {
     assert!(removed.iter().all(|c| c.new.is_empty()));
 }
 
+const SECONDS: &str = "## rustellar-tls speed
+
+| | Points | Periods | rustellar-tls |
+|---|--:|--:|--:|
+| 1 sector | 1,240 | 2,436 | 0.708 |
+
+## rustellar-mcmc speed
+
+| Sampler | Move | tau | Time per independent sample |
+|---|---|---|---|
+| rustellar-mcmc, 1 thread | stretch | 520 | 7.9 ms |
+| rustellar-mcmc, 1 thread | de | 241 | 3.3 ms |
+";
+
+#[test]
+fn bare_seconds_in_speed_tables() {
+    let ten = |_: &str| 0.1;
+    // A bare number in a speed table is seconds, within the tolerance.
+    assert!(diff(SECONDS, &SECONDS.replace("0.708", "0.750"), &ten).is_empty());
+    let slower = diff(SECONDS, &SECONDS.replace("0.708", "0.900"), &ten);
+    assert_eq!(slower.len(), 1);
+    assert_eq!(
+        slower[0].cell,
+        "rustellar-tls speed / 1 sector / rustellar-tls"
+    );
+    assert!((slower[0].ratio.unwrap() - 0.9 / 0.708).abs() < 1e-12);
+    // Counts must match exactly, and so must bare numbers elsewhere.
+    for (from, to) in [("2,436", "2,437"), ("| 520 |", "| 521 |")] {
+        let changes = diff(SECONDS, &SECONDS.replace(from, to), &ten);
+        assert_eq!((changes.len(), changes[0].ratio), (1, None), "{from}");
+    }
+    let accuracy = SECONDS.replace("tls speed", "tls accuracy");
+    let changes = diff(&accuracy, &accuracy.replace("0.708", "0.750"), &ten);
+    assert_eq!((changes.len(), changes[0].ratio), (1, None));
+    // Merged runs keep the best as its run wrote it, with its spread.
+    let runs = ["0.750", "0.708", "0.720"].map(|t| SECONDS.replace("0.708", t));
+    let (merged, spreads) = merge(&runs);
+    assert!(
+        merged.contains("| 1 sector | 1,240 | 2,436 | 0.708 |"),
+        "{merged}"
+    );
+    let spread = |cell: &str| spreads.iter().find(|(c, _)| c == cell).map(|s| s.1);
+    let s = spread("rustellar-tls speed / 1 sector / rustellar-tls").unwrap();
+    assert!((s - 0.012 / 0.708).abs() < 1e-12, "{s}");
+    assert_eq!(spread("rustellar-tls speed / 1 sector / Periods"), None);
+}
+
+#[test]
+fn rows_named_until_unique() {
+    let ten = |_: &str| 0.1;
+    // Two rows share a first cell, so the move names each.
+    let changes = diff(SECONDS, &SECONDS.replace("3.3 ms", "9.9 ms"), &ten);
+    assert_eq!(changes.len(), 1);
+    assert_eq!(
+        changes[0].cell,
+        "rustellar-mcmc speed / rustellar-mcmc, 1 thread / de / Time per independent sample"
+    );
+    // Rows are matched by name, not by place.
+    let swapped = SECONDS
+        .replace(
+            "| rustellar-mcmc, 1 thread | stretch | 520 | 7.9 ms |\n",
+            "",
+        )
+        .replace(
+            "| 241 | 3.3 ms |\n",
+            "| 241 | 3.3 ms |\n| rustellar-mcmc, 1 thread | stretch | 520 | 7.9 ms |\n",
+        );
+    assert_ne!(swapped, SECONDS);
+    assert!(diff(SECONDS, &swapped, &ten).is_empty());
+}
+
 #[test]
 fn the_difference_as_a_table() {
     assert_eq!(diff_report(&[]), "No cell differs.\n");

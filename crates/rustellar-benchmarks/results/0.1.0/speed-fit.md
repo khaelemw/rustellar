@@ -7,7 +7,7 @@
 | bjd times | 3.0 ms | 3.0 ms | 20 ms | 5.9 ms | 10 ms | 2.7 ms |
 | small planet | 12 ms | 6.9 ms | 17 ms | 27 ms | 56 ms | 8.3 ms |
 | grazing | 12 ms | 0.38 s | 17 ms | 23 ms | 39 ms | 8.5 ms |
-| long cadence | 8.4 ms | 0.20 s | 0.19 s | 0.29 s | 0.30 s | 19 ms |
+| long cadence | 8.3 ms | 0.20 s | 0.19 s | 0.29 s | 0.30 s | 19 ms |
 
 (8 s)
 

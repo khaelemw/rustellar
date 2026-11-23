@@ -10,5 +10,4 @@
 | Version | 0.1.0 |
 | GPU searches | built in (cuda) |
 | Run | accuracy  |
-| Run | speed  |
-| Run | speed bls tls |
+| Run | speed: the median of three passes with 5-minute cool-downs (commit f069f10, 2026-11-23) |

@@ -190,8 +190,8 @@ reruns these tables.
 
 | Points x frequencies | exact, 1 thread | exact, 16 threads | astropy slow | astropy cython |
 |---|--:|--:|--:|--:|
-| 1,000 x 10,000 | 69 ms | 9.2 ms | 0.51 s | 0.23 s |
-| 10,000 x 10,000 | 0.70 s | 93 ms | 5.4 s | 2.3 s |
+| 1,000 x 10,000 | 65 ms | 8.5 ms | 0.51 s | 0.23 s |
+| 10,000 x 10,000 | 0.66 s | 88 ms | 5.4 s | 2.3 s |
 
 The exact method costs about 7 ns per point and frequency on one thread,
 a third of astropy's cython method. The phase comes from two exact
@@ -205,11 +205,11 @@ tolerance; see Accuracy):
 
 | Points x frequencies | tolerance 1e-6 | tolerance 1e-12 | astropy fast |
 |---|--:|--:|--:|
-| 1,000 x 10,000 | 4.6 ms | 5.4 ms | 7.7 ms |
-| 10,000 x 10,000 | 6.0 ms | 7.0 ms | 9.4 ms |
-| 10,000 x 100,000 | 35 ms | 34 ms | 80 ms |
-| 100,000 x 100,000 | 44 ms | 45 ms | 0.12 s |
-| 1,000,000 x 1,000,000 | 0.39 s | 0.42 s | 2.0 s |
+| 1,000 x 10,000 | 3.1 ms | 3.1 ms | 7.7 ms |
+| 10,000 x 10,000 | 3.7 ms | 4.4 ms | 9.4 ms |
+| 10,000 x 100,000 | 28 ms | 29 ms | 80 ms |
+| 100,000 x 100,000 | 37 ms | 41 ms | 0.12 s |
+| 1,000,000 x 1,000,000 | 0.34 s | 0.37 s | 2.0 s |
 
 It costs `O(n + m log m)` for `n` points and `m` frequencies, using this
 crate's own cache-blocked FFT, with bit-identical results on any number

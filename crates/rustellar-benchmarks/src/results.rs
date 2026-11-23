@@ -5,16 +5,18 @@
 //!
 //! The tables are the suites' own Markdown, so the saved files read as
 //! the READMEs do. A cell is a time when it is a number with a unit
-//! (`4.0 µs`, `0.64 ms`, `1.2 s`), a number otherwise; any other text
-//! (names, counts like `1/2`, dashes) is compared as text.
+//! (`4.0 µs`, `0.64 ms`, `1.2 s`), or a bare number in a speed table (one
+//! under a `... speed` heading, whose bare numbers are seconds) outside
+//! its count columns ([`COUNTS`]); a number otherwise. Any other text
+//! (names, counts like `1/2`, dashes) is compared as text. A row is named
+//! by its first cell, or by as many of its first cells as make the name
+//! unique in its table.
 
 use std::fmt::Write;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-use crate::speed::short;
 
 /// One Markdown table: the headings above it, its header and its rows.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,6 +88,32 @@ pub fn seconds(cell: &str) -> Option<f64> {
         .map(|v| v * scale)
 }
 
+/// The columns of a speed table whose bare numbers are counts, not
+/// seconds.
+pub const COUNTS: [&str; 4] = ["Points", "Periods", "Curves", "tau"];
+
+/// The time in seconds of a table's cell, if it holds one: a number with a
+/// unit, or a bare positive number in a speed table outside [`COUNTS`].
+fn time(table: &Table, row: usize, column: usize) -> Option<f64> {
+    let cell = table.rows.get(row)?.get(column)?;
+    seconds(cell).or_else(|| {
+        let speed = table
+            .headings
+            .first()
+            .is_some_and(|h| h.ends_with(" speed"));
+        let header = table.header.get(column).map_or("", String::as_str);
+        if !speed || COUNTS.contains(&header) {
+            return None;
+        }
+        cell.trim()
+            .trim_end_matches(['†', '*'])
+            .replace(',', "")
+            .parse::<f64>()
+            .ok()
+            .filter(|v| v.is_finite() && *v > 0.0)
+    })
+}
+
 fn number(cell: &str) -> Option<f64> {
     cell.trim()
         .trim_end_matches(['†', '*', '%'])
@@ -94,8 +122,8 @@ fn number(cell: &str) -> Option<f64> {
         .ok()
 }
 
-/// Runs of one speed suite merged: each time cell the best of the runs,
-/// and the spread of every time cell, `(median - best) / best`, keyed as
+/// Runs of one speed suite merged: each time cell the best of the runs
+/// (as that run wrote it), and the spread of every time cell, `(median - best) / best`, keyed as
 /// [`diff`] keys cells. The runs must have the same tables, as runs of
 /// one suite do; text outside the tables is the first run's.
 ///
@@ -119,18 +147,20 @@ pub fn merge(runs: &[String]) -> (String, Vec<(String, f64)>) {
             for (r, row) in base.rows.iter().enumerate() {
                 let mut out_row = Vec::new();
                 for (c, cell) in row.iter().enumerate() {
-                    let times: Vec<f64> = parsed
+                    let times: Vec<(f64, &String)> = parsed
                         .iter()
-                        .filter_map(|t| t.get(table_index)?.rows.get(r)?.get(c))
-                        .filter_map(|s| seconds(s))
+                        .filter_map(|t| {
+                            let t = t.get(table_index)?;
+                            Some((time(t, r, c)?, t.rows.get(r)?.get(c)?))
+                        })
                         .collect();
-                    if times.len() == runs.len() && seconds(cell).is_some() {
+                    if times.len() == runs.len() && time(base, r, c).is_some() {
                         let mut sorted = times.clone();
-                        sorted.sort_by(f64::total_cmp);
-                        let best = sorted[0];
-                        let median = sorted[sorted.len() / 2];
+                        sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
+                        let (best, written) = sorted[0];
+                        let median = sorted[sorted.len() / 2].0;
                         spreads.push((key(base, r, c), (median - best) / best));
-                        out_row.push(short(Some(best)));
+                        out_row.push(written.clone());
                     } else {
                         out_row.push(cell.clone());
                     }
@@ -147,13 +177,30 @@ pub fn merge(runs: &[String]) -> (String, Vec<(String, f64)>) {
     (merged, spreads)
 }
 
-/// A cell's name: its headings, its row's first cell and its column's
-/// header.
+/// A row's name: its first cell, or its first cells (joined by ` / `), as
+/// few as make it unique in its table.
+fn row_name(table: &Table, row: usize) -> String {
+    let cells = &table.rows[row];
+    let name = |r: &[String], n: usize| r.iter().take(n).cloned().collect::<Vec<_>>().join(" / ");
+    (1..=cells.len().max(1))
+        .map(|n| (n, name(cells, n)))
+        .find(|(n, mine)| {
+            table
+                .rows
+                .iter()
+                .filter(|other| name(other, *n) == *mine)
+                .count()
+                == 1
+        })
+        .map_or_else(|| name(cells, cells.len()), |(_, mine)| mine)
+}
+
+/// A cell's name: its headings, its row's name and its column's header.
 fn key(table: &Table, row: usize, column: usize) -> String {
     format!(
         "{} / {} / {}",
         table.headings.join(" / "),
-        table.rows[row].first().map_or("", String::as_str),
+        row_name(table, row),
         table.header.get(column).map_or("", String::as_str)
     )
 }
@@ -179,7 +226,7 @@ pub fn diff(old: &str, new: &str, tolerance: &dyn Fn(&str) -> f64) -> Vec<Change
         for t in tables(md) {
             for (r, row) in t.rows.iter().enumerate() {
                 for (c, cell) in row.iter().enumerate().skip(1) {
-                    cells.push((key(&t, r, c), cell.clone()));
+                    cells.push((key(&t, r, c), cell.clone(), time(&t, r, c)));
                 }
             }
         }
@@ -187,10 +234,10 @@ pub fn diff(old: &str, new: &str, tolerance: &dyn Fn(&str) -> f64) -> Vec<Change
     };
     let (a, b) = (index(old), index(new));
     let mut out = Vec::new();
-    for (k, new_cell) in &b {
-        match a.iter().find(|(ka, _)| ka == k) {
-            Some((_, old_cell)) => {
-                if let (Some(x), Some(y)) = (seconds(old_cell), seconds(new_cell)) {
+    for (k, new_cell, new_time) in &b {
+        match a.iter().find(|(ka, _, _)| ka == k) {
+            Some((_, old_cell, old_time)) => {
+                if let (Some(x), Some(y)) = (*old_time, *new_time) {
                     let ratio = y / x;
                     if (ratio - 1.0).abs() > tolerance(k) {
                         out.push(Change {
@@ -219,8 +266,8 @@ pub fn diff(old: &str, new: &str, tolerance: &dyn Fn(&str) -> f64) -> Vec<Change
             }),
         }
     }
-    for (k, old_cell) in &a {
-        if !b.iter().any(|(kb, _)| kb == k) {
+    for (k, old_cell, _) in &a {
+        if !b.iter().any(|(kb, _, _)| kb == k) {
             out.push(Change {
                 cell: k.clone(),
                 old: old_cell.clone(),

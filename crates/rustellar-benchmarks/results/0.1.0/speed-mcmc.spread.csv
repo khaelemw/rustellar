@@ -1,12 +1,12 @@
 cell,spread
-rustellar-mcmc speed / emcee 3.1.6 + batman 2.5.1 / Time per independent sample,0.0000
-rustellar-mcmc speed / emcee 3.1.6 + batman 2.5.1 / Time per independent sample,0.0000
-rustellar-mcmc speed / emcee 3.1.6 + PyTransit 2.6.18 / Time per independent sample,0.0000
-rustellar-mcmc speed / emcee 3.1.6 + PyTransit 2.6.18 / Time per independent sample,0.0000
-rustellar-mcmc speed / zeus 2.5.4 + batman 2.5.1 / Time per independent sample,0.0000
-rustellar-mcmc speed / rustellar-mcmc, 1 thread / Time per independent sample,0.0000
-rustellar-mcmc speed / rustellar-mcmc, 4 threads / Time per independent sample,0.0000
-rustellar-mcmc speed / rustellar-mcmc, 1 thread / Time per independent sample,0.0000
-rustellar-mcmc speed / rustellar-mcmc, 4 threads / Time per independent sample,0.0000
-rustellar-mcmc speed / rustellar-mcmc, 1 thread / Time per independent sample,0.0000
-rustellar-mcmc speed / rustellar-mcmc, 4 threads / Time per independent sample,0.0000
+rustellar-mcmc speed / emcee 3.1.6 + batman 2.5.1 / stretch / Time per independent sample,0.0
+rustellar-mcmc speed / emcee 3.1.6 + batman 2.5.1 / de / Time per independent sample,0.0
+rustellar-mcmc speed / emcee 3.1.6 + PyTransit 2.6.18 / stretch / Time per independent sample,0.0
+rustellar-mcmc speed / emcee 3.1.6 + PyTransit 2.6.18 / de / Time per independent sample,0.0
+rustellar-mcmc speed / zeus 2.5.4 + batman 2.5.1 / Time per independent sample,0.0
+rustellar-mcmc speed / rustellar-mcmc, 1 thread / stretch / Time per independent sample,0.0
+rustellar-mcmc speed / rustellar-mcmc, 4 threads / stretch / Time per independent sample,0.0
+rustellar-mcmc speed / rustellar-mcmc, 1 thread / de / Time per independent sample,0.0
+rustellar-mcmc speed / rustellar-mcmc, 4 threads / de / Time per independent sample,0.0
+rustellar-mcmc speed / rustellar-mcmc, 1 thread / slice / Time per independent sample,0.0
+rustellar-mcmc speed / rustellar-mcmc, 4 threads / slice / Time per independent sample,0.0
